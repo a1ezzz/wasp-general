@@ -4,7 +4,7 @@ Sphinx documentation build procedure:
 0. Clean-up
 rm -rf docs/sphinx-html/* && rm -rf docs/sphinx/api/*
 1. Generate API documentation
-sphinx-apidoc -f -o docs/sphinx/api/ wasp_launcher/
+sphinx-apidoc -f -o docs/sphinx/api/ wasp_general/
 2. Build HTML documentation
 sphinx-build docs/sphinx docs/sphinx-html
 
