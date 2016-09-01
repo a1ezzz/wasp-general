@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
@@ -34,16 +31,58 @@ from decorator import decorator
 
 
 class Verificator:
+	""" Base class for verificator implementation.
+
+	Verificators are classes, that generates decorators (which are later used for runtime function arguments
+	checking). Derived classes (such as :class:`.TypeVerificator`, :class:`SubclassVerificator` and
+	:class:`ValueVerificator`) check arguments for type and/or value validity. But each derived class uses
+	its own syntax for check declaration (see :meth:`.Verificator.check`).
+
+	Same checks can be grouped into one sentence if they are used for different arguments. Each statement can
+	be marked by tag or tags for runtime disabling. If statement doesn't have tag then it always run checks.
+
+	Checks can be simple (implemented by lambda-statements) or complex
+	(implemented by standalone functions or classes). Because target function is decorated for checking it is
+	possible to run checks sequentially.
+
+	Example: ::
+
+		@verify_type(a=int, b=str, d=(int, None), e=float)
+		@verify_subclass(c=A)
+		@verify_value(a=(lambda x: x > 5, lambda x: x < 10))
+		@verify_value(c=lambda x: x.a == 'foo', d=lambda x: x is None or x < 0)
+		def foo(a, b, c, d=None, **kwargs):
+			pass
+
+	"""
 
 	__default_environment_var__ = 'WASP_VERIFICATOR_DISABLE_CHECKS'
+	""" Default environment variable name that is used for check bypassing. Variable must contain tags separated by \
+	:attr:`.Verificator.__tags_delimiter__`. To bypass certain check all of its tags must be defined in variable.
+	"""
+
 	__tags_delimiter__ = ':'
+	""" String that is used for tag separation :attr:`.Verificator.__default_environment_var__`"""
 
 	def __init__(self, *tags, env_var=None, silent_checks=False):
+		"""Construct a new :class:`.Verificator`
+
+		:param tags: Tags to mark this checks. Now only strings are suitable.
+		:param env_var: Environment variable name that is used for check bypassing. If is None, then default  \
+		value is used :attr:`.Verificator.__default_environment_var__`
+		:param silent_checks: If it is not True, then debug information will be printed to stderr.
+		"""
 		self._tags = list(tags)
 		self._env_var = env_var if env_var is not None else self.__class__.__default_environment_var__
 		self._silent_checks = silent_checks
 
 	def check_disabled(self):
+		""" Return True if this checks must be omitted, otherwise - False.
+		This class searches for tags values in environment variable
+		(:attr:`.Verificator.__default_environment_var__`), Derived class can implement any logic
+
+		:return: bool
+		"""
 		if self._env_var not in os.environ or len(self._tags) == 0:
 			return False
 		env = os.environ[self._env_var].split(self.__class__.__tags_delimiter__)
@@ -53,9 +92,27 @@ class Verificator:
 		return True
 
 	def check(self, arg_spec, arg_name, decorated_function):
+		"""Return callable object that takes single value - future argument. This callable must raise
+		an exception if error occurs. It is recommended to return None if everything is OK
+
+		:param arg_spec: specification that is used to describe check like types, lambda-functions, \
+		list of types just anything (see :meth:`.Verificator.decorator`)
+		:param arg_name: parameter name from decorated function
+		:param decorated_function: target function (function to decorate)
+
+		:return: anything (but None recommended)
+		"""
 		return lambda x: None
 
 	def decorator(self, **arg_specs):
+		""" Return decorator that can decorate target function
+
+		:param arg_specs: dictionary where keys are parameters name and values are theirs specification.\
+		Specific specification is passed as is to :meth:`Verificator.check` method with corresponding \
+		parameter name.
+
+		:return: function
+		"""
 
 		if self.check_disabled() is True:
 			def empty_decorator(decorated_function):
@@ -78,16 +135,17 @@ class Verificator:
 
 			for arg_name in arg_specs.keys():
 				if arg_name not in args_check.keys():
-					args_check[arg_name] = \
-						self.check(arg_specs[arg_name], arg_name, decorated_function)
+					args_check[arg_name] = self.check(
+						arg_specs[arg_name], arg_name, decorated_function
+					)
 
-			def second_level_decorator(decorated_function, *args, **kwargs):
-				for i in range(len(args)):
-					arg_name = inspected_args[i]
+			def second_level_decorator(decorated_function_sl, *args, **kwargs):
+				for j in range(len(args)):
+					param_name = inspected_args[j]
 					try:
-						args_check[arg_name](args[i])
+						args_check[param_name](args[j])
 					except Exception as e:
-						self.help_info(e, decorated_function, arg_name, arg_specs[arg_name])
+						self.help_info(e, decorated_function_sl, param_name, arg_specs[arg_name])
 						raise
 
 				for kw_key in kwargs.keys():
@@ -95,14 +153,23 @@ class Verificator:
 						try:
 							args_check[kw_key](kwargs[kw_key])
 						except Exception as e:
-							self.help_info(e, decorated_function, kw_key, arg_specs[kw_key])
+							self.help_info(e, decorated_function_sl, kw_key, arg_specs[kw_key])
 							raise
 
-				return decorated_function(*args, **kwargs)
+				return decorated_function_sl(*args, **kwargs)
 			return decorator(second_level_decorator)(decorated_function)
 		return first_level_decorator
 
 	def help_info(self, exc, decorated_function, arg_name, arg_spec):
+		""" Print debug information to stderr. (Do nothing if object was constructed with silent_checks=True)
+
+		:param exc: raised exception
+		:param decorated_function: target function (function to decorate)
+		:param arg_name: function parameter name
+		:param arg_spec: function parameter specification
+
+		:return: None
+		"""
 		if self._silent_checks is not True:
 			print('Exception raised:', file=sys.stderr)
 			print(str(exc), file=sys.stderr)
@@ -115,100 +182,182 @@ class Verificator:
 				print(getsource(arg_spec), file=sys.stderr)
 			else:
 				print(str(arg_spec), file=sys.stderr)
-
 			print('', file=sys.stderr)
 
 
 class TypeVerificator(Verificator):
+	""" Verificator that is used for type verification. Checks parameter if it is instance of specified class or
+	classes. Specification accepts type or list/tuple/set of types
 
-	def raise_exception(self, exc_text, *args, **kwargs):
-		raise TypeError(exc_text)
+	Example: ::
+
+	@verify_type(a=int, b=str, d=(int, None), e=float)
+	def foo(a, b, c, d=None, **kwargs):
+		pass
+	"""
 
 	def check(self, type_spec, arg_name, decorated_function):
-		exc_text = 'Argument "%s" for function "%s" has invalid type' % (arg_name, decorated_function.__name__)
-		exc_text += ' (%s)'
+		""" Return callable that checks function parameter for type validity. Checks parameter if it is
+		instance of specified class or classes
+
+		:param type_spec: type or list/tuple/set of types
+		:param arg_name: function parameter name
+		:param decorated_function: target function
+		:return: function
+		"""
+
+		def raise_exception(text_spec):
+			exc_text = 'Argument "%s" for function "%s" has invalid type' % (
+				arg_name, decorated_function.__name__
+			)
+			exc_text += ' (%s)' % text_spec
+			raise TypeError(exc_text)
 
 		if isinstance(type_spec, (tuple, list, set)):
 			for single_type in type_spec:
 				if (single_type is not None) and isclass(single_type) is False:
-					raise RuntimeError('Invalid specification. Must be type or tuple/list/set of types')
+					raise RuntimeError(
+						'Invalid specification. Must be type or tuple/list/set of types'
+					)
 			if None in type_spec:
 				type_spec = tuple(filter(lambda x: x is not None, type_spec))
 				return lambda x: None if x is None or isinstance(x, tuple(type_spec)) is True else \
-					self.raise_exception(exc_text % str((type(x))))
+					raise_exception(str((type(x))))
 			else:
 				return lambda x: None if isinstance(x, tuple(type_spec)) is True else \
-					self.raise_exception(exc_text % str((type(x))))
+					raise_exception(str((type(x))))
 		elif isclass(type_spec):
 			return lambda x: None if isinstance(x, type_spec) is True else \
-				self.raise_exception(exc_text % str((type(x))))
+				raise_exception(str((type(x))))
 		else:
 			raise RuntimeError('Invalid specification. Must be type or tuple/list/set of types')
 
 
 class SubclassVerificator(Verificator):
+	""" Verificator that is used for type verification. Checks parameter if it is class or subclass of
+	specified class or classes. Specification accepts type or list/tuple/set of types
 
-	def raise_exception(self, exc_text, *args, **kwargs):
-		raise TypeError(exc_text)
+	Example: ::
+
+		@verify_subclass(c=A, e=(A, D))
+		def foo(a, b, c, d=None, **kwargs):
+			pass
+	"""
 
 	def check(self, type_spec, arg_name, decorated_function):
-		exc_text = 'Argument "%s" for function "%s" has invalid type' % (arg_name, decorated_function.__name__)
-		exc_text += ' (%s)'
+		""" Return callable that checks function parameter for class validity. Checks parameter if it is
+		class or subclass of specified class or classes
+
+		:param type_spec: type or list/tuple/set of types
+		:param arg_name: function parameter name
+		:param decorated_function: target function
+		:return: function
+		"""
+
+		def raise_exception(text_spec):
+			exc_text = 'Argument "%s" for function "%s" has invalid type' % (
+				arg_name, decorated_function.__name__
+			)
+			exc_text += ' (%s)' % text_spec
+			raise TypeError(exc_text)
 
 		if isinstance(type_spec, (tuple, list, set)):
 			for single_type in type_spec:
 				if (single_type is not None) and isclass(single_type) is False:
-					raise RuntimeError('Invalid specification. Must be type or tuple/list/set of types')
+					raise RuntimeError(
+						'Invalid specification. Must be type or tuple/list/set of types'
+					)
 			if None in type_spec:
 				type_spec = tuple(filter(lambda x: x is not None, type_spec))
-				return lambda x: None if x is None or (isclass(x) is True and issubclass(x, type_spec) is True) else \
-					self.raise_exception(exc_text % str(x))
+				return lambda x: None if \
+					x is None or (isclass(x) is True and issubclass(x, type_spec) is True) else \
+					raise_exception(str(x))
 			else:
 				return lambda x: None if (isclass(x) is True and issubclass(x, type_spec) is True) else \
-					self.raise_exception(exc_text % str(x))
+					raise_exception(str(x))
 		elif isclass(type_spec):
 			return lambda x: None if (isclass(x) is True and issubclass(x, type_spec) is True) else \
-				self.raise_exception(exc_text % str(x))
+				raise_exception(str(x))
 		else:
 			raise RuntimeError('Invalid specification. Must be type or tuple/list/set of types')
 
 
 class ValueVerificator(Verificator):
+	""" Verificator that is used for value verification. Checks parameter if its value passes specified restrictions.
+	Specification accepts function or list/tuple/set of functions. Each function must accept one parameter and
+	must return True or False if it passed restrictions or not.
 
-	def raise_exception(self, exc_text, *args, **kwargs):
-		raise ValueError(exc_text)
+	Example: ::
+		@verify_value(a=(lambda x: x > 5, lambda x: x < 10))
+		@verify_value(c=lambda x: x.a == 'foo', d=lambda x: x is None or x < 0)
+		def foo(a, b, c, d=None, **kwargs):
+		pass
+	"""
 
 	def check(self, value_spec, arg_name, decorated_function):
+		""" Return callable that checks function parameter for value validity. Checks parameter if its value
+		passes specified restrictions.
 
-		exc_text = 'Argument "%s" for function "%s" has invalid value' % (arg_name, decorated_function.__name__)
-		exc_text += ' (%s)'
+		:param value_spec: function or list/tuple/set of functions. Each function must accept one parameter and \
+		must return True or False if it passed restrictions or not.
+		:param arg_name: function parameter name
+		:param decorated_function: target function
+		:return: function
+		"""
+
+		def raise_exception(text_spec):
+			exc_text = 'Argument "%s" for function "%s" has invalid value' % (
+				arg_name, decorated_function.__name__
+			)
+			exc_text += ' (%s)' % text_spec
+			raise ValueError(exc_text)
 
 		if isinstance(value_spec, (tuple, list, set)):
 
 			for single_value in value_spec:
 				if isfunction(single_value) is False:
-					raise RuntimeError('Invalid specification. Must be function or tuple/list/set of functions')
+					raise RuntimeError(
+						'Invalid specification. Must be function or tuple/list/set of functions'
+					)
 
 			def check(x):
 				for f in value_spec:
 					if f(x) is not True:
-						self.raise_exception(exc_text % str(x))
+						raise_exception(str(x))
 
 			return check
 
 		elif isfunction(value_spec):
-			return lambda x: None if value_spec(x) is True else self.raise_exception(exc_text % str(x))
+			return lambda x: None if value_spec(x) is True else raise_exception(str(x))
 		else:
 			raise RuntimeError('Invalid specification. Must be function or tuple/list/set of functions')
 
 
 def verify_type(*tags, **type_kwargs):
-	return (TypeVerificator(*tags).decorator(**type_kwargs))
+	""" Shortcut for :class:`.TypeVerificator`
+
+	:param tags: verification tags. See :meth:`.Verificator.__init__`
+	:param type_kwargs: verificator specification. See :meth:`.TypeVerificator.check`
+	:return: decorator (function)
+	"""
+	return TypeVerificator(*tags).decorator(**type_kwargs)
 
 
 def verify_subclass(*tags, **type_kwargs):
-	return (SubclassVerificator(*tags).decorator(**type_kwargs))
+	""" Shortcut for :class:`.SubclassVerificator`
+
+	:param tags: verification tags. See :meth:`.Verificator.__init__`
+	:param type_kwargs: verificator specification. See :meth:`.SubclassVerificator.check`
+	:return: decorator (function)
+	"""
+	return SubclassVerificator(*tags).decorator(**type_kwargs)
 
 
 def verify_value(*tags, **type_kwargs):
-	return (ValueVerificator(*tags).decorator(**type_kwargs))
+	""" Shortcut for :class:`.ValueVerificator`
+
+	:param tags: verification tags. See :meth:`.Verificator.__init__`
+	:param type_kwargs: verificator specification. See :meth:`.ValueVerificator.check`
+	:return: decorator (function)
+	"""
+	return ValueVerificator(*tags).decorator(**type_kwargs)
