@@ -62,3 +62,14 @@ class WTaskStatus(WTask):
 
 	def started(self):
 		return self.__started
+
+
+class WTaskHealth(WTaskStatus):
+
+	@abstractmethod
+	def sensor(self, sensor_name):
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def healthy(self):
+		raise NotImplementedError('This method is abstract')

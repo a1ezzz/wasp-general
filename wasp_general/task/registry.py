@@ -35,11 +35,11 @@ from wasp_general.task.base import WTask
 class WTaskRegistryBase(metaclass=ABCMeta):
 
 	@abstractmethod
-	def add(self, task, registry_tag):
+	def add(self, task):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	def remove(self, task, registry_tag):
+	def remove(self, task):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
@@ -57,16 +57,22 @@ class WTaskRegistryBase(metaclass=ABCMeta):
 
 class WTaskRegistryStorage(WTaskRegistryBase):
 
+	__multiple_tasks_per_tag__ = True
+
 	def __init__(self):
 		self.__registry = {}
 
-	def add(self, task, registry_tag):
+	def add(self, task):
+		registry_tag = task.__registry_tag__
 		if registry_tag not in self.__registry.keys():
 			self.__registry[registry_tag] = [task]
-		else:
+		elif self.__multiple_tasks_per_tag__ is True:
 			self.__registry[registry_tag].append(task)
+		else:
+			raise RuntimeError('Multiple tasks with same tag appended')
 
-	def remove(self, task, registry_tag):
+	def remove(self, task):
+		registry_tag = task.__registry_tag__
 		if registry_tag in self.__registry.keys():
 			self.__registry[registry_tag].remove(task)
 			if len(self.__registry[registry_tag]) == 0:
@@ -77,8 +83,9 @@ class WTaskRegistryStorage(WTaskRegistryBase):
 
 	def tasks(self, registry_tag):
 		if registry_tag not in self.__registry.keys():
-			return []
-		return self.__registry[registry_tag]
+			return None
+		tasks = self.__registry[registry_tag]
+		return tasks if self.__multiple_tasks_per_tag__ is True else tasks[0]
 
 	def count(self):
 		result = 0
@@ -101,12 +108,12 @@ class WTaskRegistry:
 		return cls.__registry_storage__
 
 	@classmethod
-	def add(cls, task, registry_tag=None):
-		cls.registry_storage().add(task, registry_tag)
+	def add(cls, task):
+		cls.registry_storage().add(task)
 
 	@classmethod
-	def remove(cls, task, registry_tag=None):
-		cls.registry_storage().remove(task, registry_tag)
+	def remove(cls, task):
+		cls.registry_storage().remove(task)
 
 	@classmethod
 	def clear(cls):
@@ -127,4 +134,4 @@ class WRegisteredTask(ABCMeta):
 		if issubclass(cls.__registry__, WTaskRegistry) is False:
 			raise TypeError("Property '__registry__' of tasks class has invalid type (must be WTaskRegistry or its subclass)")
 
-		cls.__registry__.add(cls, cls.__registry_tag__)
+		cls.__registry__.add(cls)
