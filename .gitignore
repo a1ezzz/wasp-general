@@ -5,3 +5,4 @@ __pycache__/
 docs/pytest/
 docs/sphinx-html/
 docs/sphinx/api
+tests/.coverage
