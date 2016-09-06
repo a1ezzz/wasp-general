@@ -191,9 +191,9 @@ class TypeVerificator(Verificator):
 
 	Example: ::
 
-	@verify_type(a=int, b=str, d=(int, None), e=float)
-	def foo(a, b, c, d=None, **kwargs):
-		pass
+		@verify_type(a=int, b=str, d=(int, None), e=float)
+		def foo(a, b, c, d=None, **kwargs):
+			pass
 	"""
 
 	def check(self, type_spec, arg_name, decorated_function):
@@ -288,6 +288,7 @@ class ValueVerificator(Verificator):
 	must return True or False if it passed restrictions or not.
 
 	Example: ::
+
 		@verify_value(a=(lambda x: x > 5, lambda x: x < 10))
 		@verify_value(c=lambda x: x.a == 'foo', d=lambda x: x is None or x < 0)
 		def foo(a, b, c, d=None, **kwargs):
