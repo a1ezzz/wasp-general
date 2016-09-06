@@ -25,9 +25,10 @@ import subprocess
 
 def revision():
 	try:
-		return subprocess.getoutput("svnversion")
+		#return subprocess.getoutput("svnversion")
+		return subprocess.getoutput("git rev-list --count HEAD")
 	except:
-		return "0"
+		return "--"
 
 
 __author__ = "Ildar Gafurov"
