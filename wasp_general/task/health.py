@@ -150,6 +150,7 @@ class WTaskHealth(WTaskStatus, metaclass=ABCMeta):
 			if isinstance(sensor, WTaskHealthSensor) is False:
 				raise TypeError('Invalid sensor')
 
+			# noinspection PyUnresolvedReferences
 			self._sensors[sensor.name()] = sensor
 
 	def sensor(self, sensor_name):
