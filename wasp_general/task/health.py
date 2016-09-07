@@ -28,7 +28,7 @@ from abc import ABCMeta, abstractmethod
 from enum import Enum
 
 from wasp_general.task.base import WTaskStatus
-from wasp_general.check.verify import verify_type, verify_value
+from wasp_general.verify import verify_type, verify_value
 
 
 class WTaskHealthSensor(metaclass=ABCMeta):

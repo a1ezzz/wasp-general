@@ -24,7 +24,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from wasp_general.check.verify import verify_type, verify_subclass
+from wasp_general.verify import verify_type, verify_subclass
 from wasp_general.task.registry import WTaskRegistry, WRegisteredTask, WTaskRegistryStorage
 from wasp_general.task.base import WTask, WStoppableTask
 

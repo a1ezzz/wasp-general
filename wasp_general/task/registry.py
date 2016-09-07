@@ -26,7 +26,7 @@ from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod
 
-from wasp_general.check.verify import verify_subclass, verify_type
+from wasp_general.verify import verify_subclass, verify_type
 from wasp_general.task.base import WTask
 
 

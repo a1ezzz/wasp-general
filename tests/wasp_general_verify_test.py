@@ -4,8 +4,8 @@ import pytest
 import os
 from inspect import isfunction
 
-from wasp_general.check.verify import Verificator, TypeVerificator, SubclassVerificator, ValueVerificator
-from wasp_general.check.verify import verify_type, verify_subclass, verify_value
+from wasp_general.verify import Verificator, TypeVerificator, SubclassVerificator, ValueVerificator
+from wasp_general.verify import verify_type, verify_subclass, verify_value
 
 
 @pytest.fixture
