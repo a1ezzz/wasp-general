@@ -19,96 +19,261 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
+from wasp_general.check.verify import verify_type, verify_subclass
 from wasp_general.task.registry import WTaskRegistry, WRegisteredTask, WTaskRegistryStorage
-
-
-class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
-
-	__multiple_tasks_per_tag__ = False
-
-	#//WTaskStatus
-	def add(self, task):
-		return WTaskRegistryStorage.add(self, task)
-
-	#//WDependentTask
-	def dependency_check(self, task, skip_unresolved=False):
-
-		def check(check_task, global_dependencies):
-			if check_task.__registry_tag__ in global_dependencies:
-				raise RuntimeError('Recursion dependencies for %s' % task.__registry_tag__)
-
-			dependencies = global_dependencies.copy()
-			dependencies.append(check_task.__registry_tag__)
-
-			for dependency in check_task.__dependency__:
-				dependent_task = self.tasks(dependency)
-				if dependent_task is None and skip_unresolved is False:
-					raise RuntimeError("Task '%s' dependency unresolved (%s)" % (task.__registry_tag__, dependency))
-
-				if dependent_task is not None:
-					check(dependent_task, dependencies)
-
-		check(task, [])
-
-	def start_task(self, task_name, skip_unresolved=False):
-		task = self.tasks(task_name)
-		if task is None:
-			raise RuntimeError("Task '%s' wasn't found" % task_name)
-		self.dependency_check(task, skip_unresolved=skip_unresolved)
-
-		def start_dependency(start_task):
-			for dependency in start_task.__dependency__:
-				dependent_task = self.tasks(dependency)
-				if dependent_task is None and skip_unresolved is False:
-					raise RuntimeError("Task '%s' dependency unresolved (%s)" % (task.__registry_tag__, dependency))
-
-				if dependent_task is not None:
-					start_dependency(dependent_task)
-
-			start_task.start()
-
-		start_dependency(task)
-
-
-class WTaskDependencyRegistry(WTaskRegistry):
-
-	@classmethod
-	def registry_storage(cls):
-		if cls.__registry_storage__ is None:
-			raise ValueError('__registry_storage__ must be defined')
-		if isinstance(cls.__registry_storage__, WTaskDependencyRegistryStorage) is False:
-			raise TypeError("Property '__registry_storage__' is invalid (must derived from WTaskRegistryBase)")
-
-		return cls.__registry_storage__
-
-	@classmethod
-	def start_task(cls, task_name):
-		registry = cls.registry_storage()
-		registry.start_task(task_name)
+from wasp_general.task.base import WTask, WStoppableTask
 
 
 class WDependentTask(WRegisteredTask):
+	""" Metaclass for dependent tasks. It is used for automatic resolving required dependencies (starting required
+	tasks). Derived classes must be able to be constructed with constructor without arguments or they must
+	override :meth:`.WDependentTask.start_dependent_task` method.
+
+	If derived class inherits :class:`wasp_general.task.base.WStoppableTask` class, then it could be stopped
+	(automatically stopped via registry class, such as :class:`.WTaskDependencyRegistry`)
+
+	__registry_tag__ property must be defined and it has to be a str type
+	"""
 
 	__dependency__ = []
+	""" List of tags (str). Each tag represent task, that required to start prior to this task.
+	"""
 	__description__ = None
+	""" Just task description. Should be str type.
+	"""
 
-	def __init__(cls, name, bases, dict):
+	def __init__(cls, name, bases, namespace):
+		""" Construct new class. Derived class must redefine __registry__ and __registry_tag__ properties.
+		In order to start dependency task automatically, property __dependency__ must be redefined.
+
+		It is highly important, that derived class method :meth:`.WDependentTask.start_dependent_task` will
+		be able to construct and start this task.
+
+		:param name: as name in type(cls, name, bases, namespace)
+		:param bases: as bases in type(cls, name, bases, namespace)
+		:param namespace: as namespace in type(cls, name, bases, namespace)
+		"""
+
+		if cls.__registry__ is None:
+			raise ValueError('__registry__ must be defined')
 
 		if issubclass(cls.__registry__, WTaskDependencyRegistry) is False:
-			raise TypeError("Property '__registry__' of tasks class has invalid type (must be WTaskDependencyRegistry or its subclass)")
+			raise TypeError(
+				"Property '__registry__' of tasks class has invalid type (must be "
+				"WTaskDependencyRegistry or its subclass)"
+			)
 
 		if cls.__registry_tag__ is None:
 			raise ValueError("Property '__registry_tag__' must be defined")
 
-		if isinstance(cls.__registry_tag__, str):
+		if isinstance(cls.__registry_tag__, str) is False:
 			raise TypeError("Property '__registry_tag__' must be string type")
 
-		WRegisteredTask.__init__(cls, name, bases, dict)
+		WRegisteredTask.__init__(cls, name, bases, namespace)
+
+	def start_dependent_task(cls):
+		""" Start this task and return its instance
+
+		:return: WTask
+		"""
+		task = cls()
+		# noinspection PyUnresolvedReferences
+		task.start()
+		return task
+
+
+class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
+	""" Storage that is used to store :class:`.WDependentTask` task.
+	"""
+
+	__multiple_tasks_per_tag__ = False
+	""" Each task must have unique __registry_tag__ property.
+	See :attr:`wasp_general.task.registry.WTaskRegistryStorage.__multiple_tasks_per_tag__`
+	"""
+
+	def __init__(self):
+		""" Construct new storage
+		"""
+		WTaskRegistryStorage.__init__(self)
+		self.__started = []
+
+	@verify_type(task_cls=WDependentTask)
+	def add(self, task_cls):
+		""" Add task to this storage. Multiple tasks with the same tag are not allowed
+
+		:param task_cls: task to add
+		:return: None
+		"""
+		return WTaskRegistryStorage.add(self, task_cls)
+
+	@verify_subclass(task_cls=WTask)
+	@verify_type(task_cls=WDependentTask)
+	def dependency_check(self, task_cls, skip_unresolved=False):
+		""" Check dependency of task for irresolvable conflicts (like task to task mutual dependency)
+
+		:param task_cls: task to check
+		:param skip_unresolved: flag controls this method behaviour for tasks that could not be found. \
+		When False, method will raise an exception if task tag was set in dependency and the related task \
+		wasn't found in registry. When True that unresolvable task will be omitted
+
+		:return: None
+		"""
+
+		def check(check_task_cls, global_dependencies):
+			if check_task_cls.__registry_tag__ in global_dependencies:
+				raise RuntimeError('Recursion dependencies for %s' % task_cls.__registry_tag__)
+
+			dependencies = global_dependencies.copy()
+			dependencies.append(check_task_cls.__registry_tag__)
+
+			for dependency in check_task_cls.__dependency__:
+				dependent_task = self.tasks(dependency)
+				if dependent_task is None and skip_unresolved is False:
+					raise RuntimeError(
+						"Task '%s' dependency unresolved (%s)" %
+						(task_cls.__registry_tag__, dependency)
+					)
+
+				if dependent_task is not None:
+					check(dependent_task, dependencies)
+
+		check(task_cls, [])
+
+	@verify_type(task_tag=str)
+	def started_task(self, task_tag):
+		""" Get started task instance from registry by its tag
+
+		:param task_tag: task tag
+		:return: started task instance (WTask)
+		"""
+
+		for task in self.__started:
+			if task.__registry_tag__ == task_tag:
+				return task
+
+	@verify_type(task_tag=str, skip_unresolved=bool)
+	def start_task(self, task_tag, skip_unresolved=False):
+		""" Check dependency for the given task_tag and start task. For dependency checking see
+		:meth:`.WTaskDependencyRegistryStorage.dependency_check`. If task is already started then it must be
+		stopped before it will be started again.
+
+		:param task_tag: task to start. Any required dependencies will be started automatically.
+		:param skip_unresolved: flag controls this method behaviour for tasks that could not be found. \
+		When False, method will raise an exception if task tag was set in dependency and the related task \
+		wasn't found in registry. When True that unresolvable task will be omitted
+
+		:return: None
+		"""
+		if self.started_task(task_tag) is not None:
+			return
+
+		task_cls = self.tasks(task_tag)
+		if task_cls is None:
+			raise RuntimeError("Task '%s' wasn't found" % task_tag)
+
+		self.dependency_check(task_cls, skip_unresolved=skip_unresolved)
+
+		def start_dependency(start_task_cls):
+			for dependency in start_task_cls.__dependency__:
+
+				if self.started_task(dependency) is not None:
+					continue
+
+				dependent_task = self.tasks(dependency)
+
+				if dependent_task is not None:
+					start_dependency(dependent_task)
+
+			self.__started.append(start_task_cls.start_dependent_task())
+
+		start_dependency(task_cls)
+
+	@verify_type(task_tag=str, stop_dependent=bool)
+	def stop_task(self, task_tag, stop_dependent=True):
+		""" Stop task with the given task tag. If task already stopped, then nothing happens.
+
+		:param task_tag: task to stop
+		:param stop_dependent: if True, then every task, that require the given task as dependency, will be \
+		stopped before. Otherwise - only the given task will be stopped.
+		:return: None
+		"""
+
+		def stop(task_to_stop):
+			if task_to_stop in self.__started:
+				if isinstance(task_to_stop, WStoppableTask) is True:
+					task_to_stop.stop()
+				self.__started.remove(task_to_stop)
+
+		task = self.started_task(task_tag)
+
+		if task is None:
+			return
+
+		# noinspection PyUnresolvedReferences
+		if stop_dependent is False:
+			stop(task)
+			return
+
+		def stop_dependency(task_to_stop):
+			deeper_dependencies = []
+			for dependent_task in self.__started:
+				# noinspection PyUnresolvedReferences
+				if task_to_stop.__registry_tag__ in dependent_task.__class__.__dependency__:
+					deeper_dependencies.append(dependent_task)
+
+			for dependent_task in deeper_dependencies:
+				stop_dependency(dependent_task)
+
+			stop(task_to_stop)
+
+		stop_dependency(task)
+
+
+class WTaskDependencyRegistry(WTaskRegistry):
+	""" Registry for the :class:`.WDependentTask` classes. Registry storage must be
+
+	Derived classes must redefine __registry_storage__ property (which has to be
+	:class:`.WTaskDependencyRegistryStorage` instance). (see :attr:`.WTaskRegistry.__registry_storage__`)
+	"""
+
+	@classmethod
+	def registry_storage(cls):
+		""" Get registry storage
+
+		:return: WTaskDependencyRegistryStorage
+		"""
+		if cls.__registry_storage__ is None:
+			raise ValueError('__registry_storage__ must be defined')
+		if isinstance(cls.__registry_storage__, WTaskDependencyRegistryStorage) is False:
+			raise TypeError(
+				"Property '__registry_storage__' is invalid (must derived from WTaskRegistryBase)"
+			)
+
+		return cls.__registry_storage__
+
+	@classmethod
+	def start_task(cls, task_tag, skip_unresolved=False):
+		""" Start task from registry
+
+		:param task_tag: same as in :meth:`.WTaskDependencyRegistryStorage.start_task` method
+		:param skip_unresolved: same as in :meth:`.WTaskDependencyRegistryStorage.start_task` method
+		:return: None
+		"""
+		registry = cls.registry_storage()
+		registry.start_task(task_tag, skip_unresolved=skip_unresolved)
+
+	@classmethod
+	def stop_task(cls, task_tag, stop_dependent=True):
+		""" Stop started task from registry
+
+		:param task_tag: same as in :meth:`.WTaskDependencyRegistryStorage.stop_task` method
+		:param stop_dependent: same as in :meth:`.WTaskDependencyRegistryStorage.stop_task` method
+		:return: None
+		"""
+		registry = cls.registry_storage()
+		registry.stop_task(task_tag, stop_dependent=stop_dependent)
