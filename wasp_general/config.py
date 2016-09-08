@@ -25,8 +25,9 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 from configparser import ConfigParser
+import os
 
-from wasp_general.verify import verify_type
+from wasp_general.verify import verify_type, verify_value
 
 
 class WConfig(ConfigParser):
@@ -49,6 +50,7 @@ class WConfig(ConfigParser):
 		return [x.strip() for x in (value.split(","))]
 
 	@verify_type(config=(str, ConfigParser))
+	@verify_value(config=lambda x: isinstance(x, ConfigParser) or os.path.isfile(x))
 	def merge(self, config):
 		""" Load configuration from given configuration.
 
