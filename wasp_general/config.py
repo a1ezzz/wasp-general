@@ -61,3 +61,23 @@ class WConfig(ConfigParser):
 			self.update(config)
 		elif isinstance(config, str):
 			self.read(config)
+
+	@verify_type(config=ConfigParser, section_to=str, section_from=(str, None))
+	def merge_section(self, config, section_to, section_from=None):
+		""" Load configuration section from other configuration. If specified section doesn't exist in current
+		configuration, then it will be added automatically.
+
+		:param config: source configuration
+		:param section_to: destination section name
+		:param section_from: source section name (if it is None, then section_to is used as source section name)
+		:return: None
+		"""
+		section_from = section_from if section_from is not None else section_to
+		if section_from not in config.sections():
+			raise ValueError('There is no such section "%s" in config' % section_from)
+
+		if section_to not in self.sections():
+			self.add_section(section_to)
+
+		for option in config[section_from].keys():
+			self.set(section_to, option, config[section_from][option])
