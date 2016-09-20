@@ -88,7 +88,7 @@ class WMeasurableTaskHealthSensor(WTaskHealthSensor, metaclass=ABCMeta):
 	""" Represent measurable sensor
 	"""
 
-	@verify_value(comparator=lambda x: x is None or hasattr(x, '__call__'))
+	@verify_value(comparator=lambda x: x is None or callable(x))
 	def __init__(self, name, severity, error_value, description=None, comparator=None):
 		""" Construct new measurable sensor.
 
