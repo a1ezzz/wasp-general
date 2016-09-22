@@ -183,7 +183,7 @@ class WBinArray:
 		:return: list of WBinArray
 		"""
 		result = []
-		array = WBinArray(int(self))
+		array = WBinArray(self.__value, self.__size)
 
 		if (len(array) % bits_count) > 0:
 			array.resize(len(array) + (bits_count - (len(array) % bits_count)))
