@@ -140,7 +140,7 @@ class Verificator:
 					)
 
 			def second_level_decorator(decorated_function_sl, *args, **kwargs):
-				for j in range(len(args)):
+				for j in range(min(len(args), len(inspected_args))):
 					param_name = inspected_args[j]
 					try:
 						args_check[param_name](args[j])
