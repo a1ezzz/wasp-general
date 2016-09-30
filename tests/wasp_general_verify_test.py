@@ -100,6 +100,23 @@ class TestTypeVerificator:
 		pytest.raises(TypeError, "decorated_foo(1, None, 'o', d=.1)")
 		pytest.raises(TypeError, "decorated_foo(1, None, 'b', e='a')")
 
+		def foo(*args):
+			pass
+
+		decorated_foo = verificator.decorator(args=int)(foo)
+		decorated_foo()
+		decorated_foo(1, 2, 3)
+		pytest.raises(TypeError, decorated_foo, 0.1)
+		pytest.raises(TypeError, decorated_foo, 1, 0.1, 4)
+
+		def foo(x, *args):
+			pass
+
+		decorated_foo = verificator.decorator(args=(int, float))(foo)
+		decorated_foo('')
+		decorated_foo('', 0.1, 2, 3)
+		pytest.raises(TypeError, decorated_foo, '', '')
+
 
 class TestSubclassVerificator:
 

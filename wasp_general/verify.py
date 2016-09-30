@@ -48,12 +48,11 @@ class Verificator:
 	Example: ::
 
 		@verify_type(a=int, b=str, d=(int, None), e=float)
-		@verify_subclass(c=A)
-		@verify_value(a=(lambda x: x > 5, lambda x: x < 10))
+		@verify_subclass(c=A, args=B)
+		@verify_value(a=(lambda x: x > 5, lambda x: x < 10), args=lambda x: x > 0)
 		@verify_value(c=lambda x: x.a == 'foo', d=lambda x: x is None or x < 0)
-		def foo(a, b, c, d=None, **kwargs):
+		def foo(a, b, c, d=None, *args, **kwargs):
 			pass
-
 	"""
 
 	__default_environment_var__ = 'WASP_VERIFICATOR_DISABLE_CHECKS'
@@ -121,7 +120,10 @@ class Verificator:
 
 		def first_level_decorator(decorated_function):
 
-			inspected_args = getfullargspec(decorated_function).args
+			spec = getfullargspec(decorated_function)
+			inspected_args = spec.args
+			inspected_varargs = spec.varargs
+			inspected_varargs_check = lambda x: None
 			args_check = {}
 
 			for i in range(len(inspected_args)):
@@ -132,6 +134,11 @@ class Verificator:
 					continue
 
 				args_check[arg_name] = self.check(arg_specs[arg_name], arg_name, decorated_function)
+
+			if inspected_varargs is not None and inspected_varargs in arg_specs.keys():
+				inspected_varargs_check = self.check(
+					arg_specs[inspected_varargs], inspected_varargs, decorated_function
+				)
 
 			for arg_name in arg_specs.keys():
 				if arg_name not in args_check.keys():
@@ -147,6 +154,14 @@ class Verificator:
 					except Exception as e:
 						self.help_info(e, decorated_function_sl, param_name, arg_specs[arg_name])
 						raise
+
+				if inspected_varargs is not None:
+					for j in range(len(inspected_args), len(args)):
+						try:
+							inspected_varargs_check(args[j])
+						except Exception as e:
+							self.help_info(e, decorated_function_sl, inspected_varargs, arg_specs[arg_name])
+							raise
 
 				for kw_key in kwargs.keys():
 					if kw_key in args_check.keys():
