@@ -26,7 +26,7 @@ from wasp_general.version import __status__
 
 import sys
 import os
-from inspect import getargspec, isclass, isfunction, getsource
+from inspect import getfullargspec, isclass, isfunction, getsource
 from decorator import decorator
 
 
@@ -121,7 +121,7 @@ class Verificator:
 
 		def first_level_decorator(decorated_function):
 
-			inspected_args = getargspec(decorated_function).args
+			inspected_args = getfullargspec(decorated_function).args
 			args_check = {}
 
 			for i in range(len(inspected_args)):
