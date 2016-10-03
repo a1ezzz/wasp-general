@@ -141,15 +141,12 @@ class WTaskHealth(WTaskStatus, metaclass=ABCMeta):
 	This is optional for the most tasks.
 	"""
 
+	@verify_type(sensors=WTaskHealthSensor)
 	def __init__(self, *sensors, decorate_start=True, decorate_stop=True):
 		WTaskStatus.__init__(self, decorate_start=decorate_start, decorate_stop=decorate_stop)
 
 		self._sensors = {}
-
 		for sensor in sensors:
-			if isinstance(sensor, WTaskHealthSensor) is False:
-				raise TypeError('Invalid sensor')
-
 			# noinspection PyUnresolvedReferences
 			self._sensors[sensor.name()] = sensor
 
