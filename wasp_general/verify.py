@@ -30,13 +30,13 @@ from inspect import getfullargspec, isclass, isfunction, getsource
 from decorator import decorator
 
 
-class Verificator:
-	""" Base class for verificator implementation.
+class Verifier:
+	""" Base class for verifier implementation.
 
-	Verificators are classes, that generates decorators (which are later used for runtime function arguments
-	checking). Derived classes (such as :class:`.TypeVerificator`, :class:`SubclassVerificator` and
-	:class:`ValueVerificator`) check arguments for type and/or value validity. But each derived class uses
-	its own syntax for check declaration (see :meth:`.Verificator.check`).
+	Verifiers are classes, that generates decorators (which are later used for runtime function arguments
+	checking). Derived classes (such as :class:`.TypeVerifier`, :class:`SubclassVerifier` and
+	:class:`ValueVerifier`) check arguments for type and/or value validity. But each derived class uses
+	its own syntax for check declaration (see :meth:`.Verifier.check`).
 
 	Same checks can be grouped into one sentence if they are used for different arguments. Each statement can
 	be marked by tag or tags for runtime disabling. If statement doesn't have tag then it always run checks.
@@ -55,20 +55,20 @@ class Verificator:
 			pass
 	"""
 
-	__default_environment_var__ = 'WASP_VERIFICATOR_DISABLE_CHECKS'
+	__default_environment_var__ = 'WASP_VERIFIER_DISABLE_CHECKS'
 	""" Default environment variable name that is used for check bypassing. Variable must contain tags separated by \
-	:attr:`.Verificator.__tags_delimiter__`. To bypass certain check all of its tags must be defined in variable.
+	:attr:`.Verifier.__tags_delimiter__`. To bypass certain check all of its tags must be defined in variable.
 	"""
 
 	__tags_delimiter__ = ':'
-	""" String that is used for tag separation :attr:`.Verificator.__default_environment_var__`"""
+	""" String that is used for tag separation :attr:`.Verifier.__default_environment_var__`"""
 
 	def __init__(self, *tags, env_var=None, silent_checks=False):
-		"""Construct a new :class:`.Verificator`
+		"""Construct a new :class:`.Verifier`
 
 		:param tags: Tags to mark this checks. Now only strings are suitable.
 		:param env_var: Environment variable name that is used for check bypassing. If is None, then default  \
-		value is used :attr:`.Verificator.__default_environment_var__`
+		value is used :attr:`.Verifier.__default_environment_var__`
 		:param silent_checks: If it is not True, then debug information will be printed to stderr.
 		"""
 		self._tags = list(tags)
@@ -78,7 +78,7 @@ class Verificator:
 	def check_disabled(self):
 		""" Return True if this checks must be omitted, otherwise - False.
 		This class searches for tags values in environment variable
-		(:attr:`.Verificator.__default_environment_var__`), Derived class can implement any logic
+		(:attr:`.Verifier.__default_environment_var__`), Derived class can implement any logic
 
 		:return: bool
 		"""
@@ -95,7 +95,7 @@ class Verificator:
 		an exception if error occurs. It is recommended to return None if everything is OK
 
 		:param arg_spec: specification that is used to describe check like types, lambda-functions, \
-		list of types just anything (see :meth:`.Verificator.decorator`)
+		list of types just anything (see :meth:`.Verifier.decorator`)
 		:param arg_name: parameter name from decorated function
 		:param decorated_function: target function (function to decorate)
 
@@ -107,7 +107,7 @@ class Verificator:
 		""" Return decorator that can decorate target function
 
 		:param arg_specs: dictionary where keys are parameters name and values are theirs specification.\
-		Specific specification is passed as is to :meth:`Verificator.check` method with corresponding \
+		Specific specification is passed as is to :meth:`Verifier.check` method with corresponding \
 		parameter name.
 
 		:return: function
@@ -200,8 +200,8 @@ class Verificator:
 			print('', file=sys.stderr)
 
 
-class TypeVerificator(Verificator):
-	""" Verificator that is used for type verification. Checks parameter if it is instance of specified class or
+class TypeVerifier(Verifier):
+	""" Verifier that is used for type verification. Checks parameter if it is instance of specified class or
 	classes. Specification accepts type or list/tuple/set of types
 
 	Example: ::
@@ -248,8 +248,8 @@ class TypeVerificator(Verificator):
 			raise RuntimeError('Invalid specification. Must be type or tuple/list/set of types')
 
 
-class SubclassVerificator(Verificator):
-	""" Verificator that is used for type verification. Checks parameter if it is class or subclass of
+class SubclassVerifier(Verifier):
+	""" Verifier that is used for type verification. Checks parameter if it is class or subclass of
 	specified class or classes. Specification accepts type or list/tuple/set of types
 
 	Example: ::
@@ -297,8 +297,8 @@ class SubclassVerificator(Verificator):
 			raise RuntimeError('Invalid specification. Must be type or tuple/list/set of types')
 
 
-class ValueVerificator(Verificator):
-	""" Verificator that is used for value verification. Checks parameter if its value passes specified restrictions.
+class ValueVerifier(Verifier):
+	""" Verifier that is used for value verification. Checks parameter if its value passes specified restrictions.
 	Specification accepts function or list/tuple/set of functions. Each function must accept one parameter and
 	must return True or False if it passed restrictions or not.
 
@@ -350,30 +350,30 @@ class ValueVerificator(Verificator):
 
 
 def verify_type(*tags, **type_kwargs):
-	""" Shortcut for :class:`.TypeVerificator`
+	""" Shortcut for :class:`.TypeVerifier`
 
-	:param tags: verification tags. See :meth:`.Verificator.__init__`
-	:param type_kwargs: verificator specification. See :meth:`.TypeVerificator.check`
+	:param tags: verification tags. See :meth:`.Verifier.__init__`
+	:param type_kwargs: verifier specification. See :meth:`.TypeVerifier.check`
 	:return: decorator (function)
 	"""
-	return TypeVerificator(*tags).decorator(**type_kwargs)
+	return TypeVerifier(*tags).decorator(**type_kwargs)
 
 
 def verify_subclass(*tags, **type_kwargs):
-	""" Shortcut for :class:`.SubclassVerificator`
+	""" Shortcut for :class:`.SubclassVerifier`
 
-	:param tags: verification tags. See :meth:`.Verificator.__init__`
-	:param type_kwargs: verificator specification. See :meth:`.SubclassVerificator.check`
+	:param tags: verification tags. See :meth:`.Verifier.__init__`
+	:param type_kwargs: verifier specification. See :meth:`.SubclassVerifier.check`
 	:return: decorator (function)
 	"""
-	return SubclassVerificator(*tags).decorator(**type_kwargs)
+	return SubclassVerifier(*tags).decorator(**type_kwargs)
 
 
 def verify_value(*tags, **type_kwargs):
-	""" Shortcut for :class:`.ValueVerificator`
+	""" Shortcut for :class:`.ValueVerifier`
 
-	:param tags: verification tags. See :meth:`.Verificator.__init__`
-	:param type_kwargs: verificator specification. See :meth:`.ValueVerificator.check`
+	:param tags: verification tags. See :meth:`.Verifier.__init__`
+	:param type_kwargs: verifier specification. See :meth:`.ValueVerifier.check`
 	:return: decorator (function)
 	"""
-	return ValueVerificator(*tags).decorator(**type_kwargs)
+	return ValueVerifier(*tags).decorator(**type_kwargs)
