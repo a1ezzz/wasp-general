@@ -14,7 +14,7 @@ def test_random_bits():
 def test_random_int():
 	assert(isinstance(random_int(10), int) is True)
 	assert(random_int(0) == 0)
-	assert(random_int(10) != random_int(10))
+	assert(random_int(1000) != random_int(1000))
 	assert(random_int(10) <= 10)
 
 
