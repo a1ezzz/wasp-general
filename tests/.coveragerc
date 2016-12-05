@@ -3,4 +3,4 @@
 directory= ../docs/pytest/coverage
 
 [xml]
-output=coverage.xml
+output=./coverage.xml
