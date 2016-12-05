@@ -1,3 +1,6 @@
 
 [html]
 directory= ../docs/pytest/coverage
+
+[xml]
+output=../docs/pytest/coverage.xml
