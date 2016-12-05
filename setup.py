@@ -5,7 +5,7 @@
 # TODO Populate requirements.txt (details: https://pip.pypa.io/en/stable/user_guide/#requirements-files)
 
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 
 from wasp_general.version import __version__, __author__, __email__, __license__
 
@@ -27,7 +27,7 @@ setup(
 	license = __license__,
 	keywords = "",
 	url = "",
-	packages=['wasp_general'],
+	packages=find_packages(),
 	long_description=read('README'),
 	classifiers=[],
 	install_requires=require('requirements.txt')
