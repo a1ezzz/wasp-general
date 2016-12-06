@@ -1,3 +1,3 @@
 # wasp-general
 
-[![Build Status](http://jenkins.home.a1ezzz.ru/job/wasp-general/badge/icon)](https://github.com/a1ezzz/wasp-general)
+[![Build Status](https://jenkins.home.a1ezzz.ru/buildStatus/icon?job=wasp-general)](https://github.com/a1ezzz/wasp-general)
