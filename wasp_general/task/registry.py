@@ -36,6 +36,10 @@ class WRegisteredTask(ABCMeta):
 	:attr:`.WTaskRegistryStorage.__multiple_tasks_per_tag__`)
 	"""
 
+	__auto_registry__ = True
+	""" Flag specifies whether this class will be registered automatically in registry or not
+	"""
+
 	__registry_tag__ = None
 	""" Tag, that represent task. Depends on registry storage, independent task could be marked the same tag
 	"""
@@ -52,6 +56,9 @@ class WRegisteredTask(ABCMeta):
 		:param namespace: as namespace in type(cls, name, bases, namespace)
 		"""
 		ABCMeta.__init__(cls, name, bases, namespace)
+
+		if cls.__auto_registry__ is not True:
+			return
 
 		if cls.__registry__ is None:
 			raise ValueError('__registry__ must be defined')
@@ -112,6 +119,14 @@ class WTaskRegistryBase(metaclass=ABCMeta):
 		""" Registered task count
 
 		:return: int
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def tags(self):
+		""" Return available registry tags
+
+		:return: tuple of str
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -181,6 +196,11 @@ class WTaskRegistryStorage(WTaskRegistryBase):
 			return None
 		tasks = self.__registry[registry_tag]
 		return tasks if self.__multiple_tasks_per_tag__ is True else tasks[0]
+
+	def tags(self):
+		""" :meth:`.WTaskRegistryBase.tags` implementation
+		"""
+		return tuple(self.__registry.keys())
 
 	def count(self):
 		""" Registered task count

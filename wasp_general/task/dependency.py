@@ -59,20 +59,22 @@ class WDependentTask(WRegisteredTask):
 		:param namespace: as namespace in type(cls, name, bases, namespace)
 		"""
 
-		if cls.__registry__ is None:
-			raise ValueError('__registry__ must be defined')
+		if cls.__auto_registry__ is True:
 
-		if issubclass(cls.__registry__, WTaskDependencyRegistry) is False:
-			raise TypeError(
-				"Property '__registry__' of tasks class has invalid type (must be "
-				"WTaskDependencyRegistry or its subclass)"
-			)
+			if cls.__registry__ is None:
+				raise ValueError('__registry__ must be defined')
 
-		if cls.__registry_tag__ is None:
-			raise ValueError("Property '__registry_tag__' must be defined")
+			if issubclass(cls.__registry__, WTaskDependencyRegistry) is False:
+				raise TypeError(
+					"Property '__registry__' of tasks class has invalid type (must be "
+					"WTaskDependencyRegistry or its subclass)"
+				)
 
-		if isinstance(cls.__registry_tag__, str) is False:
-			raise TypeError("Property '__registry_tag__' must be string type")
+			if cls.__registry_tag__ is None:
+				raise ValueError("Property '__registry_tag__' must be defined")
+
+			if isinstance(cls.__registry_tag__, str) is False:
+				raise TypeError("Property '__registry_tag__' must be string type")
 
 		WRegisteredTask.__init__(cls, name, bases, namespace)
 

@@ -12,6 +12,7 @@ def test_abstract_classes():
 	pytest.raises(NotImplementedError, WTaskRegistryBase.remove, None, None)
 	pytest.raises(NotImplementedError, WTaskRegistryBase.clear, None)
 	pytest.raises(NotImplementedError, WTaskRegistryBase.tasks, None, None)
+	pytest.raises(NotImplementedError, WTaskRegistryBase.tags, None)
 	pytest.raises(NotImplementedError, WTaskRegistryBase.count, None)
 
 
@@ -42,6 +43,11 @@ class TestWRegisteredTask:
 		class T4(WTask, metaclass=WRegisteredTask):
 			__registry__ = R
 
+		assert(R.__registry_storage__.count() == 1)
+
+		class T5(WTask, metaclass=WRegisteredTask):
+			__registry__ = R
+			__auto_registry__ = False
 		assert(R.__registry_storage__.count() == 1)
 
 
@@ -101,6 +107,8 @@ class TestWTaskRegistryStorage:
 		registry_storage.add(T3)
 		assert(registry_storage.count() == 2)
 
+		assert(registry_storage.tags() == (1, None))
+
 		assert(registry_storage.count() == 2)
 		assert(registry_storage.tasks(1) == T3)
 		assert(registry_storage.tasks(None) == T1)
@@ -113,6 +121,7 @@ class TestWTaskRegistryStorage:
 
 
 class TestWTaskRegistry:
+
 	def test_registry(self):
 
 		class R1(WTaskRegistry):
