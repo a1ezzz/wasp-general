@@ -55,7 +55,7 @@ def mime_type(filename):
 			return "text/css"
 
 		m = magic.from_file(filename, mime=True)
-		m = m.decode()
+		m = m.decode() if isinstance(m, bytes) else m # compatibility fix, some versions return bytes some - str
 		if m == "text/plain":
 			guessed_type = mimetypes.guess_type(filename)[0]  # for js-detection
 			if guessed_type:
