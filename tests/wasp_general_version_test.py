@@ -17,11 +17,7 @@ def cwd(request):
 
 
 @pytest.mark.usefixtures('cwd')
-def test_revision():
+def test_revision(tmpdir):
 	revision()
-	try:
-		d = mkdtemp()
-		os.chdir(d)
-		assert(revision() == '--')
-	finally:
-		os.rmdir(d)
+	os.chdir(tmpdir.strpath)
+	assert(revision() == '--')
