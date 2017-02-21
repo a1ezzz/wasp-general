@@ -195,15 +195,18 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 
 		start_dependency(task_cls)
 
-	@verify_type(task_tag=str, stop_dependent=bool)
-	def stop_task(self, task_tag, stop_dependent=True):
+	@verify_type(task_tag=str, stop_dependent=bool, stop_requirements=bool)
+	def stop_task(self, task_tag, stop_dependent=True, stop_requirements=False):
 		""" Stop task with the given task tag. If task already stopped, then nothing happens.
 
 		:param task_tag: task to stop
 		:param stop_dependent: if True, then every task, that require the given task as dependency, will be \
-		stopped before. Otherwise - only the given task will be stopped.
+		stopped before.
+		:param stop_requirements: if True, then every task, that is required as dependency for the given task, \
+		will be stopped after.
 		:return: None
 		"""
+		# TODO: "coverage" requires more tests
 
 		def stop(task_to_stop):
 			if task_to_stop in self.__started:
@@ -216,15 +219,9 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 		if task is None:
 			return
 
-		# noinspection PyUnresolvedReferences
-		if stop_dependent is False:
-			stop(task)
-			return
-
 		def stop_dependency(task_to_stop):
 			deeper_dependencies = []
 			for dependent_task in self.__started:
-				# noinspection PyUnresolvedReferences
 				if task_to_stop.__registry_tag__ in dependent_task.__class__.__dependency__:
 					deeper_dependencies.append(dependent_task)
 
@@ -233,7 +230,65 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 
 			stop(task_to_stop)
 
-		stop_dependency(task)
+		def calculate_requirements(task_to_stop, cross_requirements=False):
+			requirements = set()
+
+			for dependent_task in self.__started:
+				if dependent_task.__class__.__registry_tag__ in task_to_stop.__class__.__dependency__:
+					requirements.add(dependent_task)
+
+			if cross_requirements is True:
+				return requirements
+
+			result = set()
+			for task_a in requirements:
+				requirement_match = False
+				for task_b in requirements:
+					if task_a.__class__.__registry_tag__ in task_b.__class__.__dependency__:
+						requirement_match = True
+						break
+				if requirement_match is False:
+					result.add(task_a)
+			return result
+
+		def calculate_priorities(*tasks_to_stop, current_result=None, requirements_left=None):
+			if current_result is None:
+				current_result = []
+
+			if len(tasks_to_stop) == 0:
+				return current_result
+
+			current_result.append(list(tasks_to_stop))
+
+			all_requirements = calculate_requirements(tasks_to_stop[0], cross_requirements=True)
+			if len(all_requirements) == 0:
+				return current_result
+			nested_requirements = calculate_requirements(tasks_to_stop[0])
+
+			for dependent_task in tasks_to_stop[1:]:
+				nested_requirements = nested_requirements.difference(calculate_requirements(dependent_task))
+				all_requirements.update(calculate_requirements(dependent_task, cross_requirements=True))
+
+			all_requirements = all_requirements.difference(nested_requirements)
+
+			if requirements_left is not None:
+				requirements_left = requirements_left.difference(all_requirements)
+				nested_requirements.update(requirements_left)
+
+			if len(nested_requirements) == 0:
+				raise RuntimeError('Unable to calculate stopping order')
+
+			return calculate_priorities(*list(nested_requirements), current_result=current_result, requirements_left=all_requirements)
+
+		if stop_dependent is True:
+			stop_dependency(task)
+
+		if stop_requirements is True:
+			for task_list in calculate_priorities(task):
+				for single_task in task_list:
+					stop(single_task)
+		else:
+			stop(task)
 
 
 class WTaskDependencyRegistry(WTaskRegistry):
@@ -270,12 +325,13 @@ class WTaskDependencyRegistry(WTaskRegistry):
 		registry.start_task(task_tag, skip_unresolved=skip_unresolved)
 
 	@classmethod
-	def stop_task(cls, task_tag, stop_dependent=True):
+	def stop_task(cls, task_tag, stop_dependent=True, stop_requirements=False):
 		""" Stop started task from registry
 
 		:param task_tag: same as in :meth:`.WTaskDependencyRegistryStorage.stop_task` method
 		:param stop_dependent: same as in :meth:`.WTaskDependencyRegistryStorage.stop_task` method
+		:param stop_requirements: same as in :meth:`.WTaskDependencyRegistryStorage.stop_task` method
 		:return: None
 		"""
 		registry = cls.registry_storage()
-		registry.stop_task(task_tag, stop_dependent=stop_dependent)
+		registry.stop_task(task_tag, stop_dependent=stop_dependent, stop_requirements=stop_requirements)

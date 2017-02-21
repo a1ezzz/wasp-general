@@ -193,6 +193,15 @@ class TestWTaskDependencyRegistryStorage:
 		assert(isinstance(registry_storage.started_task('task4'), T4) is True)
 		assert(isinstance(registry_storage.started_task('task5'), T5) is True)
 
+		registry_storage.start_task('task3')
+		assert(isinstance(registry_storage.started_task('task3'), T3) is True)
+		assert(isinstance(registry_storage.started_task('task4'), T4) is True)
+		assert(isinstance(registry_storage.started_task('task5'), T5) is True)
+		registry_storage.stop_task('task5', stop_requirements=True)
+		assert(registry_storage.started_task('task3') is None)
+		assert(registry_storage.started_task('task4') is None)
+		assert(registry_storage.started_task('task5') is None)
+
 
 class TestWTaskDependencyRegistry:
 
