@@ -29,8 +29,12 @@ class TestWDependentTask:
 			last_task_result = None
 
 		with pytest.raises(ValueError):
+			class R2(WTaskDependencyRegistry):
+				__registry_storage__ = WTaskDependencyRegistryStorage()
+				__skip_none_registry_tag__ = False
+
 			class T3(metaclass=WDependentTask):
-				__registry__ = R
+				__registry__ = R2
 
 		with pytest.raises(TypeError):
 			class T4(metaclass=WDependentTask):

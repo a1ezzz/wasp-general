@@ -37,7 +37,11 @@ class WDependentTask(WRegisteredTask):
 	If derived class inherits :class:`wasp_general.task.base.WStoppableTask` class, then it could be stopped
 	(automatically stopped via registry class, such as :class:`.WTaskDependencyRegistry`)
 
-	__registry_tag__ property must be defined and it has to be a str type
+	When __registry_tag__ is set to None, related task registry must have '__skip_none_registry_tag__' flag
+	set to False, otherwise - exception is raised. Such task (that have __registry_tag__ set to None) will be
+	excluded from registry.
+
+	In order to include task to registry, task must define __registry_tag__, which has to be a str class.
 	"""
 
 	__dependency__ = []
@@ -71,9 +75,9 @@ class WDependentTask(WRegisteredTask):
 				)
 
 			if cls.__registry_tag__ is None:
-				raise ValueError("Property '__registry_tag__' must be defined")
-
-			if isinstance(cls.__registry_tag__, str) is False:
+				if cls.__registry__.__skip_none_registry_tag__ is False:
+					raise ValueError("Property '__registry_tag__' must be defined")
+			elif isinstance(cls.__registry_tag__, str) is False:
 				raise TypeError("Property '__registry_tag__' must be string type")
 
 		WRegisteredTask.__init__(cls, name, bases, namespace)

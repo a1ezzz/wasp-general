@@ -43,6 +43,13 @@ class TestWRegisteredTask:
 		class T4(WTask, metaclass=WRegisteredTask):
 			__registry__ = R
 
+		assert(R.__registry_storage__.count() == 0)
+
+		R.__skip_none_registry_tag__ = False
+
+		class T4(WTask, metaclass=WRegisteredTask):
+			__registry__ = R
+
 		assert(R.__registry_storage__.count() == 1)
 
 		class T5(WTask, metaclass=WRegisteredTask):
@@ -125,7 +132,7 @@ class TestWTaskRegistry:
 	def test_registry(self):
 
 		class R1(WTaskRegistry):
-			pass
+			__skip_none_registry_tag__ = False
 
 		with pytest.raises(ValueError):
 			R1.registry_storage()

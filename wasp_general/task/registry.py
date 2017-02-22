@@ -43,6 +43,7 @@ class WRegisteredTask(ABCMeta):
 	__registry_tag__ = None
 	""" Tag, that represent task. Depends on registry storage, independent task could be marked the same tag
 	"""
+
 	__registry__ = None
 	""" Registry, that holds this task. Must be redefined in derived classes.
 	"""
@@ -154,6 +155,7 @@ class WTaskRegistryStorage(WTaskRegistryBase):
 		:param task_cls: task to add
 		:return: None
 		"""
+
 		registry_tag = task_cls.__registry_tag__
 		if registry_tag not in self.__registry.keys():
 			self.__registry[registry_tag] = [task_cls]
@@ -222,6 +224,10 @@ class WTaskRegistry:
 	""" Storage that is used within this registry
 	"""
 
+	__skip_none_registry_tag__ = True
+	""" Flag defines whether to register task which has __registry_tag__ set to None or not
+	"""
+
 	@classmethod
 	def registry_storage(cls):
 		""" Get registry storage
@@ -244,6 +250,10 @@ class WTaskRegistry:
 		:param task_cls: task to add
 		:return: None
 		"""
+
+		if task_cls.__registry_tag__ is None and cls.__skip_none_registry_tag__ is True:
+			return
+
 		cls.registry_storage().add(task_cls)
 
 	@classmethod
