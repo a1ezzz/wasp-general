@@ -29,6 +29,7 @@ from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
+import re
 
 from wasp_general.verify import verify_type, verify_value
 
@@ -440,3 +441,179 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 		self.__previous_data += feedback
 		if cr is True:
 			self.__previous_data += '\n'
+
+
+class WCursesWindow(WConsoleWindowProto):
+
+	class EmptyWindowDrawer(WConsoleWindowProto.DrawerProto):
+		""" WConsoleWindowProto.DrawerProto implementation. Suites if there is nothing to display
+		"""
+
+		@verify_type(window=WConsoleWindowProto)
+		def suitable(self, window):
+			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
+			"""
+			if len(window.splitted_data(previous_data=True, console_row=True)) == 0:
+				return True
+			return False
+
+		@verify_type(window=WConsoleWindowProto)
+		def draw(self, window):
+			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
+			"""
+			window.set_cursor(0, 0)
+
+
+	class SmallWindowDrawer(WConsoleWindowProto.DrawerProto):
+		""" WConsoleWindowProto.DrawerProto implementation. Suites if there is content and content fits window
+		width and height
+		"""
+
+		@verify_type(window=WConsoleWindowProto)
+		def suitable(self, window):
+			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
+			"""
+			lines = len(window.splitted_data(previous_data=True, console_row=True))
+			if lines >= 1 and lines < (window.height() - 1):
+				return True
+
+			return False
+
+		@verify_type(window=WConsoleWindowProto)
+		def draw(self, window):
+			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
+			"""
+			data_lines = window.splitted_data(previous_data=True, console_row=True)
+			window.write_data(data_lines)
+
+			data_lines_to_cursor = window.splitted_data(
+				previous_data=True, console_row_to_cursor=True
+			)
+			y = len(data_lines_to_cursor) - 1
+
+			line_length = len(window.console().prompt()) + window.cursor()
+			row_lines_to_cursor = window.splitted_data(console_row_to_cursor=True)
+			line_length += (len(row_lines_to_cursor) - 1)  # append one char offset
+			x = line_length % window.width()
+
+			window.set_cursor(y, x)
+
+
+	class ScrolledWindowDrawer(WConsoleWindowProto.DrawerProto):
+		""" WConsoleWindowProto.DrawerProto implementation. Suites if content doesn't fit window width and
+		height but current row fits
+		"""
+
+		@verify_type(window=WConsoleWindowProto)
+		def suitable(self, window):
+			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
+			"""
+			'''
+			@brief WindowDrawer.suitable method implementation
+			'''
+			height = window.height()
+			lines = len(window.splitted_data(previous_data=True, console_row=True))
+			console_row_lines = len(window.splitted_data(console_row=True))
+			if (lines >= (height - 1)) and (console_row_lines < (height - 1)):
+				return True
+
+			return False
+
+		@verify_type(window=WConsoleWindowProto)
+		def draw(self, window):
+			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
+			"""
+			height = window.height()
+			console_row_lines = window.splitted_data(console_row=True)
+
+			delta = (height - (len(console_row_lines) + 1))
+			previous_data = window.splitted_data(previous_data=True)
+			delta_data = previous_data[(len(previous_data) - delta):]
+
+			window.write_data(delta_data + console_row_lines)
+
+			lines_to_cursor = window.splitted_data(console_row_to_cursor=True)
+			y = len(lines_to_cursor) - 1 + delta
+
+			line_length = len(window.console().prompt()) + window.cursor()
+			line_length += (len(lines_to_cursor) - 1)  # append one char offset
+			x = line_length % window.width()
+
+			window.set_cursor(y, x)
+
+
+	class BigWindowDrawer(WConsoleWindowProto.DrawerProto):
+		""" WConsoleWindowProto.DrawerProto implementation. Suites if content and even current row doesn't fit
+		window width and height
+		"""
+
+		@verify_type(window=WConsoleWindowProto)
+		def suitable(self, window):
+			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
+			"""
+			console_row_lines = len(window.splitted_data(console_row=True))
+			if console_row_lines >= (window.height() - 1):
+				return True
+			return False
+
+		@verify_type(window=WConsoleWindowProto)
+		def draw(self, window):
+			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
+			"""
+			height = window.height()
+			lines = window.splitted_data(console_row=True)
+			lines_to_cursor = window.splitted_data(console_row_to_cursor=True)
+			lines_from_cursor = window.splitted_data(console_row_from_cursor=True)
+
+			output_lines = []
+			if len(lines_from_cursor) == 0:
+				start = len(lines) - (height - 1)
+				output_lines.extend(lines[start:])
+				y = height - 2
+			elif len(lines_from_cursor) < (height - 1):
+				start = (len(lines)) - (height - 1) - (len(lines_from_cursor) - 1)
+				output_lines.extend(lines[start:start + (height - 1)])
+				y = (height - 1) - (len(lines) - len(lines_to_cursor)) - 1
+			else:
+				start = 0
+				if len(lines_to_cursor) > 0:
+					start = len(lines_to_cursor) - 1
+				output_lines.extend(lines[start:(start + (height - 1))])
+				y = 0
+
+			window.write_data(output_lines)
+
+			line_length = len(window.console().prompt()) + window.cursor()
+			line_length += (len(lines_to_cursor) - 1)  # append one char offset
+			x = line_length % window.width()
+			window.set_cursor(y, x)
+
+	@verify_type(console=WConsoleProto)
+	def __init__(self, console, nc_screen):
+		WConsoleWindowProto.__init__(
+			self, console, WCursesWindow.EmptyWindowDrawer(), WCursesWindow.SmallWindowDrawer(),
+			WCursesWindow.ScrolledWindowDrawer(), WCursesWindow.BigWindowDrawer()
+		)
+		self.__nc_screen = nc_screen
+
+	def screen(self):
+		return self.__nc_screen
+
+	def width(self):
+		return self.screen().getmaxyx()[1]
+
+	def height(self):
+		return self.screen().getmaxyx()[0]
+
+	def clear(self):
+		return self.screen().erase()
+
+	def write_line(self, line_index, line):
+		self.screen().addstr(line_index, 0, line)
+
+	def refresh_window(self):
+		WConsoleWindowProto.refresh(self)
+		self.screen().refresh()
+
+	def set_cursor(self, y, x):
+		self.screen().move(y, x)
