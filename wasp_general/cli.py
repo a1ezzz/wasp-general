@@ -195,3 +195,248 @@ class WConsoleProto(metaclass=ABCMeta):
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
+
+
+class WConsoleWindowProto(metaclass=ABCMeta):
+	""" Basic class for console window implementation
+	"""
+
+	class DrawerProto(metaclass=ABCMeta):
+		""" Basic class that helps displaying console content
+		"""
+
+		@abstractmethod
+		@verify_type(window=WConsoleWindowProto)
+		def suitable(self, window):
+			""" Check if this class can display console content
+
+			:param window: window that should be drawn
+			:return: bool (True if this class can draw console content, False - if it can not)
+			"""
+			raise NotImplementedError()
+
+		@abstractmethod
+		@verify_type(window=WConsoleWindowProto)
+		def draw(self, window):
+			""" Display console content on console window
+
+			:param window: windows to draw
+			:return: None
+			"""
+			raise NotImplementedError()
+
+	@verify_type(console=WConsoleProto, drawers=DrawerProto)
+	def __init__(self, console, *drawers):
+		""" Create new console window
+
+		:param console: console, that this window is linked to
+		:param drawers: drawers to use
+		"""
+		self.__console = console
+		self.__previous_data = ''
+		self.__cursor_position = 0
+		self.__drawers = []
+		self.__drawers.extend(drawers)
+
+		if self.width() < 2:
+			raise RuntimeError('Invalid width. Minimum windows width is 2')
+
+		if self.height() < 2:
+			raise RuntimeError('Invalid height. Minimum windows height is 2')
+
+	@abstractmethod
+	def width(self):
+		""" Get window width. If windows width was changed - window must be refreshed via
+		:meth:`.WConsoleWindowProto.refresh`
+
+		:return: int
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def height(self):
+		""" Get window height. If windows height was changed - window must be refreshed via
+		:meth:`.WConsoleWindowProto.refresh`
+
+		:return: int
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def clear(self):
+		""" Clear window and remove every symbol it has
+
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	@verify_type(line_index=int, line=str)
+	@verify_value(line_index=lambda x: x >= 0)
+	def write_line(self, line_index, line):
+		""" Write string on specified line
+
+		:param line_index: line index to display
+		:param line: string to display (must fit windows width)
+		:return:
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	@verify_type(y=int, x=int)
+	@verify_value(x=lambda x: x >= 0, y=lambda x: x >= 0)
+	def set_cursor(self, y, x):
+		""" Set input cursor in window to specified coordinates. 0, 0 - is top left coordinates
+
+		:param y: vertical coordinates, 0 - top, bottom - positive value
+		:param x: horizontal coordinates, 0 - left, right - positive value
+		:return:
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@verify_type(previous_data=bool, prompt=bool, console_row=bool, console_row_to_cursor=bool)
+	@verify_type(console_row_from_cursor=bool)
+	def data(
+		self, previous_data=False, prompt=False, console_row=False,
+		console_row_to_cursor=False, console_row_from_cursor=False
+	):
+		""" Return output data. Flags specifies what data to append. If no flags was specified
+		nul-length string returned
+
+		:param previous_data: If True, then previous output appends
+		:param prompt: If True, then console prompt appends. If console_row or console_row_to_cursor is True, \
+		then this value is omitted
+		:param console_row: If True, then console prompt and current input appends.
+		:param console_row_to_cursor: If True, then console prompt and current input till cursor appends.
+		If console_row is True, then this value is omitted
+		:param console_row_from_cursor: If True, then current input from cursor appends.
+		If console_row is True, then this value is omitted
+		:return: str
+		"""
+
+		result = ''
+
+		if previous_data:
+			result += self.__previous_data
+
+		if prompt or console_row or console_row_to_cursor:
+			result += self.console().prompt()
+
+		if console_row or (console_row_from_cursor and console_row_to_cursor):
+			result += self.console().row()
+		elif console_row_to_cursor:
+			result += self.console().row()[:self.cursor()]
+		elif console_row_from_cursor:
+			result += self.console().row()[self.cursor():]
+
+		return result
+
+	@verify_type(previous_data=bool, prompt=bool, console_row=bool, console_row_to_cursor=bool)
+	@verify_type(console_row_from_cursor=bool)
+	def list_data(
+		self, previous_data=False, prompt=False, console_row=False,
+		console_row_to_cursor=False, console_row_from_cursor=False
+	):
+		""" Return list of strings. Where each string is fitted to windows width. Parameters are the same as
+		they are in :meth:`.WConsoleWindow.data` method
+
+		:return: list of str
+		"""
+		return self.split(self.data(
+			previous_data, prompt, console_row, console_row_to_cursor, console_row_from_cursor
+		))
+
+	def console(self):
+		""" Return linked console
+
+		:return: WConsoleProto
+		"""
+		return self.__console
+
+	@verify_type(data=list, start_position=int)
+	@verify_value(start_position=lambda x: x >= 0)
+	def write_data(self, data, start_position=0):
+		""" Write data from the specified line
+
+		:param data: string to write, each one on new line
+		:param start_position: starting line
+		:return:
+		"""
+		if len(data) > self.height():
+			raise ValueError('data too long (too many strings)')
+
+		for i in range(len(data)):
+			self.write_line(start_position + i, data[i])
+
+	@verify_type(pos=(None, int))
+	@verify_value(pos=lambda x: x is None or x >= 0)
+	def cursor(self, pos=None):
+		""" Set and/or get relative cursor position. Defines cursor position in current input row.
+
+		:param pos: if value is not None, then current cursor position is set to this value and the same value
+		is returned
+		:return: int
+		"""
+		if pos is not None:
+			self.__cursor_position = pos
+
+		return self.__cursor_position
+
+	def refresh(self):
+		""" Refresh current window. Clear current window and redraw it with one of drawers
+
+		:return: None
+		"""
+		self.clear()
+		for drawer in self.__drawers:
+			if drawer.suitable(self):
+				drawer.draw(self)
+				return
+
+		raise RuntimeError('No suitable drawer was found')
+
+	def commit(self):
+		""" Store current input row. Keep current input row as previous output
+
+		:return: None
+		"""
+		self.__previous_data += (self.data(console_row=True) + '\n')
+
+	@verify_type(data=str)
+	def split(self, data):
+		""" Split data into list of string, each (self.width() - 1) length or less. If nul-length string
+		specified then empty list is returned
+
+		:param data: data to split
+		:return: list of str
+		"""
+		line = deepcopy(data)
+		line_width = (self.width() - 1)
+
+		lines = []
+		while len(line):
+
+			new_line = line[:line_width]
+
+			new_line_pos = new_line.find('\n')
+			if new_line_pos >= 0:
+				new_line = line[:new_line_pos]
+				line = line[(new_line_pos + 1):]
+			else:
+				line = line[line_width:]
+
+			lines.append(new_line)
+
+		return lines
+
+	@verify_type(feedback=str, cr=bool)
+	def write_feedback(self, feedback, cr=True):
+		""" Store feedback. Keep specified feedback as previous output
+
+		:param feedback: data to store
+		:param cr: whether to write carriage return to the end or not
+		:return: None
+		"""
+		self.__previous_data += feedback
+		if cr is True:
+			self.__previous_data += '\n'
