@@ -27,6 +27,9 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
+from abc import ABCMeta, abstractmethod
+from copy import deepcopy
+
 from wasp_general.verify import verify_type, verify_value
 
 
@@ -88,3 +91,107 @@ class WConsoleHistory:
 		"""
 		self.__history[position] = value
 
+
+class WConsoleProto(metaclass=ABCMeta):
+	""" Basic class for console implementation. It has non-changeable and changeable history
+	(:class:`.WConsoleHistory`). One stores previous entered rows, other one helps to entered new row by editing previous one.
+	"""
+
+	def __init__(self):
+		self.__history_mode = False
+		self.__history = WConsoleHistory()
+		self.__editable_history = None
+		self.__current_row = None
+
+	def history(self):
+		""" Return changeable history
+
+		:return: WConsoleHistory or None
+		"""
+		return self.__editable_history
+
+	@verify_type(mode_value=(bool, None))
+	def history_mode(self, mode_value=None):
+		""" Get and/or set current history mode.
+
+		History mode defines what row will be changed with :meth:`.WConsoleProto.update_row` or can be got by
+		:meth:`.WConsoleProto.row` call. If history mode disabled, then :meth:`.WConsoleProto.update_row` and
+		:meth:`.WConsoleProto.row` affects current row prompt. If history mode is enabled, then
+		:meth:`.WConsoleProto.update_row` and :meth:`.WConsoleProto.row` affects current entry in
+		history :class:`.WConsoleHistory` (entry at :meth:`.WConsoleHistory.position`)
+
+		History mode is turned off by default.
+
+		:param mode_value: True value enables history mode. False - disables. None - do nothing
+		:return: bool
+		"""
+		if mode_value is not None:
+			self.__history_mode = mode_value
+		return self.__history_mode
+
+	def start_session(self):
+		""" Start new session and prepare environment for new row editing process
+
+		:return: None
+		"""
+		self.__current_row = ''
+		self.__history_mode = False
+		self.__editable_history = deepcopy(self.__history)
+		self.refresh_window()
+
+	def fin_session(self):
+		""" Finalize current session
+
+		:return: None
+		"""
+		self.__history.add(self.row())
+		self.exec(self.row())
+
+	@verify_type(value=str)
+	def update_row(self, value):
+		""" Change row
+
+		:param value: new row
+		:return: None
+		"""
+		if not self.__history_mode:
+			self.__current_row = value
+		else:
+			self.history().update(value, self.history().position())
+
+	def row(self):
+		""" Get row
+
+		:return: str
+		"""
+		if not self.__history_mode:
+			return self.__current_row
+		else:
+			return self.history().entry(self.history().position())
+
+	@abstractmethod
+	def prompt(self):
+		""" Return prompt, that would be printed before row. Prompt length must be the same
+		within every session
+
+		:return: str
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def refresh_window(self):
+		""" Refresh current screen. Simple clear and redraw should work
+
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	@verify_type(row=str)
+	def exec(self, row):
+		""" Must execute given command
+
+		:param row: command to execute
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')
