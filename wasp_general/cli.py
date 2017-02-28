@@ -29,7 +29,6 @@ from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
-import re
 
 from wasp_general.verify import verify_type, verify_value
 
@@ -95,7 +94,8 @@ class WConsoleHistory:
 
 class WConsoleProto(metaclass=ABCMeta):
 	""" Basic class for console implementation. It has non-changeable and changeable history
-	(:class:`.WConsoleHistory`). One stores previous entered rows, other one helps to entered new row by editing previous one.
+	(:class:`.WConsoleHistory`). One stores previous entered rows, other one helps to entered new row by editing
+	previous one.
 	"""
 
 	def __init__(self):
@@ -202,42 +202,15 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 	""" Basic class for console window implementation
 	"""
 
-	class DrawerProto(metaclass=ABCMeta):
-		""" Basic class that helps displaying console content
-		"""
-
-		@abstractmethod
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
-			""" Check if this class can display console content
-
-			:param window: window that should be drawn
-			:return: bool (True if this class can draw console content, False - if it can not)
-			"""
-			raise NotImplementedError()
-
-		@abstractmethod
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
-			""" Display console content on console window
-
-			:param window: windows to draw
-			:return: None
-			"""
-			raise NotImplementedError()
-
-	@verify_type(console=WConsoleProto, drawers=DrawerProto)
-	def __init__(self, console, *drawers):
+	@verify_type(console=WConsoleProto)
+	def __init__(self, console):
 		""" Create new console window
 
 		:param console: console, that this window is linked to
-		:param drawers: drawers to use
 		"""
 		self.__console = console
 		self.__previous_data = ''
 		self.__cursor_position = 0
-		self.__drawers = []
-		self.__drawers.extend(drawers)
 
 		if self.width() < 2:
 			raise RuntimeError('Invalid width. Minimum windows width is 2')
@@ -292,6 +265,13 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 		:param y: vertical coordinates, 0 - top, bottom - positive value
 		:param x: horizontal coordinates, 0 - left, right - positive value
 		:return:
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	def refresh(self):
+		""" Refresh current window. Clear current window and redraw it with one of drawers
+
+		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -383,19 +363,6 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 
 		return self.__cursor_position
 
-	def refresh(self):
-		""" Refresh current window. Clear current window and redraw it with one of drawers
-
-		:return: None
-		"""
-		self.clear()
-		for drawer in self.__drawers:
-			if drawer.suitable(self):
-				drawer.draw(self)
-				return
-
-		raise RuntimeError('No suitable drawer was found')
-
 	def commit(self):
 		""" Store current input row. Keep current input row as previous output
 
@@ -443,177 +410,97 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 			self.__previous_data += '\n'
 
 
-class WCursesWindow(WConsoleWindowProto):
+class WConsoleDrawerProto(metaclass=ABCMeta):
+	""" Basic class that helps displaying console content
+	"""
 
-	class EmptyWindowDrawer(WConsoleWindowProto.DrawerProto):
-		""" WConsoleWindowProto.DrawerProto implementation. Suites if there is nothing to display
+	@abstractmethod
+	@verify_type(window=WConsoleWindowProto)
+	def suitable(self, window):
+		""" Check if this class can display console content
+
+		:param window: window that should be drawn
+		:return: bool (True if this class can draw console content, False - if it can not)
 		"""
+		raise NotImplementedError('This method is abstract')
 
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
-			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
-			"""
-			if len(window.splitted_data(previous_data=True, console_row=True)) == 0:
-				return True
-			return False
+	@abstractmethod
+	@verify_type(window=WConsoleWindowProto)
+	def draw(self, window):
+		""" Display console content on console window
 
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
-			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
-			"""
-			window.set_cursor(0, 0)
-
-
-	class SmallWindowDrawer(WConsoleWindowProto.DrawerProto):
-		""" WConsoleWindowProto.DrawerProto implementation. Suites if there is content and content fits window
-		width and height
+		:param window: windows to draw
+		:return: None
 		"""
-
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
-			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
-			"""
-			lines = len(window.splitted_data(previous_data=True, console_row=True))
-			if lines >= 1 and lines < (window.height() - 1):
-				return True
-
-			return False
-
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
-			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
-			"""
-			data_lines = window.splitted_data(previous_data=True, console_row=True)
-			window.write_data(data_lines)
-
-			data_lines_to_cursor = window.splitted_data(
-				previous_data=True, console_row_to_cursor=True
-			)
-			y = len(data_lines_to_cursor) - 1
-
-			line_length = len(window.console().prompt()) + window.cursor()
-			row_lines_to_cursor = window.splitted_data(console_row_to_cursor=True)
-			line_length += (len(row_lines_to_cursor) - 1)  # append one char offset
-			x = line_length % window.width()
-
-			window.set_cursor(y, x)
+		raise NotImplementedError('This method is abstract')
 
 
-	class ScrolledWindowDrawer(WConsoleWindowProto.DrawerProto):
-		""" WConsoleWindowProto.DrawerProto implementation. Suites if content doesn't fit window width and
-		height but current row fits
+class WConsoleWindowBase(WConsoleWindowProto, metaclass=ABCMeta):
+	""" Basic class for console window implementation
+	"""
+
+	@verify_type(console=WConsoleProto, drawers=WConsoleDrawerProto)
+	def __init__(self, console, *drawers):
 		"""
-
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
-			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
-			"""
-			'''
-			@brief WindowDrawer.suitable method implementation
-			'''
-			height = window.height()
-			lines = len(window.splitted_data(previous_data=True, console_row=True))
-			console_row_lines = len(window.splitted_data(console_row=True))
-			if (lines >= (height - 1)) and (console_row_lines < (height - 1)):
-				return True
-
-			return False
-
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
-			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
-			"""
-			height = window.height()
-			console_row_lines = window.splitted_data(console_row=True)
-
-			delta = (height - (len(console_row_lines) + 1))
-			previous_data = window.splitted_data(previous_data=True)
-			delta_data = previous_data[(len(previous_data) - delta):]
-
-			window.write_data(delta_data + console_row_lines)
-
-			lines_to_cursor = window.splitted_data(console_row_to_cursor=True)
-			y = len(lines_to_cursor) - 1 + delta
-
-			line_length = len(window.console().prompt()) + window.cursor()
-			line_length += (len(lines_to_cursor) - 1)  # append one char offset
-			x = line_length % window.width()
-
-			window.set_cursor(y, x)
-
-
-	class BigWindowDrawer(WConsoleWindowProto.DrawerProto):
-		""" WConsoleWindowProto.DrawerProto implementation. Suites if content and even current row doesn't fit
-		window width and height
+		:param drawers: drawers to use
 		"""
+		WConsoleWindowProto.__init__(self, console)
+		self.__drawers = []
+		self.__drawers.extend(drawers)
 
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
-			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
-			"""
-			console_row_lines = len(window.splitted_data(console_row=True))
-			if console_row_lines >= (window.height() - 1):
-				return True
-			return False
+	def refresh(self):
+		""" Refresh current window. Clear current window and redraw it with one of drawers
 
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
-			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
-			"""
-			height = window.height()
-			lines = window.splitted_data(console_row=True)
-			lines_to_cursor = window.splitted_data(console_row_to_cursor=True)
-			lines_from_cursor = window.splitted_data(console_row_from_cursor=True)
+		:return: None
+		"""
+		self.clear()
+		for drawer in self.__drawers:
+			if drawer.suitable(self):
+				drawer.draw(self)
+				return
 
-			output_lines = []
-			if len(lines_from_cursor) == 0:
-				start = len(lines) - (height - 1)
-				output_lines.extend(lines[start:])
-				y = height - 2
-			elif len(lines_from_cursor) < (height - 1):
-				start = (len(lines)) - (height - 1) - (len(lines_from_cursor) - 1)
-				output_lines.extend(lines[start:start + (height - 1)])
-				y = (height - 1) - (len(lines) - len(lines_to_cursor)) - 1
-			else:
-				start = 0
-				if len(lines_to_cursor) > 0:
-					start = len(lines_to_cursor) - 1
-				output_lines.extend(lines[start:(start + (height - 1))])
-				y = 0
+		raise RuntimeError('No suitable drawer was found')
 
-			window.write_data(output_lines)
 
-			line_length = len(window.console().prompt()) + window.cursor()
-			line_length += (len(lines_to_cursor) - 1)  # append one char offset
-			x = line_length % window.width()
-			window.set_cursor(y, x)
+class WConsoleBase(WConsoleProto, metaclass=ABCMeta):
 
-	@verify_type(console=WConsoleProto)
-	def __init__(self, console, nc_screen):
-		WConsoleWindowProto.__init__(
-			self, console, WCursesWindow.EmptyWindowDrawer(), WCursesWindow.SmallWindowDrawer(),
-			WCursesWindow.ScrolledWindowDrawer(), WCursesWindow.BigWindowDrawer()
-		)
-		self.__nc_screen = nc_screen
+	def window(self):
+		raise NotImplementedError('This method is abstract')
 
-	def screen(self):
-		return self.__nc_screen
+	def start_session(self):
+		""" :meth:`.WConsoleProto.start_session` implementation. Sets cursor to 0 position before session
 
-	def width(self):
-		return self.screen().getmaxyx()[1]
+		:return: None
+		"""
+		self.window().cursor(0)
+		WConsoleProto.start_session(self)
 
-	def height(self):
-		return self.screen().getmaxyx()[0]
+	def fin_session(self):
+		""" :meth:`.WConsoleProto.fin_session` implementation. Commits current input row
 
-	def clear(self):
-		return self.screen().erase()
+		:return: None
+		"""
+		self.window().commit()
+		WConsoleProto.fin_session(self)
 
-	def write_line(self, line_index, line):
-		self.screen().addstr(line_index, 0, line)
+	@verify_type(result=str, cr=bool)
+	def write(self, result, cr=True):
+		"""  Shortcut for self.window().write_feedback(result) call
+
+		:param result: same as feedback in :meth:`WConsoleWindowProto.write_feedback`
+		:param cr: same as cr in :meth:`WConsoleWindowProto.write_feedback`
+		:return: None
+		"""
+		self.window().write_feedback(result, cr=cr)
 
 	def refresh_window(self):
-		WConsoleWindowProto.refresh(self)
-		self.screen().refresh()
+		""" Shortcut for self.window().refresh() call
 
-	def set_cursor(self, y, x):
-		self.screen().move(y, x)
+		:return: None
+		"""
+		self.window().refresh()
+
+	def prompt(self):
+		""" :meth:`.WConsoleProto.prompt` implementation
+		"""
+		return '> '
