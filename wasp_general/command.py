@@ -56,7 +56,7 @@ class WCommandProto(metaclass=ABCMeta):
 	@abstractmethod
 	@verify_type(command_tokens=str)
 	def match(self, *command_tokens):
-		""" Checks whether this command can be call with the given tokens. Return True - if tokens match this
+		""" Checks whether this command can be called with the given tokens. Return True - if tokens match this
 		command, False - otherwise
 
 		:param command_tokens: command to check
