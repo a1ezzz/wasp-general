@@ -99,9 +99,6 @@ class WCursesWindow(WConsoleWindowBase):
 		def suitable(self, window):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
-			'''
-			@brief WindowDrawer.suitable method implementation
-			'''
 			height = window.height()
 			lines = len(window.list_data(previous_data=True, console_row=True))
 			console_row_lines = len(window.list_data(console_row=True))
@@ -380,3 +377,6 @@ class WCursesConsole(WConsoleBase, metaclass=ABCMeta):
 						action(pressed_key, self)
 
 			self.fin_session()
+
+	def __del__(self):
+		curses.endwin()
