@@ -4,9 +4,8 @@ import pytest
 
 from wasp_general.command import WCommandProto, WCommand, WCommandResult, WCommandPrioritizedSelector, WCommandSet
 
-from wasp_general.command_context import WContextProto, WContext, WContextSpecification, WCommandContextAdapter
-from wasp_general.command_context import WCommandContext, WCommandContextResult, WCommandContextSelector
-from wasp_general.command_context import WCommandContextSet
+from wasp_general.command_context import WContextProto, WContext, WCommandContextAdapter, WCommandContext
+from wasp_general.command_context import WCommandContextResult, WCommandContextSelector, WCommandContextSet
 
 
 def test_abstract():
@@ -36,18 +35,6 @@ class TestWCommandContextRequest:
 		assert(c_r2.linked_context() == c_r1)
 
 
-class TestWContextSpecification:
-
-	def test(self):
-		c_s = WContextSpecification()
-		assert(len(c_s) == 0)
-		assert([x for x in c_s] == [])
-
-		c_s = WContextSpecification('context1', 'context2')
-		assert(len(c_s) == 2)
-		assert([x for x in c_s] == ['context1', 'context2'])
-
-
 class TestWCommandContextAdapter:
 
 	class Adapter(WCommandContextAdapter):
@@ -61,7 +48,7 @@ class TestWCommandContextAdapter:
 			return tuple(result)
 
 	def test(self):
-		spec = WContextSpecification('context1', 'context2')
+		spec = WContext.specification('context1', 'context2')
 		a = TestWCommandContextAdapter.Adapter(spec)
 		assert(isinstance(a, WCommandContextAdapter) is True)
 		assert(a.specification() == spec)
@@ -72,7 +59,7 @@ class TestWCommandContextAdapter:
 		assert(a.adapt('hello', 'world', request_context=c_r1) == ('context1', 'hello', 'world'))
 		assert(a.adapt('hello', 'world', request_context=c_r2) == ('context2', 'hello', 'world'))
 
-		assert(TestWCommandContextAdapter.Adapter(WContextSpecification()).match() is True)
+		assert(TestWCommandContextAdapter.Adapter(WContext.specification()).match() is True)
 		assert(a.match() is False)
 		assert(a.match(c_r1) is False)
 		assert(a.match(c_r2) is True)
@@ -96,7 +83,7 @@ class TestWCommandContext:
 
 	def test(self):
 		base_command = TestWCommandContext.Command('hello', 'world')
-		adapter = TestWCommandContext.Adapter(WContextSpecification('context'))
+		adapter = TestWCommandContext.Adapter(WContext.specification('context'))
 		command = WCommandContext(base_command, adapter)
 
 		assert(isinstance(command, WCommandContext) is True)
@@ -104,7 +91,7 @@ class TestWCommandContext:
 		assert(command.original_command() == base_command)
 		assert(command.adapter() == adapter)
 
-		adapter2 = TestWCommandContext.Adapter(WContextSpecification())
+		adapter2 = TestWCommandContext.Adapter(WContext.specification())
 		command2 = WCommandContext(base_command, adapter2)
 		assert(command2.match('hello', 'world', 'yeah') is True)
 		assert(command.match('hello', 'world', 'yeah') is False)
@@ -143,7 +130,7 @@ class TestWCommandContextSelector:
 		assert(isinstance(selector, WCommandPrioritizedSelector) is True)
 
 		base_command = TestWCommandContext.Command('hello', 'world')
-		adapter = TestWCommandContext.Adapter(WContextSpecification('context'))
+		adapter = TestWCommandContext.Adapter(WContext.specification('context'))
 		command = WCommandContext(base_command, adapter)
 
 		simply_command = TestWCommandContextSelector.Command('create', 'world')
@@ -163,7 +150,7 @@ class TestWCommandContextSet:
 		assert(command_set.commands() == selector)
 
 		base_command = TestWCommandContext.Command('hello', 'world')
-		adapter = TestWCommandContext.Adapter(WContextSpecification('context'))
+		adapter = TestWCommandContext.Adapter(WContext.specification('context'))
 		command = WCommandContext(base_command, adapter)
 		simply_command = TestWCommandContextSelector.Command('create', 'world')
 

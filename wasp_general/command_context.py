@@ -109,38 +109,60 @@ class WContext(WContextProto):
 		"""
 		return self.__linked_context
 
+	@classmethod
+	@verify_type(context=WContextProto)
+	def export_context(cls, context):
+		""" Export the specified context to be capable context transferring
 
-class WContextSpecification:
-	""" Describes single context (is used in :class:`.WCommandContextAdapter`)
-	"""
-
-	@verify_type(context_names=str)
-	def __init__(self, *context_names):
-		""" Create new context descriptor
-
-		:param context_names: context names like ('parent', 'child', 'grandchild')
+		:param context: context to export
+		:return: tuple
 		"""
-		self.__names = tuple(context_names)
+		result = [{x.context_name(): x.context_value()} for x in context]
+		result.reverse()
+		return tuple(result)
 
-	def __len__(self):
-		""" Return names count
+	@classmethod
+	@verify_type(context=(tuple, None))
+	def import_context(cls, context):
+		""" Import context to corresponding WContextProto object (:meth:`WCommandContextResult.export_context`
+		reverse operation)
 
-		:return: int
+		:param context: context to import
+		:return: WContext
 		"""
-		return len(self.__names)
+		if context is None or len(context) == 0:
+			return
 
-	def __iter__(self):
-		""" Iterate over context names
+		@verify_type(linked=(WContextProto, None))
+		def create_context(context_dict, linked=None):
+			name = list(context_dict.keys())[0]
+			value = context_dict[name]
+			return WContext(name, context_value=value, linked_context=linked)
+
+		context_obj = create_context(context[0])
+		for iter_context in context[1:]:
+			context_obj = create_context(iter_context, linked=context_obj)
+		return context_obj
+
+	@classmethod
+	@verify_type(context_specs=str)
+	def specification(cls, *context_specs):
+		""" Return linked context as adapter specification (is used by :class:`.WCommandContextAdapter`)
+
+		:param context_specs: context names
+		:return: WContext
 		"""
-		for name in self.__names:
-			yield name
+		import_data = []
+		for name in context_specs:
+			import_data.append({name: None})
+		return cls.import_context(tuple(import_data))
 
 
 class WCommandContextAdapter(metaclass=ABCMeta):
 	""" Adapter is used for command tokens modification
 	"""
 
-	@verify_type(context_specifications=WContextSpecification)
+	@verify_type(context_specifications=(WContextProto, None))
 	def __init__(self, context_specifications):
 		""" Create adapter
 
@@ -151,7 +173,7 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 	def specification(self):
 		""" Return adapter specification
 
-		:return: WContextSpecification
+		:return: WContextProto
 		"""
 		return self.__spec
 
@@ -170,7 +192,6 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 			result.append(c.context_name())
 			c = c.linked_context()
 
-		result.reverse()
 		return result
 
 	@verify_type(request_context=(WContextProto, None))
@@ -182,10 +203,11 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 		:return: bool
 		"""
 		spec = self.specification()
-		if request_context is None and len(spec) == 0:
+		if request_context is None and spec is None:
 			return True
-		elif request_context is not None and self.names(request_context) == [x for x in spec]:
-			return True
+		elif request_context is not None and spec is not None:
+			if self.names(request_context) == [x.context_name() for x in spec]:
+				return True
 		return False
 
 	@abstractmethod
@@ -272,7 +294,11 @@ class WCommandContext(WCommandProto):
 		"""
 		if self.adapter().match(request_context) is False:
 			cmd = WCommandProto.join_tokens(*command_tokens)
-			spec = ','.join(self.adapter().specification())
+			spec = self.adapter().specification()
+			if spec is not None:
+				spec = [x.context_name() for x in spec]
+				spec.reverse()
+				spec = ','.join(spec)
 			raise RuntimeError('Command mismatch: %s (context: %s)' % (cmd, spec))
 
 		command_tokens = self.adapter().adapt(*command_tokens, request_context=request_context)
@@ -293,42 +319,7 @@ class WCommandContextResult(WCommandResult):
 		:param context: context to set
 		"""
 		WCommandResult.__init__(self, output, error)
-		self.context = self.export_context(context) if context is not None else None
-
-	@classmethod
-	@verify_type(context=WContextProto)
-	def export_context(cls, context):
-		""" Export the specified context to be capable context transferring
-
-		:param context: context to export
-		:return: tuple
-		"""
-		result = [{x.context_name(): x.context_value()} for x in context]
-		result.reverse()
-		return tuple(result)
-
-	@classmethod
-	@verify_type(context=(tuple, None))
-	def import_context(cls, context):
-		""" Import context to corresponding WContextProto object (:meth:`WCommandContextResult.export_context`
-		reverse operation)
-
-		:param context: context to import
-		:return: WContextProto
-		"""
-		if context is None or len(context) == 0:
-			return
-
-		@verify_type(linked=(WContextProto, None))
-		def create_context(context_dict, linked=None):
-			name = list(context_dict.keys())[0]
-			value = context_dict[name]
-			return WContext(name, context_value=value, linked_context=linked)
-
-		context_obj = create_context(context[0])
-		for iter_context in context[1:]:
-			context_obj = create_context(iter_context, linked=context_obj)
-		return context_obj
+		self.context = context.export_context(context) if context is not None else None
 
 
 class WCommandContextSelector(WCommandPrioritizedSelector):
@@ -407,6 +398,6 @@ class WCommandContextSet(WCommandSet):
 			result = command_obj.exec(*command_tokens)
 
 		if isinstance(result, WCommandContextResult) is True:
-			self.__context = result.import_context(result.context)
+			self.__context = WContext.import_context(result.context)
 
 		return result
