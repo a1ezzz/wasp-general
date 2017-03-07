@@ -77,6 +77,31 @@ class WContextProto(metaclass=ABCMeta):
 			yield context
 			context = context.linked_context()
 
+	def __eq__(self, other):
+		""" Compare two context. Two context are equal if they have the same context_name and each their own
+		linked context are equal also.
+
+		:param other: context to compare
+		:return: bool
+		"""
+		if isinstance(other, WContextProto) is False:
+			return False
+
+		context_a = self
+		context_b = other
+
+		while context_a is not None and context_b is not None:
+			if context_a.context_name() != context_b.context_name():
+				return False
+
+			context_a = context_a.linked_context()
+			context_b = context_b.linked_context()
+
+		if context_b is not None:
+			return False
+		return True
+
+
 
 class WContext(WContextProto):
 	""" :class:`.WContextProto` implementation
@@ -177,23 +202,6 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 		"""
 		return self.__spec
 
-	@classmethod
-	@verify_type(request_context=(WContextProto, None))
-	def names(cls, request_context):
-		""" Convert context request to list of context names
-
-		:param request_context: context to convert
-		:return: list of str
-		"""
-		result = []
-
-		c = request_context
-		while c is not None:
-			result.append(c.context_name())
-			c = c.linked_context()
-
-		return result
-
 	@verify_type(request_context=(WContextProto, None))
 	def match(self, request_context=None):
 		""" Check if context request is compatible with adapters specification. True - if compatible,
@@ -206,8 +214,7 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 		if request_context is None and spec is None:
 			return True
 		elif request_context is not None and spec is not None:
-			if self.names(request_context) == [x.context_name() for x in spec]:
-				return True
+			return request_context == spec
 		return False
 
 	@abstractmethod
