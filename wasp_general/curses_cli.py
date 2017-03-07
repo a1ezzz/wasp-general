@@ -32,6 +32,7 @@ import curses
 
 from wasp_general.verify import verify_type
 from wasp_general.cli import WConsoleWindowProto, WConsoleProto, WConsoleBase, WConsoleWindowBase, WConsoleDrawerProto
+from wasp_general.command import WCommandSet
 
 
 class WCursesWindow(WConsoleWindowBase):
@@ -328,10 +329,11 @@ class WCursesKeyResize(WCursesKeyAction):
 		console_meta.refresh_window()
 
 
-class WCursesConsole(WConsoleBase, metaclass=ABCMeta):
+class WCursesConsole(WConsoleBase):
 
-	def __init__(self):
-		WConsoleBase.__init__(self)
+	@verify_type(command_set=(WCommandSet, None))
+	def __init__(self, command_set=None):
+		WConsoleBase.__init__(self, command_set=command_set)
 
 		self.__screen = curses.initscr()
 		self.__screen.keypad(True)

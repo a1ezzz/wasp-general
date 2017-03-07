@@ -31,6 +31,7 @@ from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
 from wasp_general.verify import verify_type, verify_value
+from wasp_general.command import WCommandSet, WCommandResult
 
 
 class WConsoleHistory:
@@ -462,7 +463,15 @@ class WConsoleWindowBase(WConsoleWindowProto, metaclass=ABCMeta):
 		raise RuntimeError('No suitable drawer was found')
 
 
-class WConsoleBase(WConsoleProto, metaclass=ABCMeta):
+class WConsoleBase(WConsoleProto):
+
+	@verify_type(command_set=(WCommandSet, None))
+	def __init__(self, command_set=None):
+		WConsoleProto.__init__(self)
+		self.__command_set = command_set if command_set is not None else WCommandSet()
+
+	def command_set(self):
+		return self.__command_set
 
 	def window(self):
 		raise NotImplementedError('This method is abstract')
@@ -504,3 +513,23 @@ class WConsoleBase(WConsoleProto, metaclass=ABCMeta):
 		""" :meth:`.WConsoleProto.prompt` implementation
 		"""
 		return '> '
+
+	@verify_type(result=WCommandResult)
+	def handle_result(self, result):
+		if result.error is not None:
+			self.write('Error: %s' % str(result.error))
+		self.write(result.output)
+
+	@verify_type(e=Exception)
+	def handle_exception(self, e):
+		if isinstance(e, WCommandSet.NoCommandFound):
+			self.write('Error: no suitable command found')
+		else:
+			self.write('Error: %s' % str(e))
+
+	def exec(self, row):
+		command_set = self.command_set()
+		try:
+			self.handle_result(command_set.exec(row))
+		except Exception as e:
+			self.handle_exception(e)
