@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO: tests require
+
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
@@ -30,8 +32,8 @@ from wasp_general.verify import verify_type
 from wasp_general.command import WCommandProto, WCommandResult, WCommandPrioritizedSelector, WCommandSet
 
 
-class WCommandContextRequestProto(metaclass=ABCMeta):
-	""" Represent context request configuration
+class WContextProto(metaclass=ABCMeta):
+	""" Represent context configuration
 	"""
 
 	@abstractmethod
@@ -54,16 +56,33 @@ class WCommandContextRequestProto(metaclass=ABCMeta):
 	def linked_context(self):
 		""" Return link to 'parent'/'higher' context
 
-		:return: WCommandContextRequestProto or None
+		:return: WContextProto or None
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	def __len__(self):
+		""" Return linked context count
 
-class WCommandContextRequest(WCommandContextRequestProto):
-	""" :class:`.WCommandContextRequestProto` implementation
+		:return: int
+		"""
+		return len([x for x in self])
+
+	def __iter__(self):
+		"""Iterate over
+
+		:return:
+		"""
+		context = self
+		while context is not None:
+			yield context
+			context = context.linked_context()
+
+
+class WContext(WContextProto):
+	""" :class:`.WContextProto` implementation
 	"""
 
-	@verify_type(context_name=str, context_value=(str, None), linked_context=(WCommandContextRequestProto, None))
+	@verify_type(context_name=str, context_value=(str, None), linked_context=(WContextProto, None))
 	def __init__(self, context_name, context_value=None, linked_context=None):
 		""" Create new context request
 
@@ -76,17 +95,17 @@ class WCommandContextRequest(WCommandContextRequestProto):
 		self.__linked_context = linked_context
 
 	def context_name(self):
-		""" :meth:`.WCommandContextRequestProto.context_name` implementation
+		""" :meth:`.WContextProto.context_name` implementation
 		"""
 		return self.__context_name
 
 	def context_value(self):
-		""" :meth:`.WCommandContextRequestProto.context_value` implementation
+		""" :meth:`.WContextProto.context_value` implementation
 		"""
 		return self.__context_value
 
 	def linked_context(self):
-		""" :meth:`.WCommandContextRequestProto.linked_context` implementation
+		""" :meth:`.WContextProto.linked_context` implementation
 		"""
 		return self.__linked_context
 
@@ -137,7 +156,7 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 		return self.__spec
 
 	@classmethod
-	@verify_type(request_context=(WCommandContextRequestProto, None))
+	@verify_type(request_context=(WContextProto, None))
 	def names(cls, request_context):
 		""" Convert context request to list of context names
 
@@ -154,7 +173,7 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 		result.reverse()
 		return result
 
-	@verify_type(request_context=(WCommandContextRequestProto, None))
+	@verify_type(request_context=(WContextProto, None))
 	def match(self, request_context=None):
 		""" Check if context request is compatible with adapters specification. True - if compatible,
 		False - otherwise
@@ -170,7 +189,7 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 		return False
 
 	@abstractmethod
-	@verify_type(command_tokens=str, request_context=(WCommandContextRequestProto, None))
+	@verify_type(command_tokens=str, request_context=(WContextProto, None))
 	def adapt(self, *command_tokens, request_context=None):
 		""" Adapt the given command tokens with this adapter
 
@@ -219,7 +238,7 @@ class WCommandContext(WCommandProto):
 		"""
 		return self.match_context(*command_tokens)
 
-	@verify_type(command_tokens=str, request_context=(WCommandContextRequestProto, None))
+	@verify_type(command_tokens=str, request_context=(WContextProto, None))
 	def match_context(self, *command_tokens, request_context=None):
 		""" Checks whether this command (modified original one) can be called with the given tokens and
 		the given context. Return True - if match, False - otherwise
@@ -243,7 +262,7 @@ class WCommandContext(WCommandProto):
 		"""
 		return self.exec_context(*command_tokens)
 
-	@verify_type(command_tokens=str, request_context=(WCommandContextRequestProto, None))
+	@verify_type(command_tokens=str, request_context=(WContextProto, None))
 	def exec_context(self, *command_tokens, request_context=None):
 		""" Execute this command (modified original one) and return result
 
@@ -265,16 +284,51 @@ class WCommandContextResult(WCommandResult):
 	switching as a result of some command execution
 	"""
 
-	@verify_type(output=(str, None), context=str)
-	def __init__(self, *context, output=None, error=None):
+	@verify_type(output=(str, None), context=(WContextProto, None))
+	def __init__(self, output=None, error=None, context=None):
 		""" Create new result
 
-		:param context: target context
 		:param output: same as output in :meth:`.WCommandResult.__init__`
 		:param error: same as error in :meth:`.WCommandResult.__init__`
+		:param context: context to set
 		"""
 		WCommandResult.__init__(self, output, error)
-		self.context = tuple(context) if len(context) > 0 else None
+		self.context = self.export_context(context) if context is not None else None
+
+	@classmethod
+	@verify_type(context=WContextProto)
+	def export_context(cls, context):
+		""" Export the specified context to be capable context transferring
+
+		:param context: context to export
+		:return: tuple
+		"""
+		result = [{x.context_name(): x.context_value()} for x in context]
+		result.reverse()
+		return tuple(result)
+
+	@classmethod
+	@verify_type(context=(tuple, None))
+	def import_context(cls, context):
+		""" Import context to corresponding WContextProto object (:meth:`WCommandContextResult.export_context`
+		reverse operation)
+
+		:param context: context to import
+		:return: WContextProto
+		"""
+		if context is None or len(context) == 0:
+			return
+
+		@verify_type(linked=(WContextProto, None))
+		def create_context(context_dict, linked=None):
+			name = list(context_dict.keys())[0]
+			value = context_dict[name]
+			return WContext(name, context_value=value, linked_context=linked)
+
+		context_obj = create_context(context[0])
+		for iter_context in context[1:]:
+			context_obj = create_context(iter_context, linked=context_obj)
+		return context_obj
 
 
 class WCommandContextSelector(WCommandPrioritizedSelector):
@@ -282,7 +336,7 @@ class WCommandContextSelector(WCommandPrioritizedSelector):
 	:meth:`.WCommandContext.match_context` call
 	"""
 
-	@verify_type(command_tokens=str, request_context=(WCommandContextRequestProto, None))
+	@verify_type(command_tokens=str, request_context=(WContextProto, None))
 	def select(self, *command_tokens, request_context=None):
 		""" Select command from internal storage, that matches the given tokens and the given context
 
@@ -324,10 +378,19 @@ class WCommandContextSet(WCommandSet):
 		if command_selector is None:
 			command_selector = WCommandContextSelector()
 		WCommandSet.__init__(self, command_selector=command_selector)
+		self.__context = None
 
-	@verify_type(command_str=str, request_context=(WCommandContextRequestProto, None))
+	def context(self):
+		""" Return current context
+
+		:return: WContextProto
+		"""
+		return self.__context
+
+	@verify_type(command_str=str, request_context=(WContextProto, None))
 	def exec_context(self, command_str, request_context=None):
-		""" Execute command with context (if specified)
+		""" Execute command with context (if specified). If command result will set context, this context will
+		be set to this object for future use
 
 		:param command_str: command to execute
 		:param request_context: context to use
@@ -339,6 +402,11 @@ class WCommandContextSet(WCommandSet):
 			raise WCommandSet.NoCommandFound('No suitable command found: "%s"' % command_str)
 
 		if isinstance(command_obj, WCommandContext) is True:
-			return command_obj.exec_context(*command_tokens, request_context=request_context)
+			result = command_obj.exec_context(*command_tokens, request_context=request_context)
+		else:
+			result = command_obj.exec(*command_tokens)
 
-		return command_obj.exec(*command_tokens)
+		if isinstance(result, WCommandContextResult) is True:
+			self.__context = result.import_context(result.context)
+
+		return result

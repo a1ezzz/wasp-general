@@ -4,16 +4,16 @@ import pytest
 
 from wasp_general.command import WCommandProto, WCommand, WCommandResult, WCommandPrioritizedSelector, WCommandSet
 
-from wasp_general.command_context import WCommandContextRequestProto, WCommandContextRequest, WContextSpecification
-from wasp_general.command_context import WCommandContextAdapter, WCommandContext, WCommandContextResult
-from wasp_general.command_context import WCommandContextSelector, WCommandContextSet
+from wasp_general.command_context import WContextProto, WContext, WContextSpecification, WCommandContextAdapter
+from wasp_general.command_context import WCommandContext, WCommandContextResult, WCommandContextSelector
+from wasp_general.command_context import WCommandContextSet
 
 
 def test_abstract():
-	pytest.raises(TypeError, WCommandContextRequestProto)
-	pytest.raises(NotImplementedError, WCommandContextRequestProto.context_name, None)
-	pytest.raises(NotImplementedError, WCommandContextRequestProto.context_value, None)
-	pytest.raises(NotImplementedError, WCommandContextRequestProto.linked_context, None)
+	pytest.raises(TypeError, WContextProto)
+	pytest.raises(NotImplementedError, WContextProto.context_name, None)
+	pytest.raises(NotImplementedError, WContextProto.context_value, None)
+	pytest.raises(NotImplementedError, WContextProto.linked_context, None)
 
 	pytest.raises(TypeError, WCommandContextAdapter)
 	pytest.raises(NotImplementedError, WCommandContextAdapter.adapt, None)
@@ -22,15 +22,15 @@ def test_abstract():
 class TestWCommandContextRequest:
 
 	def test(self):
-		c_r1 = WCommandContextRequest('context1')
-		assert(isinstance(c_r1, WCommandContextRequest) is True)
-		assert(isinstance(c_r1, WCommandContextRequestProto) is True)
+		c_r1 = WContext('context1')
+		assert(isinstance(c_r1, WContext) is True)
+		assert(isinstance(c_r1, WContextProto) is True)
 
 		assert(c_r1.context_name() == 'context1')
 		assert(c_r1.context_value() is None)
 		assert(c_r1.linked_context() is None)
 
-		c_r2 = WCommandContextRequest('context2', 'context-value', c_r1)
+		c_r2 = WContext('context2', 'context-value', c_r1)
 		assert(c_r2.context_name() == 'context2')
 		assert(c_r2.context_value() == 'context-value')
 		assert(c_r2.linked_context() == c_r1)
@@ -66,8 +66,8 @@ class TestWCommandContextAdapter:
 		assert(isinstance(a, WCommandContextAdapter) is True)
 		assert(a.specification() == spec)
 
-		c_r1 = WCommandContextRequest('context1')
-		c_r2 = WCommandContextRequest('context2', 'context-value', c_r1)
+		c_r1 = WContext('context1')
+		c_r2 = WContext('context2', 'context-value', c_r1)
 
 		assert(a.adapt('hello', 'world', request_context=c_r1) == ('context1', 'hello', 'world'))
 		assert(a.adapt('hello', 'world', request_context=c_r2) == ('context2', 'hello', 'world'))
@@ -108,7 +108,7 @@ class TestWCommandContext:
 		command2 = WCommandContext(base_command, adapter2)
 		assert(command2.match('hello', 'world', 'yeah') is True)
 		assert(command.match('hello', 'world', 'yeah') is False)
-		request_context = WCommandContextRequest('context', 'hello')
+		request_context = WContext('context', 'hello')
 		assert(command.match_context('world', request_context=request_context) is True)
 
 		assert(command2.exec('hello', 'world').output == 'OK')
@@ -119,12 +119,15 @@ class TestWCommandContext:
 class TestWCommandContextResult:
 
 	def test(self):
-		cr = WCommandContextResult('hello', 'world', output='output', error=1)
-		assert(isinstance(cr, WCommandContextResult) is True)
-		assert(isinstance(cr, WCommandResult) is True)
-		assert(cr.context == ('hello', 'world'))
-		assert(cr.output == 'output')
-		assert(cr.error == 1)
+		context_request1 = WContext('hello')
+		context_request2 = WContext('world', 'context-value', context_request1)
+		command_result = WCommandContextResult('output', 1, context_request2)
+
+		assert(isinstance(command_result, WCommandContextResult) is True)
+		assert(isinstance(command_result, WCommandResult) is True)
+		assert(command_result.context == ({'hello': None}, {'world': 'context-value'}))
+		assert(command_result.output == 'output')
+		assert(command_result.error == 1)
 
 
 class TestWCommandContextSelector:
@@ -149,7 +152,7 @@ class TestWCommandContextSelector:
 		selector.add(simply_command)
 
 		assert(selector.select('create', 'world') == simply_command)
-		assert(selector.select('world', request_context=WCommandContextRequest('context', 'hello')) == command)
+		assert(selector.select('world', request_context=WContext('context', 'hello')) == command)
 
 
 class TestWCommandContextSet:
@@ -169,7 +172,7 @@ class TestWCommandContextSet:
 		command_set.commands().add(simply_command)
 
 		assert(command_set.exec_context('create world').output == 'simple OK')
-		result = command_set.exec_context('world', request_context=WCommandContextRequest('context', 'hello'))
+		result = command_set.exec_context('world', request_context=WContext('context', 'hello'))
 		assert(result.output == 'OK')
 
 		pytest.raises(WCommandSet.NoCommandFound, command_set.exec_context, 'foo')
