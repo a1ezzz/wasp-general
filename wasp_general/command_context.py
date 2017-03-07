@@ -142,7 +142,7 @@ class WContext(WContextProto):
 		:param context: context to export
 		:return: tuple
 		"""
-		result = [{x.context_name(): x.context_value()} for x in context]
+		result = [(x.context_name(), x.context_value()) for x in context]
 		result.reverse()
 		return tuple(result)
 
@@ -158,16 +158,10 @@ class WContext(WContextProto):
 		if context is None or len(context) == 0:
 			return
 
-		@verify_type(linked=(WContextProto, None))
-		def create_context(context_dict, linked=None):
-			name = list(context_dict.keys())[0]
-			value = context_dict[name]
-			return WContext(name, context_value=value, linked_context=linked)
-
-		context_obj = create_context(context[0])
+		result = WContext(context[0][0], context[0][1])
 		for iter_context in context[1:]:
-			context_obj = create_context(iter_context, linked=context_obj)
-		return context_obj
+			result = WContext(iter_context[0], context_value=iter_context[1], linked_context=result)
+		return result
 
 	@classmethod
 	@verify_type(context_specs=str)
@@ -179,7 +173,7 @@ class WContext(WContextProto):
 		"""
 		import_data = []
 		for name in context_specs:
-			import_data.append({name: None})
+			import_data.append((name, None))
 		return cls.import_context(tuple(import_data))
 
 

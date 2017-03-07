@@ -112,7 +112,7 @@ class TestWCommandContextResult:
 
 		assert(isinstance(command_result, WCommandContextResult) is True)
 		assert(isinstance(command_result, WCommandResult) is True)
-		assert(command_result.context == ({'hello': None}, {'world': 'context-value'}))
+		assert(command_result.context == (('hello', None), ('world', 'context-value')))
 		assert(command_result.output == 'output')
 		assert(command_result.error == 1)
 
