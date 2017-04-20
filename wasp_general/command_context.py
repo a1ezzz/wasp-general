@@ -102,7 +102,6 @@ class WContextProto(metaclass=ABCMeta):
 		return True
 
 
-
 class WContext(WContextProto):
 	""" :class:`.WContextProto` implementation
 	"""

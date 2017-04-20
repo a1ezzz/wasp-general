@@ -282,7 +282,9 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 			if len(nested_requirements) == 0:
 				raise RuntimeError('Unable to calculate stopping order')
 
-			return calculate_priorities(*list(nested_requirements), current_result=current_result, requirements_left=all_requirements)
+			return calculate_priorities(
+				*list(nested_requirements), current_result=current_result, requirements_left=all_requirements
+			)
 
 		if stop_dependent is True:
 			stop_dependency(task)

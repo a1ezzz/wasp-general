@@ -55,7 +55,6 @@ class WCursesWindow(WConsoleWindowBase):
 			"""
 			window.set_cursor(0, 0)
 
-
 	class SmallWindowDrawer(WConsoleDrawerProto):
 		""" WConsoleWindowProto.DrawerProto implementation. Suites if there is content and content fits window
 		width and height
@@ -89,7 +88,6 @@ class WCursesWindow(WConsoleWindowBase):
 			x = line_length % window.width()
 
 			window.set_cursor(y, x)
-
 
 	class ScrolledWindowDrawer(WConsoleDrawerProto):
 		""" WConsoleWindowProto.DrawerProto implementation. Suites if content doesn't fit window width and
@@ -129,7 +127,6 @@ class WCursesWindow(WConsoleWindowBase):
 			x = line_length % window.width()
 
 			window.set_cursor(y, x)
-
 
 	class BigWindowDrawer(WConsoleDrawerProto):
 		""" WConsoleWindowProto.DrawerProto implementation. Suites if content and even current row doesn't fit
