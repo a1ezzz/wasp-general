@@ -2,8 +2,8 @@
 
 import pytest
 
-from wasp_general.command import WCommandResult, WCommandProto, WCommand, WCommandSelector, WCommandPrioritizedSelector
-from wasp_general.command import WCommandSet
+from wasp_general.command.command import WCommandResult, WCommandProto, WCommand, WCommandSelector
+from wasp_general.command.command import WCommandPrioritizedSelector, WCommandSet
 
 
 def test_abstract():

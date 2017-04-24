@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/curses_cli.py
+# wasp_general/cli/curses.py
 #
 # Copyright (C) 2016 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -31,8 +31,8 @@ from abc import ABCMeta, abstractmethod
 import curses
 
 from wasp_general.verify import verify_type
-from wasp_general.cli import WConsoleWindowProto, WConsoleProto, WConsoleBase, WConsoleWindowBase, WConsoleDrawerProto
-from wasp_general.command import WCommandSet
+from wasp_general.cli.cli import WConsoleWindowProto, WConsoleProto, WConsoleBase, WConsoleWindowBase, WConsoleDrawerProto
+from wasp_general.command.command import WCommandSet
 
 
 class WCursesWindow(WConsoleWindowBase):

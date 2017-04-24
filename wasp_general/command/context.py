@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/command_context.py
+# wasp_general/command/context.py
 #
 # Copyright (C) 2016 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -29,7 +29,7 @@ from wasp_general.version import __status__
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type
-from wasp_general.command import WCommandProto, WCommandResult, WCommandPrioritizedSelector, WCommandSet
+from wasp_general.command.command import WCommandProto, WCommandResult, WCommandPrioritizedSelector, WCommandSet
 
 
 class WContextProto(metaclass=ABCMeta):

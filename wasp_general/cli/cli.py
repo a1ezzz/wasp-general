@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/cli.py
+# wasp_general/cli/cli.py
 #
 # Copyright (C) 2016 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -31,7 +31,7 @@ from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.command import WCommandSet, WCommandResult
+from wasp_general.command.command import WCommandSet, WCommandResult
 
 
 class WConsoleHistory:

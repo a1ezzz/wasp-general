@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/command.py
+# wasp_general/command/command.py
 #
 # Copyright (C) 2016 the wasp-general authors and contributors
 # <see AUTHORS file>

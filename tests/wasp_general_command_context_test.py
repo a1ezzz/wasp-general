@@ -2,10 +2,11 @@
 
 import pytest
 
-from wasp_general.command import WCommandProto, WCommand, WCommandResult, WCommandPrioritizedSelector, WCommandSet
+from wasp_general.command.command import WCommandProto, WCommand, WCommandResult, WCommandPrioritizedSelector
+from wasp_general.command.command import WCommandSet
 
-from wasp_general.command_context import WContextProto, WContext, WCommandContextAdapter, WCommandContext
-from wasp_general.command_context import WCommandContextResult, WCommandContextSelector, WCommandContextSet
+from wasp_general.command.context import WContextProto, WContext, WCommandContextAdapter, WCommandContext
+from wasp_general.command.context import WCommandContextResult, WCommandContextSelector, WCommandContextSet
 
 
 def test_abstract():
