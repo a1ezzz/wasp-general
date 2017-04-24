@@ -205,7 +205,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'wasp-generaldoc'
+htmlhelp_basename = 'wasp-general-doc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -287,3 +287,8 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
+
+# Include Markdown files
+from recommonmark.parser import CommonMarkParser
+source_parsers = {'.md': CommonMarkParser}
+source_suffix = ['.rst', '.md']
