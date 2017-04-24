@@ -7,14 +7,14 @@ from threading import Thread, Lock
 from zmq.eventloop.ioloop import IOLoop
 from tempfile import mktemp
 
-'''
+
 from wasp_general.network.transport import WNetworkNativeTransportProto
 from wasp_general.network.beacon.beacon import WNetworkServerBeacon, WNetworkClientBeacon, WNetworkBeaconCallback
 from wasp_general.network.beacon.messenger import WBeaconMessenger
 from wasp_general.network.beacon.transport import WBroadcastBeaconTransport, WMulticastBeaconTransport
 
 from wasp_general.config import WConfig
-from wasp_network.primitives import WIPV4SocketInfo
+from wasp_general.network.primitives import WIPV4SocketInfo
 
 
 def test_abstract():
@@ -141,8 +141,8 @@ class TestWBeacon:
 		fake_transport.create_files()
 		messenger = WBeaconMessenger()
 		config = WConfig()
-		config.add_section('wasp-network::beacon')
-		config['wasp-network::beacon']['lookup_timeout'] = '1'
+		config.add_section('wasp-general::network::beacon')
+		config['wasp-general::network::beacon']['lookup_timeout'] = '1'
 
 		server_beacon = WNetworkServerBeacon(messenger=messenger, transport=fake_transport, callback=TestCallback())
 		assert(server_beacon.handler().io_handler().process_any() is False)
@@ -163,13 +163,13 @@ class TestWBeacon:
 		assert(TestCallback.result == [b'WDataDescription.request:HELLO', b'WDataDescription.response:HELLO'])
 
 		assert(isinstance(WNetworkServerBeacon().handler().transport(), WBroadcastBeaconTransport) is True)
-		config['wasp-network::beacon']['transport'] = 'multicast'
+		config['wasp-general::network::beacon']['transport'] = 'multicast'
 		assert(isinstance(WNetworkServerBeacon(config=config).handler().transport(), WMulticastBeaconTransport) is True)
-		config['wasp-network::beacon']['transport'] = 'foo'
+		config['wasp-general::network::beacon']['transport'] = 'foo'
 		pytest.raises(ValueError, WNetworkServerBeacon, config=config)
-		config['wasp-network::beacon']['transport'] = 'unicast_udp'
+		config['wasp-general::network::beacon']['transport'] = 'unicast_udp'
 		pytest.raises(NotImplementedError, WNetworkServerBeacon, config=config)
-		config['wasp-network::beacon']['transport'] = 'unicast_tcp'
+		config['wasp-general::network::beacon']['transport'] = 'unicast_tcp'
 		pytest.raises(NotImplementedError, WNetworkServerBeacon, config=config)
 
 		silent_messenger = WBeaconMessenger()
@@ -191,4 +191,3 @@ class TestWBeacon:
 		assert (TestCallback.result == [b'WDataDescription.invalid_request:HELLO'])
 
 		fake_transport.delete_files()
-'''

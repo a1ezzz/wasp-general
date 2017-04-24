@@ -48,20 +48,20 @@ class TestWBeaconGouverneurMessenger:
 
 	def test_request(self):
 		config = WConfig()
-		config.add_section('wasp-network::beacon')
-		config['wasp-network::beacon']['public_address'] = ''
-		config['wasp-network::beacon']['public_port'] = ''
+		config.add_section('wasp-general::network::beacon')
+		config['wasp-general::network::beacon']['public_address'] = ''
+		config['wasp-general::network::beacon']['public_port'] = ''
 
 		assert(WBeaconGouverneurMessenger(b'hi').request(config) == b'hi')
 		assert(WBeaconGouverneurMessenger(b'hello_string').request(config) == b'hello_string')
-		config['wasp-network::beacon']['public_address'] = 'qqq'
+		config['wasp-general::network::beacon']['public_address'] = 'qqq'
 		assert (WBeaconGouverneurMessenger(b'hi').request(config) == b'hi:qqq')
-		config['wasp-network::beacon']['public_address'] = ':'
+		config['wasp-general::network::beacon']['public_address'] = ':'
 		pytest.raises(ValueError, WBeaconGouverneurMessenger(b'hi').request, config)
-		config['wasp-network::beacon']['public_address'] = 'qqq'
-		config['wasp-network::beacon']['public_port'] = '70'
+		config['wasp-general::network::beacon']['public_address'] = 'qqq'
+		config['wasp-general::network::beacon']['public_port'] = '70'
 		assert(WBeaconGouverneurMessenger(b'hi').request(config) == b'hi:qqq:70')
-		config['wasp-network::beacon']['public_address'] = ''
+		config['wasp-general::network::beacon']['public_address'] = ''
 		assert(WBeaconGouverneurMessenger(b'hi').request(config) == b'hi')
 
 	def test_invert_hello(self):
@@ -85,21 +85,21 @@ class TestWBeaconGouverneurMessenger:
 
 	def test_response(self):
 		config = WConfig()
-		config.add_section('wasp-network::beacon')
-		config['wasp-network::beacon']['public_address'] = ''
-		config['wasp-network::beacon']['public_port'] = ''
+		config.add_section('wasp-general::network::beacon')
+		config['wasp-general::network::beacon']['public_address'] = ''
+		config['wasp-general::network::beacon']['public_port'] = ''
 		si = WIPV4SocketInfo('192.168.0.1', 7777)
 
 		assert(WBeaconGouverneurMessenger(b'hi').response(config, b'req', si) == b'hi')
 		assert(WBeaconGouverneurMessenger(b'hello_string').response(config, b'req', si) == b'hello_string')
-		config['wasp-network::beacon']['public_address'] = 'qqq'
+		config['wasp-general::network::beacon']['public_address'] = 'qqq'
 		assert (WBeaconGouverneurMessenger(b'hi').response(config, b'req', si) == b'hi:qqq')
-		config['wasp-network::beacon']['public_address'] = ':'
+		config['wasp-general::network::beacon']['public_address'] = ':'
 		pytest.raises(ValueError, WBeaconGouverneurMessenger(b'hi').response, config, b'req', si)
-		config['wasp-network::beacon']['public_address'] = 'qqq'
-		config['wasp-network::beacon']['public_port'] = '70'
+		config['wasp-general::network::beacon']['public_address'] = 'qqq'
+		config['wasp-general::network::beacon']['public_port'] = '70'
 		assert(WBeaconGouverneurMessenger(b'hi').response(config, b'req', si) == b'hi:qqq:70')
-		config['wasp-network::beacon']['public_address'] = ''
+		config['wasp-general::network::beacon']['public_address'] = ''
 		assert(WBeaconGouverneurMessenger(b'hi').response(config, b'req', si) == b'hi')
 
 	def test_response_address(self):
@@ -132,9 +132,9 @@ class TestWHostgroupBeaconMessenger:
 
 	def test_task(self):
 		config = WConfig()
-		config.add_section('wasp-network::beacon')
-		config['wasp-network::beacon']['public_address'] = ''
-		config['wasp-network::beacon']['public_port'] = ''
+		config.add_section('wasp-general::network::beacon')
+		config['wasp-general::network::beacon']['public_address'] = ''
+		config['wasp-general::network::beacon']['public_port'] = ''
 		si = WIPV4SocketInfo('1.1.1.1', 1)
 
 		pytest.raises(TypeError, WHostgroupBeaconMessenger, b'HELLOMSG', b'group')
@@ -144,9 +144,9 @@ class TestWHostgroupBeaconMessenger:
 		assert(isinstance(messenger, WBeaconGouverneurMessenger) is True)
 		assert(messenger.hostgroups() == [])
 		assert(messenger.request(config) == b'HELLOMSG')
-		config['wasp-network::beacon']['public_address'] = 'site1.org'
+		config['wasp-general::network::beacon']['public_address'] = 'site1.org'
 		assert(messenger.request(config) == b'HELLOMSG:site1.org')
-		config['wasp-network::beacon']['public_port'] = '10'
+		config['wasp-general::network::beacon']['public_port'] = '10'
 		assert(messenger.request(config) == b'HELLOMSG:site1.org:10')
 		data = messenger._message_hostgroup_parse(b'HELLOMSG:site1.org')
 		assert(data[0] == [])
@@ -159,18 +159,18 @@ class TestWHostgroupBeaconMessenger:
 		assert(messenger.has_response(config, b'HELLOMSG#users', si) is True)
 		assert(messenger.has_response(config, b'HELLOMSG#g', si) is True)
 
-		config['wasp-network::beacon']['public_address'] = ''
-		config['wasp-network::beacon']['public_port'] = ''
+		config['wasp-general::network::beacon']['public_address'] = ''
+		config['wasp-general::network::beacon']['public_port'] = ''
 		messenger = WHostgroupBeaconMessenger(b'HELLOMSG', 'group1', 'servers')
 		assert(messenger.hostgroups() == ['group1', 'servers'])
 		assert(messenger.request(config) == b'HELLOMSG#group1,servers')
-		config['wasp-network::beacon']['public_address'] = 'site1.org'
+		config['wasp-general::network::beacon']['public_address'] = 'site1.org'
 		assert(messenger.request(config) == b'HELLOMSG:site1.org#group1,servers')
 		data = messenger._message_hostgroup_parse(b'HELLOMSG:site1.org#group1,servers')
 		assert(data[0] == [b'group1', b'servers'])
 		assert(str(data[1].address()) == 'site1.org')
 		assert(data[1].port() is None)
-		config['wasp-network::beacon']['public_port'] = '10'
+		config['wasp-general::network::beacon']['public_port'] = '10'
 		assert(messenger.request(config) == b'HELLOMSG:site1.org:10#group1,servers')
 
 		pytest.raises(ValueError, messenger._message_hostgroup_parse, b'HELLOMSG##group1,servers')
