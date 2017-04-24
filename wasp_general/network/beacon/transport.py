@@ -28,14 +28,14 @@ from wasp_general.network.transport import WNetworkNativeTransportSocketConfig, 
 from wasp_general.network.transport import WMulticastNetworkTransport
 
 
-server_configuration = WNetworkNativeTransportSocketConfig('wasp-network::beacon', 'bind_address', 'port')
+server_configuration = WNetworkNativeTransportSocketConfig('wasp-general::network::beacon', 'bind_address', 'port')
 """
 Server side use 'bind_address' options to set up listening socket. Server will be able to receive requests
 only at this address. Default is '' (empty string) that works as '0.0.0.0' address, in this case server will
 be able to receive requests at any address defined in the system.
 """
 
-client_configuration = WNetworkNativeTransportSocketConfig('wasp-network::beacon', 'address', 'port')
+client_configuration = WNetworkNativeTransportSocketConfig('wasp-general::network::beacon', 'address', 'port')
 """
 Mainly. 'address' and 'port' options are used on client side for destination definition (for server
 destination). This options can be used for address validation on server side also. For example,

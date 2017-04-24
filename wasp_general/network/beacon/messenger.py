@@ -159,7 +159,7 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 
 	For the client "Address" and "UDP Port" are treated as address where server must send the response.
 	But for the server, they are treated as the address, that the server publish. For both type of messages
-	"Address" and "TCP/UDP port" are generated from a configuration. Options are located in 'wasp-network::beacon'
+	"Address" and "TCP/UDP port" are generated from a configuration. Options are located in 'wasp-general::network::beacon'
 	section. Configuration option "public_address" is used as "Address" value and option
 	"public_port" is used as "UDP Port"
 	"""
@@ -230,16 +230,16 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 
 		address = None
 
-		if beacon_config['wasp-network::beacon']['public_address'] != '':
+		if beacon_config['wasp-general::network::beacon']['public_address'] != '':
 			address = str(WIPV4SocketInfo.parse_address(
-				beacon_config['wasp-network::beacon']['public_address']
+				beacon_config['wasp-general::network::beacon']['public_address']
 			)).encode('ascii')
 
 		if address is not None:
 			address = WBeaconGouverneurMessenger.__message_splitter__ + address
 
-			if beacon_config['wasp-network::beacon']['public_port'] != '':
-				port = beacon_config.getint('wasp-network::beacon', 'public_port')
+			if beacon_config['wasp-general::network::beacon']['public_port'] != '':
+				port = beacon_config.getint('wasp-general::network::beacon', 'public_port')
 				address += WBeaconGouverneurMessenger.__message_splitter__ + str(port).encode('ascii')
 
 		return address if address is not None else b''

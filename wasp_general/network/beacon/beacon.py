@@ -51,9 +51,9 @@ class WBeaconConfig(metaclass=ABCMeta):
 		:param config_section: configuration section name where options are
 		"""
 		self.__configuration = WConfig()
-		self.__configuration.merge(os.path.join(os.path.dirname(__file__), '..', 'config', 'defaults.ini'))
+		self.__configuration.merge(os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'defaults.ini'))
 		if config is not None:
-			self.__configuration.merge_section(config, 'wasp-network::beacon', section_from=config_section)
+			self.__configuration.merge_section(config, 'wasp-general::network::beacon', section_from=config_section)
 
 	def config(self):
 		""" Return beacon configuration
@@ -160,7 +160,7 @@ class WBeaconHandler(WNativeSocketHandler):
 	def __init__(self, config, io_handler, server_mode, transport=None):
 
 		if transport is None:
-			transport_cfg = config['wasp-network::beacon']['transport'].lower()
+			transport_cfg = config['wasp-general::network::beacon']['transport'].lower()
 
 			if transport_cfg == 'broadcast':
 				transport = WBroadcastBeaconTransport()
@@ -324,5 +324,5 @@ class WNetworkClientBeacon(WBeaconConfig, WNetworkBeaconBase):
 		"""
 		WBeaconConfig.__init__(self, config=config, config_section=config_section)
 		io_handler = WNetworkClientBeacon.Handler(self.config(), messenger, callback)
-		timeout = self.config().getint('wasp-network::beacon', 'lookup_timeout')
+		timeout = self.config().getint('wasp-general::network::beacon', 'lookup_timeout')
 		WNetworkBeaconBase.__init__(self, self.config(), io_handler, False, transport, timeout)
