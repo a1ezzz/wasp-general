@@ -1,3 +1,6 @@
 decorator
 pycrypto
 python_magic
+pyzmq
+decorator
+mako
