@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/sec/crypto/random.py
+# wasp_general/crypto/random.py
 #
 # Copyright (C) 2016 the wasp-general authors and contributors
 # <see AUTHORS file>

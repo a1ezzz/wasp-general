@@ -2,8 +2,8 @@
 
 import pytest
 
-from wasp_general.sec.crypto.aes import WFixedSecretAES, WAESMode
-from wasp_general.sec.crypto.rsa import WRSA
+from wasp_general.crypto.aes import WFixedSecretAES, WAESMode
+from wasp_general.crypto.rsa import WRSA
 
 from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerBase
 from wasp_general.network.messenger.coders import WMessengerFixedModificationLayer, WMessengerHexLayer

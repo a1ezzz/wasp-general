@@ -2,7 +2,7 @@
 
 import pytest
 
-from wasp_general.sec.crypto.sha import WSHA
+from wasp_general.crypto.sha import WSHA
 
 
 class TestWSHA:

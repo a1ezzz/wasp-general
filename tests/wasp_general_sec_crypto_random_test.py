@@ -2,7 +2,7 @@
 
 import pytest
 
-from wasp_general.sec.crypto.random import random_bits, random_int, random_bytes
+from wasp_general.crypto.random import random_bits, random_int, random_bytes
 
 
 def test_random_bits():

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/sec/crypto/rsa.py
+# wasp_general/crypto/rsa.py
 #
 # Copyright (C) 2016 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -28,7 +28,7 @@ from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA as pyRSA
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.sec.crypto.sha import WSHA
+from wasp_general.crypto.sha import WSHA
 
 
 class WRSA:

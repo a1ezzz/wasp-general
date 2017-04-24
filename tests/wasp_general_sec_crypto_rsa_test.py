@@ -2,7 +2,7 @@
 
 import pytest
 
-from wasp_general.sec.crypto.rsa import WRSA
+from wasp_general.crypto.rsa import WRSA
 
 
 class TestWRSA:

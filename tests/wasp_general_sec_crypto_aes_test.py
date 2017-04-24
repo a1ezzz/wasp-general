@@ -3,8 +3,8 @@
 import pytest
 
 from wasp_general.config import WConfig
-from wasp_general.sec.crypto.aes import WBlockPadding, WSimplePadding, WShiftPadding, WPKCS7Padding, WAESMode, WAES
-from wasp_general.sec.crypto.aes import WFixedSecretAES, WConfigSecretAES
+from wasp_general.crypto.aes import WBlockPadding, WSimplePadding, WShiftPadding, WPKCS7Padding, WAESMode, WAES
+from wasp_general.crypto.aes import WFixedSecretAES, WConfigSecretAES
 
 
 def test_abstract_classes():

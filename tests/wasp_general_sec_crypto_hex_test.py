@@ -2,7 +2,7 @@
 
 import pytest
 
-from wasp_general.sec.crypto.hex import WHex, WUnHex
+from wasp_general.crypto.hex import WHex, WUnHex
 
 
 class TestWHex:

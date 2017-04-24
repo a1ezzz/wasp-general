@@ -27,10 +27,10 @@ from wasp_general.version import __status__
 from base64 import b64encode, b64decode
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.sec.crypto.hex import WHex, WUnHex
-from wasp_general.sec.crypto.aes import WAES
-from wasp_general.sec.crypto.rsa import WRSA
-from wasp_general.sec.crypto.sha import WSHA
+from wasp_general.crypto.hex import WHex, WUnHex
+from wasp_general.crypto.aes import WAES
+from wasp_general.crypto.rsa import WRSA
+from wasp_general.crypto.sha import WSHA
 
 from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerBase
 

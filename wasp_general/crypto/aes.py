@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/sec/crypto/aes.py
+# wasp_general/crypto/aes.py
 #
 # Copyright (C) 2016 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -32,7 +32,7 @@ from abc import ABCMeta, abstractmethod
 from wasp_general.verify import verify_type, verify_value
 from wasp_general.config import WConfig
 
-from wasp_general.sec.crypto.random import random_int
+from wasp_general.crypto.random import random_int
 
 
 class WBlockPadding(metaclass=ABCMeta):
