@@ -99,6 +99,8 @@ class WContextProto(metaclass=ABCMeta):
 
 		if context_b is not None:
 			return False
+		elif context_a is not None:
+			return False
 		return True
 
 
