@@ -28,6 +28,7 @@ setup(
 	keywords = "",
 	url = "",
 	packages=find_packages(),
+	include_package_data=True,
 	long_description=read('README'),
 	classifiers=[],
 	install_requires=require('requirements.txt')
