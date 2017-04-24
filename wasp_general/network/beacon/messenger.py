@@ -178,7 +178,7 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 
 		:param hello_message: Message header
 		:param invert_hello: this flag defines whether response will have the original header \
-		('hello_message' value) or it will have reversed value. For example, when this flag is set to True
+		('hello_message' value) or it will have reversed value. For example, when this flag is set to True \
 		and 'hello_message' is b'sample', then response will have b'elpmas' header.
 		"""
 		WBeaconMessengerBase.__init__(self)
@@ -196,7 +196,7 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 	def hello_message(self, invert_hello=False):
 		""" Return message header.
 
-		:param invert_hello: whether to return the original header (in case of False value) or reversed
+		:param invert_hello: whether to return the original header (in case of False value) or reversed \
 		one (in case of True value).
 		:return: bytes
 		"""

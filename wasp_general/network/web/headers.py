@@ -99,7 +99,7 @@ class WHTTPHeaders:
 
 		:param header_name: name of the header to add
 		:param value: header value
-		:param values: additional header values (in a result request/response must be concatenated by the coma
+		:param values: additional header values (in a result request/response must be concatenated by the coma \
 		or by the separate header string)
 		:return: None
 		"""
@@ -121,7 +121,7 @@ class WHTTPHeaders:
 
 		:param header_name: target header
 		:param value: new header value
-		:param values: additional header values (in a result request/response must be concatenated by the coma
+		:param values: additional header values (in a result request/response must be concatenated by the coma \
 		or by the separate header string)
 		:return: None
 		"""

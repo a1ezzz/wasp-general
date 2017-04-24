@@ -186,13 +186,14 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 def cache_control(validator=None, storage=None):
 	""" Decorator that is used for caching result.
 
-	:param validator: function, that has following signature (decorated_function, *args, **kwargs), where \
-	decorated_function - original function, *args - function arguments, **kwargs - function keyword arguments. \
+	:param validator: function, that has following signature (decorated_function, \*args, \*\*kwargs), where \
+	decorated_function - original function, args - function arguments, kwargs - function keyword arguments. \
 	This function must return True if cache is valid (old result must be use if it there is one), or False - to \
 	generate and to store new result. So function that always return True can be used as singleton. And function \
 	that always return False won't cache anything at all. By default (if no validator is specified), it presumes \
 	that cache is always valid.
 	:param storage: storage that is used for caching results. see :class:`.WCacheStorage` class.
+
 	:return: decorated function
 	"""
 

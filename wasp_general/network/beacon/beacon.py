@@ -54,7 +54,7 @@ class WBeaconConfig(metaclass=ABCMeta):
 		:param config_section: configuration section name where options are
 		"""
 		self.__configuration = WConfig()
-		self.__configuration.merge(os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'defaults.ini'))
+		self.__configuration.merge(os.path.join(os.path.dirname(__file__), '..', '..', 'defaults.ini'))
 		if config is not None:
 			self.__configuration.merge_section(config, 'wasp-general::network::beacon', section_from=config_section)
 

@@ -290,7 +290,7 @@ class WNetworkIPV4:
 	def last_address(self, skip_broadcast_address=True):
 		""" Return the last IP address of this network
 
-		:param skip_broadcast_address: this flag specifies whether to skip the very last address (that is
+		:param skip_broadcast_address: this flag specifies whether to skip the very last address (that is \
 		usually used as broadcast address) or not.
 		:return: WIPV4Address
 		"""

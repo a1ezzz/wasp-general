@@ -33,10 +33,10 @@ sys.path.insert(0, os.path.abspath(os.path.join('..', '..')))
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.coverage',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.graphviz',
+	'sphinx.ext.autodoc',
+	'sphinx.ext.coverage',
+	'sphinx.ext.viewcode',
+	'sphinx.ext.graphviz',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -257,8 +257,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'wasp-general', 'wasp-general Documentation',
-     [author], 1)
+	(master_doc, 'wasp-general', 'wasp-general Documentation', [author], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -271,9 +270,9 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'wasp-general', 'wasp-general Documentation',
-   author, 'wasp-general', 'One line description of project.',
-   'Miscellaneous'),
+	(master_doc, 'wasp-general', 'wasp-general Documentation',
+	author, 'wasp-general', 'One line description of project.',
+	'Miscellaneous'),
 ]
 
 # Documents to append as an appendix to all manuals.

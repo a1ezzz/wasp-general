@@ -289,9 +289,9 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 		:param prompt: If True, then console prompt appends. If console_row or console_row_to_cursor is True, \
 		then this value is omitted
 		:param console_row: If True, then console prompt and current input appends.
-		:param console_row_to_cursor: If True, then console prompt and current input till cursor appends.
+		:param console_row_to_cursor: If True, then console prompt and current input till cursor appends. \
 		If console_row is True, then this value is omitted
-		:param console_row_from_cursor: If True, then current input from cursor appends.
+		:param console_row_from_cursor: If True, then current input from cursor appends. \
 		If console_row is True, then this value is omitted
 		:return: str
 		"""
@@ -355,7 +355,7 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 	def cursor(self, pos=None):
 		""" Set and/or get relative cursor position. Defines cursor position in current input row.
 
-		:param pos: if value is not None, then current cursor position is set to this value and the same value
+		:param pos: if value is not None, then current cursor position is set to this value and the same value \
 		is returned
 		:return: int
 		"""

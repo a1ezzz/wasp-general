@@ -33,6 +33,7 @@ from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_value
 
+'''
 from wasp_general.network.messenger.onion import WMessengerOnionBase, WMessengerOnionLayer, WMessageModifier
 from wasp_general.network.messenger.onion import WMessengerOnionSessionBase
 
@@ -84,3 +85,4 @@ class WMessengerAuthLayer(WMessengerOnionLayer):
 	@verify_value(current_layer_index=lambda x: x >= -1)
 	def unpack(self, message, onion, session, current_layer_index):
 		pass
+'''
