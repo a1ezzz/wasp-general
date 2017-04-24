@@ -126,11 +126,35 @@ class TestWTaskDependencyRegistryStorage:
 			def stop(self):
 				pass
 
+		class T7(WStoppableTask, metaclass=WDependentTask):
+			__registry__ = R
+			__registry_tag__ = 'task7'
+			__dependency__ = []
+
+			def start(self):
+				pass
+
+			def stop(self):
+				pass
+
+		class T8(WStoppableTask, metaclass=WDependentTask):
+			__registry__ = R
+			__registry_tag__ = 'task8'
+			__dependency__ = ['task5', 'task7']
+
+			def start(self):
+				pass
+
+			def stop(self):
+				pass
+
 		registry_storage.add(T3)
 		registry_storage.add(T4)
 		registry_storage.add(T5)
 		registry_storage.add(T6)
-		assert(registry_storage.count() == 5)
+		registry_storage.add(T7)
+		registry_storage.add(T8)
+		assert(registry_storage.count() == 7)
 
 		registry_storage.dependency_check(T2)
 		registry_storage.dependency_check(T3)
@@ -198,13 +222,18 @@ class TestWTaskDependencyRegistryStorage:
 		assert(isinstance(registry_storage.started_task('task5'), T5) is True)
 
 		registry_storage.start_task('task3')
+		registry_storage.start_task('task8')
 		assert(isinstance(registry_storage.started_task('task3'), T3) is True)
 		assert(isinstance(registry_storage.started_task('task4'), T4) is True)
 		assert(isinstance(registry_storage.started_task('task5'), T5) is True)
-		registry_storage.stop_task('task5', stop_requirements=True)
+		assert(isinstance(registry_storage.started_task('task7'), T7) is True)
+		assert(isinstance(registry_storage.started_task('task8'), T8) is True)
+		registry_storage.stop_task('task8', stop_requirements=True)
 		assert(registry_storage.started_task('task3') is None)
 		assert(registry_storage.started_task('task4') is None)
 		assert(registry_storage.started_task('task5') is None)
+		assert(registry_storage.started_task('task7') is None)
+		assert(registry_storage.started_task('task8') is None)
 
 
 class TestWTaskDependencyRegistry:
@@ -272,23 +301,3 @@ class TestWTaskDependencyRegistry:
 		assert(R1.registry_storage().started_task('task1') is None)
 		assert(R1.registry_storage().started_task('task2') is None)
 		assert(T2.last_call_result == 'T2.stop')
-
-		'''
-		class R2(WTaskRegistry):
-			__registry_storage__ = WTaskRegistryStorage()
-
-		class T(WTask, metaclass=WRegisteredTask):
-			__registry__ = R2
-
-		assert(R1.registry_storage().count() == 0)
-		R1.add(T)
-		assert(R1.registry_storage().count() == 1)
-		R1.remove(T)
-		assert (R1.registry_storage().count() == 0)
-
-		R1.add(T)
-		R1.add(T)
-		assert (R1.registry_storage().count() == 2)
-		R1.clear()
-		assert (R1.registry_storage().count() == 0)
-		'''

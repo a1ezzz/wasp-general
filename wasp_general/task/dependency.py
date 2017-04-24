@@ -255,22 +255,21 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 					result.add(task_a)
 			return result
 
-		def calculate_priorities(*tasks_to_stop, current_result=None, requirements_left=None):
+		def calculate_priorities(task_to_stop, *extra_tasks, current_result=None, requirements_left=None):
 			if current_result is None:
 				current_result = []
 
-			if len(tasks_to_stop) == 0:
-				return current_result
+			tasks_to_stop = [task_to_stop]
+			if len(extra_tasks) > 0:
+				tasks_to_stop.extend(extra_tasks)
 
 			current_result.append(list(tasks_to_stop))
 
 			all_requirements = calculate_requirements(tasks_to_stop[0], cross_requirements=True)
-			if len(all_requirements) == 0:
-				return current_result
 			nested_requirements = calculate_requirements(tasks_to_stop[0])
 
 			for dependent_task in tasks_to_stop[1:]:
-				nested_requirements = nested_requirements.difference(calculate_requirements(dependent_task))
+				nested_requirements = nested_requirements.union(calculate_requirements(dependent_task))
 				all_requirements.update(calculate_requirements(dependent_task, cross_requirements=True))
 
 			all_requirements = all_requirements.difference(nested_requirements)
@@ -280,7 +279,7 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 				nested_requirements.update(requirements_left)
 
 			if len(nested_requirements) == 0:
-				raise RuntimeError('Unable to calculate stopping order')
+				return current_result
 
 			return calculate_priorities(
 				*list(nested_requirements), current_result=current_result, requirements_left=all_requirements
