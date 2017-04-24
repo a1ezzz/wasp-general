@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO: check transparent session switching from one set of layers to other set
+
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences

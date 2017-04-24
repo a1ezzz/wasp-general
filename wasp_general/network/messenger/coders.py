@@ -119,7 +119,7 @@ class WMessengerHexLayer(WMessengerOnionCoderLayerBase):
 	hex-string, or decodes it from hex-string to original binary representation.
 	"""
 
-	__layer_name__ = "com.binblob.wasp-network.hex-layer"
+	__layer_name__ = "com.binblob.wasp-general.hex-layer"
 	""" Layer name
 	"""
 
@@ -152,7 +152,7 @@ class WMessengerBase64Layer(WMessengerOnionCoderLayerBase):
 	base64-string, or decodes it from base64-string to original binary representation.
 	"""
 
-	__layer_name__ = "com.binblob.wasp-network.base64-layer"
+	__layer_name__ = "com.binblob.wasp-general.base64-layer"
 	""" Layer name
 	"""
 

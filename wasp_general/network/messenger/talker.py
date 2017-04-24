@@ -78,7 +78,7 @@ class WNetworkTalker:
 			pass
 			'''
 			s = self.transport().client_socket(self.config())
-			timeout = self.config().getint('wasp-network::beacon', 'lookup_timeout')
+			timeout = self.config().getint('wasp-general::beacon', 'lookup_timeout')
 
 			def client_handler(fd, event):
 				response, server = s.recvfrom(max_message_size)
@@ -110,4 +110,3 @@ class WNetworkTalker:
 		:return: IOLoop
 		"""
 		return self.__loop
-

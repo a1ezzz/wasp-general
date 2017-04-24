@@ -159,9 +159,9 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 
 	For the client "Address" and "UDP Port" are treated as address where server must send the response.
 	But for the server, they are treated as the address, that the server publish. For both type of messages
-	"Address" and "TCP/UDP port" are generated from a configuration. Options are located in 'wasp-general::network::beacon'
-	section. Configuration option "public_address" is used as "Address" value and option
-	"public_port" is used as "UDP Port"
+	"Address" and "TCP/UDP port" are generated from a configuration. Options are located
+	in 'wasp-general::network::beacon' section. Configuration option "public_address" is used as "Address"
+	value and option "public_port" is used as "UDP Port"
 	"""
 
 	__message_splitter__ = b':'

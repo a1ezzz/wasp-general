@@ -19,6 +19,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO: document the code
+# TODO: write tests for the code
+
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
@@ -41,7 +44,7 @@ class WMessengerAuth(metaclass=ABCMeta):
 		forbid = 1
 
 	@verify_type(
-		message=(bytes,str, None), onion=WMessengerOnionBase,
+		message=(bytes, str, None), onion=WMessengerOnionBase,
 		session=WMessengerOnionSessionBase, current_layer_index=int
 	)
 	@verify_value(current_layer_index=lambda x: x >= -1)
@@ -49,7 +52,7 @@ class WMessengerAuth(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 	@verify_type(
-		message=(bytes,str, None), onion=WMessengerOnionBase,
+		message=(bytes, str, None), onion=WMessengerOnionBase,
 		session=WMessengerOnionSessionBase, current_layer_index=int
 	)
 	@verify_value(current_layer_index=lambda x: x >= -1)
@@ -67,7 +70,7 @@ class WMessengerAuthLayer(WMessengerOnionLayer):
 		self.__auth = auth
 
 	@verify_type(
-		message=(bytes,str, None), onion=WMessengerOnionBase,
+		message=(bytes, str, None), onion=WMessengerOnionBase,
 		session=WMessengerOnionSessionBase, current_layer_index=int
 	)
 	@verify_value(current_layer_index=lambda x: x >= -1)
@@ -75,7 +78,7 @@ class WMessengerAuthLayer(WMessengerOnionLayer):
 		pass
 
 	@verify_type(
-		message=(bytes,str, None), onion=WMessengerOnionBase,
+		message=(bytes, str, None), onion=WMessengerOnionBase,
 		session=WMessengerOnionSessionBase, current_layer_index=int
 	)
 	@verify_value(current_layer_index=lambda x: x >= -1)

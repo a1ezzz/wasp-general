@@ -137,7 +137,7 @@ class TestWBeacon:
 			def __call__(self, data, source, description):
 				TestCallback.result.append(str(description).encode() + b':' + data)
 
-		fake_transport = FakeBeaconTransport('-pytest-wasp-network')
+		fake_transport = FakeBeaconTransport('-pytest-wasp-general')
 		fake_transport.create_files()
 		messenger = WBeaconMessenger()
 		config = WConfig()
