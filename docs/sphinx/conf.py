@@ -292,3 +292,6 @@ texinfo_documents = [
 from recommonmark.parser import CommonMarkParser
 source_parsers = {'.md': CommonMarkParser}
 source_suffix = ['.rst', '.md']
+
+from sphinx.apidoc import main
+main(['-e', '-o', os.path.join(__file__, 'api'), os.path.join(__file__, '..', '..', 'wasp_general')])
