@@ -22,7 +22,7 @@ import shlex
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #sys.path.insert(0, os.path.abspath('.'))
 
-sys.path.insert(0, os.path.abspath(os.path.join('..', '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 # -- General configuration ------------------------------------------------
 
@@ -294,4 +294,4 @@ source_parsers = {'.md': CommonMarkParser}
 source_suffix = ['.rst', '.md']
 
 from sphinx.apidoc import main
-main(['-e', '-o', os.path.join(__file__, 'api'), os.path.join(__file__, '..', '..', 'wasp_general')])
+main(['-e', '-o', os.path.join(os.path.dirname(__file__), 'api'), os.path.join(os.path.dirname(__file__), '..', '..', 'wasp_general')])
