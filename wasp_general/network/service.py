@@ -319,3 +319,9 @@ class WZMQService(WIOLoopService):
 
 	def context(self):
 		return self.__context
+
+
+class WLoglessIOLoop(IOLoop):
+
+	def _setup_logging(self):
+		pass
