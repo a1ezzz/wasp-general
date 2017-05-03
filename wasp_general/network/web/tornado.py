@@ -30,13 +30,12 @@ from wasp_general.version import __status__
 import weakref
 from tornado.web import RequestHandler
 
-from wasp_general.network.web.proto import WWebSessionProto, WWebResponseProto
+from wasp_general.network.web.proto import WWebResponseProto
 from wasp_general.verify import verify_type
-from wasp_general.network.primitives import WIPV4SocketInfo
 from wasp_general.network.web.headers import WHTTPHeaders
 from wasp_general.network.web.session import WWebSessionAdapter
 from wasp_general.network.web.request import WWebRequest
-from wasp_general.network.web.cookies import WHTTPCookie, WHTTPCookieJar
+from wasp_general.network.web.cookies import WHTTPCookieJar
 
 
 class WTornadoRequestHandler(RequestHandler):
