@@ -39,6 +39,8 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 	""" Default thread joining time
 	"""
 
+	__thread_name__ = None
+
 	@verify_type(thread_name=(str, None), join_on_stop=bool, thread_join_timeout=(int, float, None))
 	def __init__(self, thread_name=None, join_on_stop=True, thread_join_timeout=None):
 		""" Construct new threaded task. Since there is no right way in Python to stop or terminate neighbor
@@ -71,7 +73,8 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 
 		def start():
 			if self.__thread is None:
-				self.__thread = Thread(target=original_start, name=thread_name)
+				name = thread_name if thread_name is not None else self.__class__.__thread_name__
+				self.__thread = Thread(target=original_start, name=name)
 				self.__thread.start()
 		self.start = start
 

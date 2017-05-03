@@ -72,6 +72,12 @@ class TestWThreadTask:
 		assert(t.thread().name == 'custom thread name')
 		t.stop()
 
+		FastTask.__thread_name__ = 'class thread name'
+		t = FastTask()
+		t.start()
+		assert(t.thread().name == 'class thread name')
+		t.stop()
+
 		t = FastTask(thread_join_timeout=4)
 		assert(t.join_timeout() != FastTask.__thread_join_timeout__)
 		assert(t.join_timeout() == 4)
