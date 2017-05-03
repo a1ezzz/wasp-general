@@ -30,7 +30,7 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WMessengerOnionLexicalLayerBase.unpack, None, '')
 
 	pytest.raises(TypeError, WMessengerOnionSessionFlow)
-	pytest.raises(NotImplementedError, WMessengerOnionSessionFlow.__iter__, None)
+	pytest.raises(NotImplementedError, WMessengerOnionSessionFlow.iterate, None)
 
 
 class TestWMessengerOnionBase:
@@ -148,15 +148,15 @@ class TestWMessengerOnionSessionStrictFlow:
 		rise = WMessengerOnionSessionFlow.Direction.rise
 
 		sf = WMessengerOnionSessionStrictFlow('layer1', 'layer2')
-		assert([x.layer_name() for x in sf] == ['layer1', 'layer2', 'layer2', 'layer1'])
-		assert([x.direction() for x in sf] == [immerse, immerse, rise, rise])
+		assert([x.layer_name() for x in sf.iterate()] == ['layer1', 'layer2', 'layer2', 'layer1'])
+		assert([x.direction() for x in sf.iterate()] == [immerse, immerse, rise, rise])
 
 		sf = WMessengerOnionSessionStrictFlow('l1', 'layer', 'last_layer')
 		assert(
-			[x.layer_name() for x in sf] ==
+			[x.layer_name() for x in sf.iterate()] ==
 			['l1', 'layer', 'last_layer', 'last_layer', 'layer', 'l1']
 		)
-		assert([x.direction() for x in sf] == [immerse, immerse, immerse, rise, rise, rise])
+		assert([x.direction() for x in sf.iterate()] == [immerse, immerse, immerse, rise, rise, rise])
 
 
 class TestWMessengerOnionSession:
@@ -164,7 +164,7 @@ class TestWMessengerOnionSession:
 	def test_session(self):
 
 		class CustomSessionFlow(WMessengerOnionSessionFlow):
-			def __iter__(self):
+			def iterate(self, message=None):
 				for i in [
 					WMessengerOnionSessionFlow.Iterator(
 						'layer1', WMessengerOnionSessionFlow.Direction.immerse
@@ -220,7 +220,7 @@ class TestWMessengerOnionSession:
 		)
 
 		class CorruptedSessionFlow(WMessengerOnionSessionFlow):
-			def __iter__(self):
+			def iterate(self, message=None):
 
 				class I:
 					def layer_name(self):

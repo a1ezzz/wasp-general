@@ -19,6 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO: test and doc
 # TODO: check transparent session switching from one set of layers to other set
 
 # noinspection PyUnresolvedReferences
@@ -244,8 +245,10 @@ class WMessengerOnionSessionFlow(metaclass=ABCMeta):
 			return self.__direction
 
 	@abstractmethod
-	def __iter__(self):
+	@verify_type(message=(bytes, str, None))
+	def iterate(self, message=None):
 		""" Iterate over layers order
+		:param message: message to process (layer order may depend on message content)
 
 		:return: WMessengerOnionSessionFlow.Iterator
 		"""
@@ -267,7 +270,8 @@ class WMessengerOnionSessionStrictFlow(WMessengerOnionSessionFlow):
 		"""
 		self.__layers = layers
 
-	def __iter__(self):
+	@verify_type(message=(bytes, str, None))
+	def iterate(self, message=None):
 		""" :meth:`.WMessengerOnionSessionFlow.__iter__` method implementation.
 		"""
 
@@ -312,7 +316,7 @@ class WMessengerOnionSession(WMessengerOnionSessionBase):
 	def process(self, message):
 		""" :meth:`.WMessengerOnionSessionBase.process` method implementation.
 		"""
-		for layer_iter in self.session_flow():
+		for layer_iter in self.session_flow().iterate(message):
 			layer = self.onion().layer(layer_iter.layer_name())
 			if layer_iter.direction() == WMessengerOnionSessionFlow.Direction.immerse:
 				message = layer.immerse(message, self)
