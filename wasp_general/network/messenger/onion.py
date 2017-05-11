@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: test and doc
+# TODO: document the code
 # TODO: check transparent session switching from one set of layers to other set
 
 # noinspection PyUnresolvedReferences
@@ -28,6 +28,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 from enum import Enum
+import re
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_subclass
@@ -214,7 +215,7 @@ class WMessengerOnionSessionFlow(metaclass=ABCMeta):
 		""" Defines :meth:`.WMessengerOnionLayerBase.rise` method
 		"""
 
-	class Iterator:
+	class IteratorInfo:
 		""" Class that describes layer, that must be executed next.
 		"""
 
@@ -244,46 +245,243 @@ class WMessengerOnionSessionFlow(metaclass=ABCMeta):
 			"""
 			return self.__direction
 
+	class Iterator(IteratorInfo):
+
+		@verify_type(layer_name=str)
+		def __init__(self, layer_name, direction, next_iterator=None):
+			WMessengerOnionSessionFlow.IteratorInfo.__init__(self, layer_name, direction)
+			if next_iterator is not None:
+				if isinstance(next_iterator, WMessengerOnionSessionFlow.IteratorInfo) is False:
+					raise TypeError('Invalid type for next_iterator argument')
+			self.__next_iterator = next_iterator
+
+		@verify_type(message=(bytes, str, None))
+		def next(self, message=None):
+			return self.__next_iterator
+
 	@abstractmethod
 	@verify_type(message=(bytes, str, None))
-	def iterate(self, message=None):
-		""" Iterate over layers order
-		:param message: message to process (layer order may depend on message content)
-
-		:return: WMessengerOnionSessionFlow.Iterator
-		"""
+	def iterator(self, message=None):
 		raise NotImplementedError('This method is abstract')
 
 
-class WMessengerOnionSessionStrictFlow(WMessengerOnionSessionFlow):
-	""" This is :class:`.WMessengerOnionSessionFlow` implementation, that "executes" layers in a strict order.
-	At first, layers are executed in the same order, as they are defined in a class constructor
-	(:meth:`.WMessengerOnionLayerBase.immerse` method is called). Then, layers are executed in reverse order
-	(:meth:`.WMessengerOnionLayerBase.rise` method is called).
-	"""
+class WMessengerOnionSessionBasicFlow(WMessengerOnionSessionFlow):
 
-	@verify_type(layers=str)
-	def __init__(self, *layers):
-		""" Construct new iterator
-
-		:param layers: layers names to be executed
-		"""
-		self.__layers = layers
+	@verify_type(iterator=(WMessengerOnionSessionFlow.IteratorInfo, None))
+	def __init__(self, iterator=None):
+		WMessengerOnionSessionFlow.__init__(self)
+		self.__iterator = iterator
 
 	@verify_type(message=(bytes, str, None))
-	def iterate(self, message=None):
-		""" :meth:`.WMessengerOnionSessionFlow.__iter__` method implementation.
-		"""
+	def iterator(self, message=None):
+		return self.__iterator
 
-		for i in range(len(self.__layers)):
-			yield WMessengerOnionSessionFlow.Iterator(
-				self.__layers[i], WMessengerOnionSessionFlow.Direction.immerse
+	@classmethod
+	@verify_type(iterators=WMessengerOnionSessionFlow.IteratorInfo)
+	def sequence(cls, *info):
+		if len(info) == 0:
+			return
+
+		info = list(info)
+		info.reverse()
+
+		result = WMessengerOnionSessionFlow.Iterator(
+			info[0].layer_name(), info[0].direction()
+		)
+
+		for i in range(1, len(info)):
+			result = WMessengerOnionSessionFlow.Iterator(
+				info[i].layer_name(), info[i].direction(), result
 			)
 
-		for i in range(len(self.__layers) - 1, -1, -1):
-			yield WMessengerOnionSessionFlow.Iterator(
-				self.__layers[i], WMessengerOnionSessionFlow.Direction.rise
+		return result
+
+	@staticmethod
+	@verify_type(iterators=WMessengerOnionSessionFlow.IteratorInfo)
+	def sequence_flow(*info):
+		return WMessengerOnionSessionBasicFlow(WMessengerOnionSessionBasicFlow.sequence(*info))
+
+	@classmethod
+	@verify_type(direction=WMessengerOnionSessionFlow.Direction, layers=str)
+	def one_direction(cls, direction, *layers):
+		return cls.sequence(*list(map(
+			lambda name: WMessengerOnionSessionFlow.IteratorInfo(name, direction), layers
+		)))
+
+	@staticmethod
+	@verify_type(direction=WMessengerOnionSessionFlow.Direction, layers=str)
+	def one_direction_flow(direction, *layers):
+		return WMessengerOnionSessionBasicFlow(WMessengerOnionSessionBasicFlow.one_direction(direction, *layers))
+
+
+class WMessengerOnionSessionFlowSequence(WMessengerOnionSessionBasicFlow):
+
+	class FlowSequenceIterator(WMessengerOnionSessionFlow.Iterator):
+		@verify_type(info=WMessengerOnionSessionFlow.IteratorInfo, flows=WMessengerOnionSessionFlow)
+		def __init__(self, info, *flows):
+			WMessengerOnionSessionFlow.Iterator.__init__(self, info.layer_name(), info.direction())
+
+			self.__flows = list(flows)
+			self.__current_flow = None
+			self.__iterator = None
+
+		@verify_type(message=(bytes, str, None))
+		def __next_flow(self, message=None):
+			self.__current_flow = (self.__current_flow + 1) if self.__current_flow is not None else 0
+			if self.__current_flow < len(self.__flows):
+				self.__iterator = self.__flows[self.__current_flow].iterator(message=message)
+				if self.__iterator is None:
+					self.__next_flow(message)
+
+		@verify_type(message=(bytes, str, None))
+		def next(self, message=None):
+			if self.__iterator is not None:
+				self.__iterator = self.__iterator.next(message=message)
+
+			if self.__iterator is None:
+				self.__next_flow(message)
+
+			if self.__iterator is not None:
+				return self
+
+		def layer_name(self):
+			if self.__current_flow is None:
+				return WMessengerOnionSessionFlow.Iterator.layer_name(self)
+			return self.__iterator.layer_name()
+
+		def direction(self):
+			if self.__current_flow is None:
+				return WMessengerOnionSessionFlow.Iterator.direction(self)
+			return self.__iterator.direction()
+
+	@verify_type(flows=WMessengerOnionSessionFlow)
+	def __init__(self, *flows):
+		WMessengerOnionSessionBasicFlow.__init__(self)
+		self.__flows = flows
+
+	@verify_type(direction=WMessengerOnionSessionFlow.Direction, layers=str)
+	def iterator(self, message=None):
+		iterator = WMessengerOnionSessionFlowSequence.FlowSequenceIterator(
+			WMessengerOnionSessionFlow.IteratorInfo('', WMessengerOnionSessionFlow.Direction.immerse),
+			*self.__flows
+		)
+		return iterator.next(message=message)
+
+
+class WMessengerOnionSessionReverseFlow(WMessengerOnionSessionBasicFlow):
+
+	class FlowReverseIterator(WMessengerOnionSessionFlow.Iterator):
+		@verify_type(iterator=WMessengerOnionSessionFlow.Iterator, strict_direction=bool)
+		def __init__(self, iterator, strict_direction=False):
+			WMessengerOnionSessionFlow.Iterator.__init__(self, iterator.layer_name(), iterator.direction())
+
+			self.__iterator = iterator
+			self.__main_direction = iterator.direction() if strict_direction is True else None
+			self.__index = -1
+			self.__info = []
+			self.__save_iterator(iterator)
+
+		@verify_type(iterator=WMessengerOnionSessionFlow.Iterator)
+		def __save_iterator(self, iterator):
+			direction = iterator.direction()
+			if self.__main_direction is not None and direction != self.__main_direction:
+				raise RuntimeError('Multiple direction spotted')
+			self.__info.append(
+				WMessengerOnionSessionFlow.IteratorInfo(iterator.layer_name(), direction)
 			)
+
+		@verify_type(message=(bytes, str, None))
+		def next(self, message=None):
+			if self.__iterator is not None:
+				self.__iterator = self.__iterator.next(message=message)
+				if self.__iterator is not None:
+					self.__save_iterator(self.__iterator)
+				return self
+			elif abs(self.__index) < len(self.__info):
+				self.__index -= 1
+				return self
+
+		def layer_name(self):
+			return self.__info[self.__index].layer_name()
+
+		def direction(self):
+			base_direction = self.__info[self.__index].direction()
+			if self.__iterator is not None:
+				return base_direction
+			elif base_direction == WMessengerOnionSessionFlow.Direction.immerse:
+				return WMessengerOnionSessionFlow.Direction.rise
+			else:  # base_direction == WMessengerOnionSessionFlow.Direction.rise:
+				return WMessengerOnionSessionFlow.Direction.immerse
+
+	@verify_type(flow=WMessengerOnionSessionFlow, strict_direction=bool)
+	def __init__(self, flow, strict_direction=False):
+		WMessengerOnionSessionBasicFlow.__init__(self)
+		self.__flow = flow
+		self.__strict_direction = strict_direction
+
+	@verify_type(message=(bytes, str, None))
+	def iterator(self, message=None):
+		iterator = self.__flow.iterator(message)
+		if iterator is not None:
+			return WMessengerOnionSessionReverseFlow.FlowReverseIterator(
+				iterator, strict_direction=self.__strict_direction
+			)
+
+
+class WMessengerOnionSessionFlexFlow(WMessengerOnionSessionBasicFlow):
+
+	class MessageComparator(metaclass=ABCMeta):
+
+		@abstractmethod
+		@verify_type(message=(bytes, str, None))
+		def match(self, message=None):
+			raise NotImplementedError('This method is abstract')
+
+	class ReComparator(MessageComparator):
+
+		@verify_type(pattern=(str, bytes))
+		def __init__(self, pattern):
+			WMessengerOnionSessionFlexFlow.MessageComparator.__init__(self)
+			self.__re = re.compile(pattern)
+
+		@verify_type(message=(bytes, str, None))
+		def match(self, message=None):
+			return message is not None and (self.__re.match(message) is not None)
+
+	class FlowComparatorPair:
+
+		@verify_type(flow=WMessengerOnionSessionFlow)
+		def __init__(self, comparator, flow):
+			if isinstance(comparator, WMessengerOnionSessionFlexFlow.MessageComparator) is False:
+				raise TypeError('Invalid type for comparator argument')
+
+			self.__comparator = comparator
+			self.__flow = flow
+
+		def comparator(self):
+			return self.__comparator
+
+		def flow(self):
+			return self.__flow
+
+	@verify_type(default_flow=(WMessengerOnionSessionFlow, None))
+	def __init__(self, *flow_comparator_pairs, default_flow=None):
+		WMessengerOnionSessionBasicFlow.__init__(self)
+		self.__pairs = []
+		for pair in flow_comparator_pairs:
+			if isinstance(pair, WMessengerOnionSessionFlexFlow.FlowComparatorPair) is False:
+				raise TypeError('Invalid type for flow-comparator pair argument')
+			self.__pairs.append(pair)
+		self.__default_flow = default_flow
+
+	@verify_type(message=(bytes, str, None))
+	def iterator(self, message=None):
+		for pair in self.__pairs:
+			if pair.comparator().match(message) is True:
+				return pair.flow().iterator(message)
+
+		if self.__default_flow is not None:
+			return self.__default_flow.iterator(message)
 
 
 class WMessengerOnionSession(WMessengerOnionSessionBase):
@@ -316,14 +514,23 @@ class WMessengerOnionSession(WMessengerOnionSessionBase):
 	def process(self, message):
 		""" :meth:`.WMessengerOnionSessionBase.process` method implementation.
 		"""
-		for layer_iter in self.session_flow().iterate(message):
-			layer = self.onion().layer(layer_iter.layer_name())
-			if layer_iter.direction() == WMessengerOnionSessionFlow.Direction.immerse:
-				message = layer.immerse(message, self)
-			elif layer_iter.direction() == WMessengerOnionSessionFlow.Direction.rise:
-				message = layer.rise(message, self)
+
+		def process_single_layer(iter_message, iter_obj):
+			layer_direction = iter_obj.direction()
+			layer = self.onion().layer(iter_obj.layer_name())
+
+			if layer_direction == WMessengerOnionSessionFlow.Direction.immerse:
+				return layer.immerse(iter_message, self)
+			elif layer_direction == WMessengerOnionSessionFlow.Direction.rise:
+				return layer.rise(iter_message, self)
 			else:
 				raise RuntimeError('Unknown direction')
+
+		iterator = self.session_flow().iterator()
+		if iterator is not None:
+			while iterator is not None:
+				message = process_single_layer(message, iterator)
+				iterator = iterator.next(message)
 		return message
 
 
