@@ -19,13 +19,13 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod
-from enum import Enum
 
 from wasp_general.verify import verify_type
 
@@ -35,9 +35,9 @@ class WMessengerOnionProto(metaclass=ABCMeta):
 	own small job. Layers are united in a session, that is used for message parsing or generation. Each layer
 	has a name, which must be unique within single onion.
 
-	Possible layer are transport encryption layers (rsa, aes,...), data-encoding layer (base64, utf8,...),
-	structure packing layers (json, pickle, ...), lexical layers (shlex, ...), authentication layers,
-	authorization layers and many more.
+	Possible layer are transport encryption/decryption layers (rsa, aes,...), data encoding/decoding
+	layers (base64, utf8,...), structure packing/unpacking layers (json, pickle, ...),
+	lexical layers (shlex, json, pickle, ...), authentication/authorization layers and many more.
 	"""
 
 	@abstractmethod
@@ -64,6 +64,7 @@ class WMessengerEnvelopeProto(metaclass=ABCMeta):
 	check if message is a subclass of some envelope subclass) and helps to keep meta data, that may be
 	generated/processed by layers
 	"""
+	# TODO: double check meta key-value structure
 
 	@abstractmethod
 	def raw(self):
@@ -101,10 +102,11 @@ class WMessengerOnionSessionProto(metaclass=ABCMeta):
 		:param message: incoming or outgoing message or nothing. This value is passed to the first layer as is.
 		:return: outgoing message or nothing. In most cases, this is a server response or client request.
 		"""
+		# TODO: this method should be obsolete due to client to server or server to client differences
 		raise NotImplementedError('This method is abstract')
 
 
-class WMessengerOnionLayerProto:
+class WMessengerOnionLayerProto(metaclass=ABCMeta):
 	""" Messenger layer, that do one simple job like encryption, encoding, parsing and etc.
 	"""
 
@@ -123,25 +125,19 @@ class WMessengerOnionLayerProto:
 		"""
 		return self.__name
 
+	@abstractmethod
 	@verify_type(message=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
-	def immerse(self, message, session):
-		""" Parse, decrypt, decode message and go to the deepest layers. By default, returns origin message.
+	def process(self, message, session, **kwargs):
+		""" Parse/combine, decrypt/encrypt, decode/encode message.
 
-		:param message: message to parse/decrypt/decode. Can be any type
+		:param message: message to parse/combine/decrypt/encrypt/decode/encode
 		:param session: related session
-		:return: job result
-		"""
-		return message
+		:param kwargs: arguments that help to customize a layer (they are set in \
+		:class:`.WMessengerOnionSessionFlowProto.IteratorInfo` objects)
 
-	@verify_type(message=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
-	def rise(self, message, session):
-		""" Combine, encrypt, encode message and go to the outer layers. By default, returns origin message.
-
-		:param message: message to combine, encrypt, encode. Can be any type
-		:param session: related session
-		:return: job result
+		:return: WMessengerEnvelopeProto
 		"""
-		return message
+		raise NotImplementedError('This method is abstract')
 
 
 class WMessengerOnionSessionFlowProto(metaclass=ABCMeta):
@@ -149,31 +145,19 @@ class WMessengerOnionSessionFlowProto(metaclass=ABCMeta):
 	execution order.
 	"""
 
-	class Direction(Enum):
-		""" Defines which method must be called for the given layer
-		"""
-		immerse = 1
-		""" Defines :meth:`.WMessengerOnionLayerProto.immerse` method
-		"""
-		rise = 2
-		""" Defines :meth:`.WMessengerOnionLayerProto.rise` method
-		"""
-
 	class IteratorInfo:
 		""" Class that describes single layer call
 		"""
 
 		@verify_type(layer_name=str)
-		def __init__(self, layer_name, direction):
+		def __init__(self, layer_name, **kwargs):
 			""" Construct new descriptor
 
 			:param layer_name: Layer name to be executed
-			:param direction: Method to be executed (see :class:`WMessengerOnionSessionFlowProto.Direction`)
+			:param kwargs: layer arguments. see :meth:`.WMessengerOnionLayerProto.process` method
 			"""
-			if isinstance(direction, WMessengerOnionSessionFlowProto.Direction) is False:
-				raise TypeError('Invalid type for direction argument')
 			self.__layer_name = layer_name
-			self.__direction = direction
+			self.__layer_kwargs = kwargs
 
 		def layer_name(self):
 			""" Return layer name
@@ -182,12 +166,12 @@ class WMessengerOnionSessionFlowProto(metaclass=ABCMeta):
 			"""
 			return self.__layer_name
 
-		def direction(self):
-			""" Return layer method
+		def layer_args(self):
+			""" Return layer arguments
 
-			:return: WMessengerOnionSessionFlowProto.Direction
+			:return: dict
 			"""
-			return self.__direction
+			return self.__layer_kwargs
 
 	class Iterator(IteratorInfo):
 		""" Iterator that is used to determine layers call sequence. Each iterator holds information for
@@ -196,38 +180,34 @@ class WMessengerOnionSessionFlowProto(metaclass=ABCMeta):
 		"""
 
 		@verify_type(layer_name=str)
-		def __init__(self, layer_name, direction, next_iterator=None):
+		def __init__(self, layer_name, next_iterator=None, **kwargs):
 			""" Create iterator with the specified layer call information and the layer to be called next.
 
 			:param layer_name: same as layer_name \
 			in :meth:`WMessengerOnionSessionFlowProto.IteratorInfo.__init__` method
-			:param direction: same as direction \
-			in :meth:`WMessengerOnionSessionFlowProto.IteratorInfo.__init__` method
 			:param next_iterator: For static execution order - next layer that should be called
 			"""
-			WMessengerOnionSessionFlowProto.IteratorInfo.__init__(self, layer_name, direction)
+			WMessengerOnionSessionFlowProto.IteratorInfo.__init__(self, layer_name, **kwargs)
 			if next_iterator is not None:
 				if isinstance(next_iterator, WMessengerOnionSessionFlowProto.IteratorInfo) is False:
 					raise TypeError('Invalid type for next_iterator argument')
 			self.__next_iterator = next_iterator
 
-		@verify_type(message=(WMessengerEnvelopeProto, None))
-		def next(self, message=None):
+		@verify_type(message=WMessengerEnvelopeProto)
+		def next(self, message):
 			""" Return next layer (iterator) to be called or None to stop execution
 
 			:param message: message that was processed by a layer specified in this class
 			:return: WMessengerOnionSessionFlowProto.Iterator or None
 			"""
-			# TODO: check if 'None' value is suitable here
 			return self.__next_iterator
 
 	@abstractmethod
-	@verify_type(message=(WMessengerEnvelopeProto, None))
-	def iterator(self, message=None):
+	@verify_type(message=WMessengerEnvelopeProto)
+	def iterator(self, message):
 		""" Return iterator to be used for message processing. Iterator may depend on incoming message
 
 		:param message: original incoming message
 		:return: WMessengerOnionSessionFlowProto.Iterator
 		"""
-		# TODO: check if 'None' value is suitable here
 		raise NotImplementedError('This method is abstract')

@@ -22,19 +22,24 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WMessengerOnionSessionProto.onion, None)
 	pytest.raises(NotImplementedError, WMessengerOnionSessionProto.process, None, None)
 
+	envelope = TestEnvelopeProto.Envelope()
+	session = TestWMessengerOnionSessionProto.Session()
+	pytest.raises(TypeError, WMessengerOnionLayerProto)
+	pytest.raises(NotImplementedError, WMessengerOnionLayerProto.process, None, envelope, session)
+
 	pytest.raises(TypeError, WMessengerOnionSessionFlowProto)
-	pytest.raises(NotImplementedError, WMessengerOnionSessionFlowProto.iterator, None)
+	pytest.raises(NotImplementedError, WMessengerOnionSessionFlowProto.iterator, None, envelope)
 
 
 class TestEnvelopeProto:
 
-	def test(self):
-		class E(WMessengerEnvelopeProto):
-			def raw(self):
-				return
+	class Envelope(WMessengerEnvelopeProto):
+		def raw(self):
+			return
 
-		e = E()
-		assert(isinstance(e, E) is True)
+	def test(self):
+		e = TestEnvelopeProto.Envelope()
+		assert(isinstance(e, TestEnvelopeProto.Envelope) is True)
 		assert(isinstance(e, WMessengerEnvelopeProto) is True)
 		assert(e.meta() == {})
 
@@ -74,28 +79,23 @@ class TestWMessengerOnionLayerProto:
 
 	class Layer(WMessengerOnionLayerProto):
 
-		def __init__(self, name):
-			WMessengerOnionLayerProto.__init__(self, name)
-
-		def rise(self, msg, session):
-			return '::' + self.name() + '::' + msg
-
-		def immerse(self, msg, session):
-			return msg[len(self.name()) + 4:]
+		def process(self, message, session, **kwargs):
+			return WMessengerEnvelope('::' + self.name() + '::' + message.raw() + '::')
 
 	def test(self):
 		pytest.raises(TypeError, WMessengerOnionLayerProto)
 
-		assert(isinstance(WMessengerOnionLayerProto('layer_name'), WMessengerOnionLayerProto) is True)
-		assert(WMessengerOnionLayerProto('layer_name').name() == 'layer_name')
-		assert(WMessengerOnionLayerProto('l2').name() == 'l2')
+		l = TestWMessengerOnionLayerProto.Layer('layer_name')
+		assert(isinstance(l, WMessengerOnionLayerProto) is True)
+		assert(l.name() == 'layer_name')
+		l = TestWMessengerOnionLayerProto.Layer('l2')
+		assert(l.name() == 'l2')
 
+		envelope = WMessengerEnvelope('msg')
 		session = TestWMessengerOnionSessionProto.Session()
-
-		str_envelope = WMessengerEnvelope('msg')
-		assert(WMessengerOnionLayerProto('l').immerse(str_envelope, session) == str_envelope)
-		bytes_envelope = WMessengerEnvelope(b'msg')
-		assert(WMessengerOnionLayerProto('l').rise(bytes_envelope, session) == bytes_envelope)
+		r = l.process(envelope, session)
+		assert(isinstance(r, WMessengerEnvelope) is True)
+		assert(r.raw() == '::l2::msg::')
 
 
 class TestWMessengerOnionSessionFlow:
@@ -103,30 +103,23 @@ class TestWMessengerOnionSessionFlow:
 	def test(self):
 		pytest.raises(TypeError, WMessengerOnionSessionFlowProto.IteratorInfo, 'ln', 4.)
 
-		immerse = WMessengerOnionSessionFlowProto.Direction.immerse
-		rise = WMessengerOnionSessionFlowProto.Direction.rise
-
-		ii = WMessengerOnionSessionFlowProto.IteratorInfo('layer_name', immerse)
+		ii = WMessengerOnionSessionFlowProto.IteratorInfo('layer_name', a=1, b='code')
 		assert(ii.layer_name() == 'layer_name')
-		assert(ii.direction() == immerse)
-
-		ii = WMessengerOnionSessionFlowProto.IteratorInfo('ln', rise)
-		assert(ii.layer_name() == 'ln')
-		assert(ii.direction() == rise)
+		assert(ii.layer_args() == {'a': 1, 'b': 'code'})
 
 		pytest.raises(
 			TypeError, WMessengerOnionSessionFlowProto.Iterator,
-			'ln', WMessengerOnionSessionFlowProto.Direction.immerse, 7
+			'ln', 7
 		)
 
-		i1 = WMessengerOnionSessionFlowProto.Iterator('layer', immerse)
+		envelope = TestEnvelopeProto.Envelope()
+
+		i1 = WMessengerOnionSessionFlowProto.Iterator('layer')
 		assert(isinstance(i1, WMessengerOnionSessionFlowProto.Iterator) is True)
 		assert(isinstance(i1, WMessengerOnionSessionFlowProto.IteratorInfo) is True)
 		assert(i1.layer_name() == 'layer')
-		assert(i1.direction() == immerse)
-		assert(i1.next() is None)
+		assert(i1.next(envelope) is None)
 
-		i2 = WMessengerOnionSessionFlowProto.Iterator('layer2', rise, i1)
+		i2 = WMessengerOnionSessionFlowProto.Iterator('layer2', next_iterator=i1)
 		assert(i2.layer_name() == 'layer2')
-		assert(i2.direction() == rise)
-		assert(i2.next() == i1)
+		assert(i2.next(envelope) == i1)
