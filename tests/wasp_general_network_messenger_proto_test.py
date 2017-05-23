@@ -6,8 +6,6 @@ from wasp_general.network.messenger.proto import WMessengerOnionProto, WMessenge
 from wasp_general.network.messenger.proto import WMessengerOnionSessionProto, WMessengerOnionLayerProto
 from wasp_general.network.messenger.proto import WMessengerOnionSessionFlowProto
 
-from wasp_general.network.messenger.envelope import WMessengerEnvelope
-
 
 def test_abstract():
 
@@ -16,7 +14,7 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WMessengerOnionProto.layers_names, None)
 
 	pytest.raises(TypeError, WMessengerEnvelopeProto)
-	pytest.raises(NotImplementedError, WMessengerEnvelopeProto.raw, None)
+	pytest.raises(NotImplementedError, WMessengerEnvelopeProto.message, None)
 
 	pytest.raises(TypeError, WMessengerOnionSessionProto)
 	pytest.raises(NotImplementedError, WMessengerOnionSessionProto.onion, None)
@@ -34,7 +32,7 @@ def test_abstract():
 class TestEnvelopeProto:
 
 	class Envelope(WMessengerEnvelopeProto):
-		def raw(self):
+		def message(self):
 			return
 
 	def test(self):
@@ -71,7 +69,7 @@ class TestWMessengerOnionSessionProto:
 		def onion(self):
 			return TestWMessengerOnionProto.Onion()
 
-		def process(self, message):
+		def process(self, envelope):
 			return
 
 
@@ -79,8 +77,10 @@ class TestWMessengerOnionLayerProto:
 
 	class Layer(WMessengerOnionLayerProto):
 
-		def process(self, message, session, **kwargs):
-			return WMessengerEnvelope('::' + self.name() + '::' + message.raw() + '::')
+		def process(self, envelope, session, **kwargs):
+			e = TestEnvelopeProto.Envelope()
+			e.message = lambda: '::' + self.name() + '::' + envelope.message() + '::'
+			return e
 
 	def test(self):
 		pytest.raises(TypeError, WMessengerOnionLayerProto)
@@ -91,11 +91,12 @@ class TestWMessengerOnionLayerProto:
 		l = TestWMessengerOnionLayerProto.Layer('l2')
 		assert(l.name() == 'l2')
 
-		envelope = WMessengerEnvelope('msg')
+		envelope = TestEnvelopeProto.Envelope()
+		envelope.message = lambda: 'msg'
 		session = TestWMessengerOnionSessionProto.Session()
 		r = l.process(envelope, session)
-		assert(isinstance(r, WMessengerEnvelope) is True)
-		assert(r.raw() == '::l2::msg::')
+		assert(isinstance(r, WMessengerEnvelopeProto) is True)
+		assert(r.message() == '::l2::msg::')
 
 
 class TestWMessengerOnionSessionFlow:
