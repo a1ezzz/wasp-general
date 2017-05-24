@@ -16,6 +16,23 @@ def verifier_env(request):
 	request.addfinalizer(fin)
 
 
+def fn_name_checker():
+	pass
+
+
+class FNameChecker:
+	@staticmethod
+	def foo():
+		pass
+
+	@classmethod
+	def bar(cls):
+		pass
+
+	def zzz(self):
+		pass
+
+
 @pytest.mark.usefixtures('verifier_env')
 class TestVerifier:
 
@@ -72,6 +89,17 @@ class TestVerifier:
 		pytest.raises(TypeError, decorated_foo, 1, 2, 3, d=3)
 		decorated_foo(1, 2, 3, d=4, e=5)
 		pytest.raises(TypeError, decorated_foo, 1, 2, 3, d=4, e=3)
+
+	def test_function_name(self):
+
+		assert(Verifier.function_name(FNameChecker.foo) == 'FNameChecker.foo')
+		assert(Verifier.function_name(FNameChecker.bar) == 'FNameChecker.bar')
+		assert(Verifier.function_name(FNameChecker.zzz) == 'FNameChecker.zzz')
+
+		c = FNameChecker()
+		assert(Verifier.function_name(c.foo) == 'FNameChecker.foo')
+		assert(Verifier.function_name(c.bar) == 'FNameChecker.bar')
+		assert(Verifier.function_name(c.zzz) == 'FNameChecker.zzz')
 
 
 class TestTypeVerifier:

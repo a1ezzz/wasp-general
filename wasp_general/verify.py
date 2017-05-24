@@ -188,7 +188,8 @@ class Verifier:
 		if self._silent_checks is not True:
 			print('Exception raised:', file=sys.stderr)
 			print(str(exc), file=sys.stderr)
-			print('Decorated function: %s' % decorated_function.__name__, file=sys.stderr)
+			fn_name = Verifier.function_name(decorated_function)
+			print('Decorated function: %s' % fn_name, file=sys.stderr)
 			if decorated_function.__doc__ is not None:
 				print('Decorated function docstrings:', file=sys.stderr)
 				print(decorated_function.__doc__, file=sys.stderr)
@@ -198,6 +199,23 @@ class Verifier:
 			else:
 				print(str(arg_spec), file=sys.stderr)
 			print('', file=sys.stderr)
+
+	@staticmethod
+	def function_name(fn):
+		""" Return function name in pretty style
+
+		:param fn: source function
+		:return: str
+		"""
+		fn_name = fn.__name__
+		if hasattr(fn, '__qualname__'):
+			return fn.__qualname__
+		elif hasattr(fn, '__self__'):
+			owner = fn.__self__
+			if isclass(owner) is False:
+				owner = owner.__class__
+			return '%s.%s' % (owner.__name__, fn_name)
+		return fn_name
 
 
 class TypeVerifier(Verifier):
@@ -223,7 +241,7 @@ class TypeVerifier(Verifier):
 
 		def raise_exception(text_spec):
 			exc_text = 'Argument "%s" for function "%s" has invalid type' % (
-				arg_name, decorated_function.__name__
+				arg_name, Verifier.function_name(decorated_function)
 			)
 			exc_text += ' (%s)' % text_spec
 			raise TypeError(exc_text)
@@ -271,7 +289,7 @@ class SubclassVerifier(Verifier):
 
 		def raise_exception(text_spec):
 			exc_text = 'Argument "%s" for function "%s" has invalid type' % (
-				arg_name, decorated_function.__name__
+				arg_name, Verifier.function_name(decorated_function)
 			)
 			exc_text += ' (%s)' % text_spec
 			raise TypeError(exc_text)
@@ -323,7 +341,7 @@ class ValueVerifier(Verifier):
 
 		def raise_exception(text_spec):
 			exc_text = 'Argument "%s" for function "%s" has invalid value' % (
-				arg_name, decorated_function.__name__
+				arg_name, Verifier.function_name(decorated_function)
 			)
 			exc_text += ' (%s)' % text_spec
 			raise ValueError(exc_text)
