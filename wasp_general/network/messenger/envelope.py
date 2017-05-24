@@ -67,11 +67,12 @@ class WMessengerEnvelope(WMessengerEnvelopeProto):
 		"""
 		return self.__meta.copy()
 
+	@verify_type(key=str)
 	def add_meta(self, key, value):
 		""" Add meta-information (value) for the given key
 
-		:param key: meta-key (any type)
-		:param value: meta-value (any type)
+		:param key: meta-key
+		:param value: meta-value
 		:return: None
 		"""
 		self.__meta[key] = value

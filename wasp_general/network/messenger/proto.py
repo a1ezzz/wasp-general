@@ -64,7 +64,6 @@ class WMessengerEnvelopeProto(metaclass=ABCMeta):
 	check if message is a subclass of some envelope subclass) and helps to keep meta data, that may be
 	generated/processed by layers
 	"""
-	# TODO: double check meta key-value structure
 
 	@abstractmethod
 	def message(self):
@@ -102,7 +101,6 @@ class WMessengerOnionSessionProto(metaclass=ABCMeta):
 		:param envelope: incoming or outgoing message or nothing. This value is passed to the first layer as is.
 		:return: outgoing message or nothing. In most cases, this is a server response or client request.
 		"""
-		# TODO: this method should be obsolete due to client to server or server to client differences
 		raise NotImplementedError('This method is abstract')
 
 
@@ -208,6 +206,7 @@ class WMessengerOnionSessionFlowProto(metaclass=ABCMeta):
 		""" Return iterator to be used for message processing. Iterator may depend on incoming message
 
 		:param envelope: original incoming message
-		:return: WMessengerOnionSessionFlowProto.Iterator
+		:return: WMessengerOnionSessionFlowProto.Iterator or None if there is no way to create session for the \
+		given message
 		"""
 		raise NotImplementedError('This method is abstract')
