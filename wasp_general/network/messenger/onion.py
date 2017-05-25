@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: check transparent session switching from one set of layers to other set
-
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
@@ -40,7 +37,7 @@ from wasp_general.network.messenger.envelope import WMessengerTextEnvelope, WMes
 from wasp_general.network.messenger.session import WMessengerOnionSession
 
 
-class WMessengerOnionCoderLayerBase(WMessengerOnionLayerProto):
+class WMessengerOnionCoderLayerProto(WMessengerOnionLayerProto):
 	""" Class for layers, that are used for encryption/decryption, encoding/decoding. This layer class works with
 	strings and bytes and as a result generates strings and bytes
 	"""
@@ -56,19 +53,18 @@ class WMessengerOnionCoderLayerBase(WMessengerOnionLayerProto):
 		"""
 
 	@verify_type(envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
-	def process(self, envelope, session, **kwargs):
+	def process(self, envelope, session, mode=None, **kwargs):
 		""" :meth:`.WMessengerOnionLayerProto.process` implementation
 		"""
-		if 'mode' not in kwargs:
+		if mode is None:
 			raise RuntimeError('"mode" argument must be specified for this object')
 
-		mode = kwargs['mode']
-		if isinstance(mode, WMessengerOnionCoderLayerBase.Mode) is False:
+		if isinstance(mode, WMessengerOnionCoderLayerProto.Mode) is False:
 			raise TypeError('Invalid "mode" argument')
 
-		if mode == WMessengerOnionCoderLayerBase.Mode.encode:
+		if mode == WMessengerOnionCoderLayerProto.Mode.encode:
 			return self.encode(envelope, session, **kwargs)
-		else:  # mode == WMessengerOnionCoderLayerBase.Mode.decode
+		else:  # mode == WMessengerOnionCoderLayerProto.Mode.decode
 			return self.decode(envelope, session, **kwargs)
 
 	@abstractmethod
