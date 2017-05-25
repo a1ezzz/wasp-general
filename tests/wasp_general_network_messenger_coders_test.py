@@ -5,102 +5,181 @@ import pytest
 from wasp_general.crypto.aes import WFixedSecretAES, WAESMode
 from wasp_general.crypto.rsa import WRSA
 
-from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerBase
-from wasp_general.network.messenger.coders import WMessengerFixedModificationLayer, WMessengerHexLayer
-from wasp_general.network.messenger.coders import WMessengerBase64Layer, WMessengerAESLayer, WMessengerRSALayer
+from wasp_general.network.messenger.envelope import WMessengerTextEnvelope, WMessengerBytesEnvelope
+from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerProto, WMessengerOnion
+from wasp_general.network.messenger.proto import WMessengerOnionSessionFlowProto
+from wasp_general.network.messenger.session import WMessengerOnionSessionFlow, WMessengerOnionSession
+
+from wasp_general.network.messenger.coders import WMessengerFixedModificationLayer, WMessengerEncodingLayer
+from wasp_general.network.messenger.coders import WMessengerHexLayer, WMessengerBase64Layer, WMessengerAESLayer
+from wasp_general.network.messenger.coders import WMessengerRSALayer
 
 
 class TestWMessengerFixedModificationLayer:
 
 	def test_layer(self):
-		assert(isinstance(WMessengerFixedModificationLayer('l'), WMessengerFixedModificationLayer) is True)
-		assert(isinstance(WMessengerFixedModificationLayer('l'), WMessengerOnionCoderLayerBase) is True)
+		assert(isinstance(WMessengerFixedModificationLayer(), WMessengerFixedModificationLayer) is True)
+		assert(isinstance(WMessengerFixedModificationLayer(), WMessengerOnionCoderLayerProto) is True)
 
-		pytest.raises(TypeError, WMessengerFixedModificationLayer, 'layer', '', b'')
+		head = WMessengerFixedModificationLayer.Target.head
+		tail = WMessengerFixedModificationLayer.Target.tail
+		text_envelope = WMessengerTextEnvelope('foo')
+		bytes_envelope = WMessengerBytesEnvelope(b'bar')
 
-		m0 = WMessengerFixedModificationLayer('layer')
-		assert (m0.encode('foo') == 'foo')
-		assert (m0.decode('foo') == 'foo')
-		assert (m0.decode('') == '')
+		onion = WMessengerOnion()
+		sf = WMessengerOnionSessionFlow.sequence_flow(WMessengerOnionSessionFlowProto.IteratorInfo('layer'))
+		session = WMessengerOnionSession(onion, sf)
 
-		m1 = WMessengerFixedModificationLayer('layer', 'header::')
-		assert (m1.encode('foo') == 'header::foo')
-		pytest.raises(TypeError, m1.encode, b'foo')
-		pytest.raises(TypeError, m1.decode, b'f')
-		pytest.raises(ValueError, m1.decode, 'f')
-		pytest.raises(ValueError, m1.decode, 'footer::foo')
-		assert (m1.decode('header::foo') == 'foo')
+		layer = WMessengerFixedModificationLayer()
+		result = layer.encode(text_envelope, session, target=head, modification_code='header::')
+		assert(isinstance(result, WMessengerTextEnvelope) is True)
+		assert(result.message() == 'header::foo')
+		pytest.raises(RuntimeError, layer.encode, text_envelope, session, modification_code=b'foo')
+		pytest.raises(RuntimeError, layer.decode, bytes_envelope, session, target=tail)
+		pytest.raises(TypeError, layer.encode, text_envelope, session, target=head, modification_code=b'foo')
+		pytest.raises(TypeError, layer.decode, bytes_envelope, session, target=tail, modification_code='f')
+		pytest.raises(TypeError, layer.decode, bytes_envelope, session, target=1, modification_code='f')
 
-		m2 = WMessengerFixedModificationLayer('layer', b'header::', b'::footer')
-		assert (m2.encode(b'foo') == b'header::foo::footer')
-		pytest.raises(TypeError, m2.encode, 'foo')
-		assert (m2.decode(b'header::bar::footer') == b'bar')
-		pytest.raises(ValueError, m2.decode, b'header::bar::header')
+		result = layer.decode(result, session, target=head, modification_code='header::')
+		assert(isinstance(result, WMessengerTextEnvelope) is True)
+		assert(result.message() == 'foo')
+
+		invalid_envelope = WMessengerTextEnvelope('head::foo')
+		pytest.raises(
+			ValueError, layer.decode, invalid_envelope, session, target=head, modification_code='header::'
+		)
+
+		pytest.raises(
+			ValueError, layer.decode, invalid_envelope, session, target=head,
+			modification_code='very_long_header::'
+		)
+
+		result = layer.decode(
+			layer.encode(bytes_envelope, session, target=tail, modification_code=b'::tail'),
+			session, target=tail, modification_code=b'::tail'
+		)
+		assert(isinstance(result, WMessengerBytesEnvelope) is True)
+		assert(result.message() == b'bar')
+
+		invalid_envelope = WMessengerBytesEnvelope(b'foo::wrong_tail')
+		pytest.raises(
+			ValueError, layer.decode, invalid_envelope, session, target=tail, modification_code=b'::tail'
+		)
+
+
+class TestWMessengerEncodingLayer:
+
+	def test(self):
+		onion = WMessengerOnion()
+		sf = WMessengerOnionSessionFlow.sequence_flow(WMessengerOnionSessionFlowProto.IteratorInfo('layer'))
+		session = WMessengerOnionSession(onion, sf)
+		layer = WMessengerEncodingLayer()
+
+		assert(isinstance(layer, WMessengerEncodingLayer) is True)
+		assert(isinstance(layer, WMessengerOnionCoderLayerProto) is True)
+
+		encoded_data = layer.encode(WMessengerTextEnvelope('some text'), session)
+		assert(isinstance(encoded_data, WMessengerBytesEnvelope) is True)
+		assert(encoded_data.message() == b'some text')
+
+		encoded_data = layer.encode(WMessengerTextEnvelope('some text'), session, encoding='ascii')
+		assert(encoded_data.message() == b'some text')
+
+		decoded_data = layer.decode(encoded_data, session, encoding='utf-8')
+		assert(isinstance(decoded_data, WMessengerTextEnvelope) is True)
+		assert(decoded_data.message() == 'some text')
+
+		decoded_data = layer.decode(encoded_data, session)
+		assert(decoded_data.message() == 'some text')
 
 
 class TestWMessengerHexLayer:
 
 	def test_layer(self):
-		assert(isinstance(WMessengerHexLayer(), WMessengerHexLayer) is True)
-		assert(isinstance(WMessengerHexLayer(), WMessengerOnionCoderLayerBase) is True)
 
-		l = WMessengerHexLayer()
-		assert(l.encode('msg1') == '6d736731')
-		assert(l.encode(b'msg1') == '6d736731')
+		onion = WMessengerOnion()
+		sf = WMessengerOnionSessionFlow.sequence_flow(WMessengerOnionSessionFlowProto.IteratorInfo('layer'))
+		session = WMessengerOnionSession(onion, sf)
+		layer = WMessengerHexLayer()
 
-		assert(l.decode('7365636f6e64206d7367') == b'second msg')
-		assert(l.decode(b'7365636f6e64206d7367') == b'second msg')
+		assert(isinstance(layer, WMessengerHexLayer) is True)
+		assert(isinstance(layer, WMessengerOnionCoderLayerProto) is True)
+
+		result = layer.encode(WMessengerBytesEnvelope(b'msg1'), session)
+		assert(isinstance(result, WMessengerTextEnvelope) is True)
+		assert(result.message() == '6d736731')
+
+		result = layer.decode(WMessengerTextEnvelope('7365636f6e64206d7367'), session)
+		assert(isinstance(result, WMessengerBytesEnvelope) is True)
+		assert(result.message() == b'second msg')
 
 
 class TestWMessengerBase64Layer:
 
 	def test_layer(self):
-		assert(isinstance(WMessengerBase64Layer(), WMessengerBase64Layer) is True)
-		assert(isinstance(WMessengerBase64Layer(), WMessengerOnionCoderLayerBase) is True)
 
-		l = WMessengerBase64Layer()
-		assert(l.encode('msg1') == b'bXNnMQ==')
-		assert(l.encode(b'msg1') == b'bXNnMQ==')
+		onion = WMessengerOnion()
+		sf = WMessengerOnionSessionFlow.sequence_flow(WMessengerOnionSessionFlowProto.IteratorInfo('layer'))
+		session = WMessengerOnionSession(onion, sf)
+		layer = WMessengerBase64Layer()
 
-		assert(l.decode(b'c2Vjb25kIG1zZw==') == b'second msg')
-		assert(l.decode('c2Vjb25kIG1zZw==') == b'second msg')
+		assert(isinstance(layer, WMessengerBase64Layer) is True)
+		assert(isinstance(layer, WMessengerOnionCoderLayerProto) is True)
+
+		result = layer.encode(WMessengerBytesEnvelope(b'msg1'), session)
+		assert(isinstance(result, WMessengerBytesEnvelope) is True)
+		assert(result.message() == b'bXNnMQ==')
+
+		result = layer.decode(WMessengerBytesEnvelope(b'c2Vjb25kIG1zZw=='), session)
+		assert(isinstance(result, WMessengerBytesEnvelope) is True)
+		assert(result.message() == b'second msg')
 
 
 class TestWMessengerAESLayer:
 
 	def test_layer(self):
+
+		onion = WMessengerOnion()
+		sf = WMessengerOnionSessionFlow.sequence_flow(WMessengerOnionSessionFlowProto.IteratorInfo('layer'))
+		session = WMessengerOnionSession(onion, sf)
+		layer = WMessengerAESLayer()
+
 		aes_mode = WAESMode.defaults()
-		aes1 = WFixedSecretAES('password', aes_mode)
-		aes2 = WFixedSecretAES('secret password', aes_mode)
+		aes_cipher = WFixedSecretAES('password', aes_mode)
 
-		l1 = WMessengerAESLayer('l', aes1)
-		l2 = WMessengerAESLayer('l', aes2)
+		assert(isinstance(layer, WMessengerAESLayer) is True)
+		assert(isinstance(layer, WMessengerOnionCoderLayerProto) is True)
 
-		assert(isinstance(l1, WMessengerAESLayer) is True)
-		assert(isinstance(l2, WMessengerOnionCoderLayerBase) is True)
+		result = layer.encode(WMessengerBytesEnvelope(b'msg1'), session, aes_cipher=aes_cipher)
+		assert(isinstance(result, WMessengerBytesEnvelope) is True)
+		assert(result.message() == b'w^2\x1f\xbcPV\xa7\xe2#\xa9\xa3\xeb_\xd7Y')
 
-		assert(l1.encode('msg1') == b'w^2\x1f\xbcPV\xa7\xe2#\xa9\xa3\xeb_\xd7Y')
-		assert(l2.encode(b'second msg') == b'7z\x0fH\x94\x98\x96ix\xc1\xb7=\xcf\xd7\xb1\x03')
-
-		assert(l1.decode(b'g\x1a\x9ed\x83\x83\x18\xca\xeaW\xc9\xc5ae\xa0\xe8') == b'second msg')
-		assert(l2.decode(b'\xdb\xbd\xd7\x19\x9e\xb4T\xd42\xe5\xec\xb1\x89\x9d\xf2\x96') == b'msg1')
+		result = layer.decode(
+			WMessengerBytesEnvelope(b'g\x1a\x9ed\x83\x83\x18\xca\xeaW\xc9\xc5ae\xa0\xe8'),
+			session, aes_cipher=aes_cipher
+		)
+		assert(isinstance(result, WMessengerBytesEnvelope) is True)
+		assert(result.message() == b'second msg')
 
 
 class TestWMessengerRSALayer:
 
 	def test_layer(self):
 
-		rsa_pk1 = WRSA.generate_private(1024)
-		rsa_pk2 = WRSA.generate_private(1024)
+		onion = WMessengerOnion()
+		sf = WMessengerOnionSessionFlow.sequence_flow(WMessengerOnionSessionFlowProto.IteratorInfo('layer'))
+		session = WMessengerOnionSession(onion, sf)
+		layer = WMessengerRSALayer()
 
-		l1 = WMessengerRSALayer('l', rsa_pk1, rsa_pk1)
-		l2 = WMessengerRSALayer('l', rsa_pk2, rsa_pk2)
+		rsa_pk = WRSA.generate_private(1024)
 
-		assert(isinstance(l1, WMessengerRSALayer) is True)
-		assert(isinstance(l2, WMessengerOnionCoderLayerBase) is True)
+		assert(isinstance(layer, WMessengerRSALayer) is True)
+		assert(isinstance(layer, WMessengerOnionCoderLayerProto) is True)
 
-		assert(l1.decode(l1.encode('msg1')) == b'msg1')
-		pytest.raises(ValueError, l2.decode, l1.encode('msg1'))
+		result = layer.encode(WMessengerBytesEnvelope(b'msg1'), session, public_key=rsa_pk)
+		assert(isinstance(result, WMessengerBytesEnvelope) is True)
+		assert(len(result.message()) == (1024 / 8))
 
-		assert(l2.decode(l2.encode(b'second message')) == b'second message')
-		pytest.raises(ValueError, l1.decode, l2.encode(b'second message'))
+		result = layer.decode(result, session, private_key=rsa_pk)
+		assert(isinstance(result, WMessengerBytesEnvelope) is True)
+		assert(result.message() == b'msg1')

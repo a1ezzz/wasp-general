@@ -25,6 +25,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 from base64 import b64encode, b64decode
+from enum import Enum
 
 from wasp_general.verify import verify_type, verify_value
 from wasp_general.crypto.hex import WHex, WUnHex
@@ -32,90 +33,176 @@ from wasp_general.crypto.aes import WAES
 from wasp_general.crypto.rsa import WRSA
 from wasp_general.crypto.sha import WSHA
 
-from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerBase
+from wasp_general.network.messenger.proto import WMessengerOnionSessionProto
+from wasp_general.network.messenger.envelope import WMessengerTextEnvelope, WMessengerBytesEnvelope
+from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerProto
 
 
-class WMessengerFixedModificationLayer(WMessengerOnionCoderLayerBase):
-	""" :class:`.WMessengerOnionCoderLayerBase` class implementation. This class applies fixed modification to
+class WMessengerFixedModificationLayer(WMessengerOnionCoderLayerProto):
+	""" :class:`.WMessengerOnionCoderLayerProto` class implementation. This class applies fixed modification to
 	specified messages.
 
 	In :meth:`.WMessengerFixedModificationLayer.encode` method this class appends "header" to the message start
-	(if specified) and appends "tail" to the message end (if specified). If no header or tail are specified -
-	this class does nothing.
+	or appends "tail" to the message end. One of them must be specified.
+
+	For :class:`.WMessengerTextEnvelope` envelope, "header" or "tail" must be "str" type.
+	For :class:`.WMessengerBytesEnvelope` envelope, "header" or "tail" must be "bytes" type.
 	"""
 
-	@verify_type(header=(bytes, str, None), tail=(bytes, str, None))
-	def __init__(self, layer_name, header=None, tail=None):
+	__layer_name__ = "com.binblob.wasp-general.fixed-modification-layer"
+	""" Layer name
+	"""
+
+	class Target(Enum):
+		""" Modification mode. Specifies whether modification code must be appended to start or to the end
+		of a message
+		"""
+		head = 1
+		""" Modification code must be inserted to a message start
+		"""
+		tail = 2
+		""" Modification code must be added to a message end
+		"""
+
+	def __init__(self):
 		""" Construct new layer
-
-		:param layer_name: layer name
-		:param header: header to apply
-		:param tail: tail to apply
 		"""
-		WMessengerOnionCoderLayerBase.__init__(self, layer_name)
-		self.__header = header
-		self.__tail = tail
+		WMessengerOnionCoderLayerProto.__init__(self, WMessengerFixedModificationLayer.__layer_name__)
 
-		if self.__header is not None and self.__tail is not None:
-			if self.__header.__class__ != self.__tail.__class__:
-				raise TypeError('Headed and tail must be the same type')
+	@verify_type(envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope))
+	def __args_check(self, envelope, target, modification_code):
+		""" Method checks arguments, that are specified to the
+		:meth:`.WMessengerFixedModificationLayer.encode` and :meth:`.WMessengerFixedModificationLayer.decode`
+		methods
 
-	@verify_type(message=(bytes, str))
-	def encode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.encode` method implementation.
+		:param envelope: same as envelope in :meth:`.WMessengerFixedModificationLayer.encode` and \
+		:meth:`.WMessengerFixedModificationLayer.decode` methods
+		:param target: same as target in :meth:`.WMessengerFixedModificationLayer.encode` and \
+		:meth:`.WMessengerFixedModificationLayer.decode` methods
+		:param modification_code: same as modification_code in \
+		:meth:`.WMessengerFixedModificationLayer.encode` and :meth:`.WMessengerFixedModificationLayer.decode` \
+		methods
 
-		:param message: source message (must be the same type as header and tail)
-		:return: result type is the same as header and tail are
+		:return: None
 		"""
-		if self.__header is None and self.__tail is None:
-			return message
+		if target is None:
+			raise RuntimeError('"target" argument must be specified for this layer')
+		if modification_code is None:
+			raise RuntimeError('"modification_code" argument must be specified for this layer')
 
-		msg_class = self.__header.__class__ if self.__header is not None else self.__tail.__class__
+		if isinstance(target, WMessengerFixedModificationLayer.Target) is False:
+			raise TypeError('Invalid "target" argument')
 
-		if isinstance(message, msg_class) is False:
-			raise TypeError('Message must be must be the same type as headed and tail')
+		if isinstance(envelope, WMessengerTextEnvelope) is True:
+			if isinstance(modification_code, str) is False:
+				raise TypeError('Invalid "modification_code" argument for specified envelope')
+		elif isinstance(modification_code, bytes) is False:
+			raise TypeError('Invalid "modification_code" argument for specified envelope')
 
-		header = self.__header if self.__header is not None else msg_class()
-		tail = self.__tail if self.__tail is not None else msg_class()
+	@verify_type(envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope), session=WMessengerOnionSessionProto)
+	def encode(self, envelope, session, target=None, modification_code=None, **kwargs):
+		""" Methods appends 'modification_code' to the specified envelope.
 
-		return header + message + tail
+		:param envelope: original envelope
+		:param session: original session
+		:param target: flag, that specifies whether code must be appended to the start or to the end
+		:param modification_code: code to append
+		:param kwargs: additional arguments
 
-	@verify_type(message=(bytes, str))
-	def decode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.decode` method implementation.
-
-		:param message: source message (must be the same type as header and tail)
-		:return: result type is the same as header and tail are
+		:return: WMessengerTextEnvelope or WMessengerBytesEnvelope (depends on the original envelope)
 		"""
-		if self.__header is None and self.__tail is None:
-			return message
+		self.__args_check(envelope, target, modification_code)
 
-		msg_class = self.__header.__class__ if self.__header is not None else self.__tail.__class__
-		if isinstance(message, msg_class) is False:
-			raise TypeError('Message must be must be the same type as headed and tail')
+		if isinstance(envelope, WMessengerTextEnvelope):
+			target_envelope_cls = WMessengerTextEnvelope
+		else:  # isinstance(envelope, WMessengerBytesEnvelope)
+			target_envelope_cls = WMessengerBytesEnvelope
 
-		header = self.__header if self.__header is not None else msg_class()
-		tail = self.__tail if self.__tail is not None else msg_class()
+		if target == WMessengerFixedModificationLayer.Target.head:
+			return target_envelope_cls(modification_code + envelope.message(), meta=envelope)
+		else:  # target == WMessengerFixedModificationLayer.Target.tail
+			return target_envelope_cls(envelope.message() + modification_code, meta=envelope)
 
-		if len(message) < (len(header) + len(tail)):
+	@verify_type(envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope), session=WMessengerOnionSessionProto)
+	def decode(self, envelope, session, target=None, modification_code=None, **kwargs):
+		""" Methods checks envelope for 'modification_code' existence and removes it.
+
+		:param envelope: original envelope
+		:param session: original session
+		:param target: flag, that specifies whether code must be searched and removed at the start or at the end
+		:param modification_code: code to search/remove
+		:param kwargs: additional arguments
+
+		:return: WMessengerTextEnvelope or WMessengerBytesEnvelope (depends on the original envelope)
+		"""
+		self.__args_check(envelope, target, modification_code)
+
+		message = envelope.message()
+		if len(message) < len(modification_code):
 			raise ValueError('Invalid message length')
 
-		if len(header) > 0:
-			if message[:len(header)] != header:
-				raise ValueError('Invalid header')
-			message = message[len(header):]
+		if isinstance(envelope, WMessengerTextEnvelope):
+			target_envelope_cls = WMessengerTextEnvelope
+		else:  # isinstance(envelope, WMessengerBytesEnvelope)
+			target_envelope_cls = WMessengerBytesEnvelope
 
-		if len(tail) > 0:
-			if message[-len(tail):] != tail:
-				raise ValueError('Invalid tail')
+		if target == WMessengerFixedModificationLayer.Target.head:
+			if message[:len(modification_code)] != modification_code:
+				raise ValueError('Invalid header in message')
+			return target_envelope_cls(message[len(modification_code):], meta=envelope)
+		else:  # target == WMessengerFixedModificationLayer.Target.tail
+			if message[-len(modification_code):] != modification_code:
+				raise ValueError('Invalid tail in message')
+			return target_envelope_cls(message[:-len(modification_code)], meta=envelope)
 
-			message = message[:-len(tail)]
 
-		return message
+class WMessengerEncodingLayer(WMessengerOnionCoderLayerProto):
+	""" This layer can encode str-object to the related encoding (to the bytes-object). Or decode bytes-object from
+	the specified encoding (from bytes-object to str-object)
+	"""
+
+	__layer_name__ = "com.binblob.wasp-general.encoding-layer"
+	""" Layer name
+	"""
+
+	def __init__(self):
+		""" Construct new layer
+		"""
+		WMessengerOnionCoderLayerProto.__init__(self, WMessengerEncodingLayer.__layer_name__)
+
+	@verify_type(envelope=WMessengerTextEnvelope, session=WMessengerOnionSessionProto, encoding=(str, None))
+	def encode(self, envelope, session, encoding=None, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
+
+		:param envelope: original envelope
+		:param session: original session
+		:param encoding: encoding to use (default is 'utf-8')
+		:param kwargs: additional arguments
+
+		:return: WMessengerBytesEnvelope
+		"""
+		message = envelope.message()
+		message = message.encode() if encoding is None else message.encode(encoding)
+		return WMessengerBytesEnvelope(message, meta=envelope)
+
+	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto, encoding=(str, None))
+	def decode(self, envelope, session, encoding=None, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
+
+		:param envelope: original envelope
+		:param session: original session
+		:param encoding: encoding to use (default is 'utf-8')
+		:param kwargs: additional arguments
+
+		:return: WMessengerTextEnvelope
+		"""
+		message = envelope.message()
+		message = message.decode() if encoding is None else message.decode(encoding)
+		return WMessengerTextEnvelope(message, meta=envelope)
 
 
-class WMessengerHexLayer(WMessengerOnionCoderLayerBase):
-	""" :class:`.WMessengerOnionCoderLayerBase` class implementation. This class translate message to corresponding
+class WMessengerHexLayer(WMessengerOnionCoderLayerProto):
+	""" :class:`.WMessengerOnionCoderLayerProto` class implementation. This class translate message to corresponding
 	hex-string, or decodes it from hex-string to original binary representation.
 	"""
 
@@ -126,30 +213,37 @@ class WMessengerHexLayer(WMessengerOnionCoderLayerBase):
 	def __init__(self):
 		""" Construct new layer
 		"""
-		WMessengerOnionCoderLayerBase.__init__(self, WMessengerHexLayer.__layer_name__)
+		WMessengerOnionCoderLayerProto.__init__(self, WMessengerHexLayer.__layer_name__)
 
-	@verify_type(message=(bytes, str))
-	def encode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.encode` method implementation.
+	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	def encode(self, envelope, session, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
-		:param message: source message (if message is a string, then message will be translated to binary first)
-		:return: str
+		:param envelope: original envelope
+		:param session: original session
+		:param kwargs: additional arguments
+
+		:return: WMessengerTextEnvelope
 		"""
-		return str(WHex(message if isinstance(message, bytes) else message.encode()))
+		return WMessengerTextEnvelope(str(WHex(envelope.message())), meta=envelope)
 
-	@verify_type(message=(bytes, str))
-	def decode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.decode` method implementation.
+	@verify_type(envelope=WMessengerTextEnvelope, session=WMessengerOnionSessionProto)
+	def decode(self, envelope, session, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 
-		:param message: source message (if message is a bytes, then message will be translated to string first)
-		:return: bytes
+		:param envelope: original envelope
+		:param session: original session
+		:param kwargs: additional arguments
+
+		:return: WMessengerBytesEnvelope
 		"""
-		return bytes(WUnHex(message if isinstance(message, str) else message.decode()))
+		return WMessengerBytesEnvelope(bytes(WUnHex(envelope.message())), meta=envelope)
 
 
-class WMessengerBase64Layer(WMessengerOnionCoderLayerBase):
-	""" :class:`.WMessengerOnionCoderLayerBase` class implementation. This class translate message to corresponding
-	base64-string, or decodes it from base64-string to original binary representation.
+class WMessengerBase64Layer(WMessengerOnionCoderLayerProto):
+	""" :class:`.WMessengerOnionCoderLayerProto` class implementation. This class translate binary message
+	to the corresponding base64 encoded bytes, or decodes it from base64 encoded bytes to the original binary
+	representation.
 	"""
 
 	__layer_name__ = "com.binblob.wasp-general.base64-layer"
@@ -159,100 +253,118 @@ class WMessengerBase64Layer(WMessengerOnionCoderLayerBase):
 	def __init__(self):
 		""" Construct new layer
 		"""
-		WMessengerOnionCoderLayerBase.__init__(self, WMessengerBase64Layer.__layer_name__)
+		WMessengerOnionCoderLayerProto.__init__(self, WMessengerBase64Layer.__layer_name__)
 
-	@verify_type(message=(bytes, str))
-	def encode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.encode` method implementation.
+	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	def encode(self, envelope, session, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
-		:param message: source message (if message is a string, then message will be translated to binary first)
-		:return: str
+		:param envelope: original envelope
+		:param session: original session
+		:param kwargs: additional arguments
+
+		:return: WMessengerBytesEnvelope
 		"""
-		if isinstance(message, str):
-			message = message.encode()
-		return b64encode(message)
+		return WMessengerBytesEnvelope(b64encode(envelope.message()), meta=envelope)
 
-	@verify_type(message=(bytes, str))
-	def decode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.decode` method implementation.
+	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	def decode(self, envelope, session, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 
-		:param message: source message
-		:return: bytes
+		:param envelope: original envelope
+		:param session: original session
+		:param kwargs: additional arguments
+
+		:return: WMessengerBytesEnvelope
 		"""
-		return b64decode(message)
+		return WMessengerBytesEnvelope(b64decode(envelope.message()), meta=envelope)
 
 
-class WMessengerAESLayer(WMessengerOnionCoderLayerBase):
-	""" :class:`.WMessengerOnionCoderLayerBase` class implementation. This class encrypts/decrypts message with
-	specified AES cipher
+class WMessengerAESLayer(WMessengerOnionCoderLayerProto):
+	""" :class:`.WMessengerOnionCoderLayerProto` class implementation. This class encrypts/decrypts message with
+	the specified AES cipher
 	"""
 
-	@verify_type(aes_cipher=WAES)
-	def __init__(self, layer_name, aes_cipher):
+	__layer_name__ = "com.binblob.wasp-general.aes-layer"
+	""" Layer name
+	"""
+
+	def __init__(self):
 		""" Construct new layer
-
-		:param layer_name: layer name
-		:param aes_cipher: cipher to encrypt/decrypt
 		"""
-		WMessengerOnionCoderLayerBase.__init__(self, layer_name)
-		self.__cipher = aes_cipher
+		WMessengerOnionCoderLayerProto.__init__(self, WMessengerAESLayer.__layer_name__)
 
-	@verify_type(message=(bytes, str))
-	def encode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.encode` method implementation.
+	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type(aes_cipher=WAES)
+	def encode(self, envelope, session, aes_cipher=None, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
-		:param message: message to encrypt
-		:return: bytes
+		:param envelope: original envelope
+		:param session: original session
+		:param aes_cipher: cipher to use
+		:param kwargs: additional arguments
+
+		:return: WMessengerBytesEnvelope
 		"""
-		return self.__cipher.encrypt(message)
+		return WMessengerBytesEnvelope(aes_cipher.encrypt(envelope.message()), meta=envelope)
 
-	@verify_type(message=bytes)
-	def decode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.decode` method implementation.
+	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type(aes_cipher=WAES)
+	def decode(self, envelope, session, aes_cipher=None, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 
-		:param message: message to decrypt
-		:return: bytes
+		:param envelope: original envelope
+		:param session: original session
+		:param aes_cipher: cipher to use
+		:param kwargs: additional arguments
+
+		:return: WMessengerBytesEnvelope
 		"""
-		return self.__cipher.decrypt(message, decode=False)
+		return WMessengerBytesEnvelope(aes_cipher.decrypt(envelope.message(), decode=False), meta=envelope)
 
 
-class WMessengerRSALayer(WMessengerOnionCoderLayerBase):
-	""" :class:`.WMessengerOnionCoderLayerBase` class implementation. This class encrypts/decrypts message with
+class WMessengerRSALayer(WMessengerOnionCoderLayerProto):
+	""" :class:`.WMessengerOnionCoderLayerProto` class implementation. This class encrypts/decrypts message with
 	specified RSA cipher
 	"""
 
-	@verify_type(public_key=WRSA.wrapped_class, private_key=WRSA.wrapped_class, sha_digest_size=int)
-	@verify_value(sha_digest_size=lambda x: x in WSHA.available_digests())
-	def __init__(self, layer_name, public_key, private_key, sha_digest_size=32):
+	__layer_name__ = "com.binblob.wasp-general.rsa-layer"
+	""" Layer name
+	"""
+
+	def __init__(self):
 		""" Construct new layer
+		"""
+		WMessengerOnionCoderLayerProto.__init__(self, WMessengerRSALayer.__layer_name__)
 
-		:param layer_name: layer name
+	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type(public_key=WRSA.wrapped_class, sha_digest_size=int)
+	def encode(self, envelope, session, public_key=None, sha_digest_size=32, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
+
+		:param envelope: original envelope
+		:param session: original session
 		:param public_key: public key to encrypt
+		:param sha_digest_size: SHA digest size to use
+		:param kwargs: additional arguments
+
+		:return: WMessengerBytesEnvelope
+		"""
+		message = WRSA.encrypt(envelope.message(), public_key, sha_digest_size=sha_digest_size)
+		return WMessengerBytesEnvelope(message, meta=envelope)
+
+	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type(private_key=WRSA.wrapped_class, sha_digest_size=int)
+	def decode(self, envelope, session, private_key=None, sha_digest_size=32, **kwargs):
+		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
+
+		:param envelope: original envelope
+		:param session: original session
 		:param private_key: private key to decrypt
-		:param sha_digest_size: hash-size
+		:param sha_digest_size: SHA digest size to use
+		:param kwargs: additional arguments
+
+		:return: WMessengerBytesEnvelope
 		"""
-		WMessengerOnionCoderLayerBase.__init__(self, layer_name)
-
-		self.__public_key = public_key
-		self.__private_key = private_key
-		self.__sha_digest_size = sha_digest_size
-
-	@verify_type(message=(bytes, str))
-	def encode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.encode` method implementation.
-
-		:param message: message to encrypt
-		:return: bytes
-		"""
-		if isinstance(message, bytes) is False:
-			message = message.encode()
-		return WRSA.encrypt(message, self.__public_key, sha_digest_size=self.__sha_digest_size)
-
-	@verify_type(message=bytes)
-	def decode(self, message):
-		""" :meth:`.WMessengerOnionCoderLayerBase.decode` method implementation.
-
-		:param message: message to decrypt
-		:return: bytes
-		"""
-		return WRSA.decrypt(message, self.__private_key, sha_digest_size=self.__sha_digest_size)
+		message = WRSA.decrypt(envelope.message(), private_key, sha_digest_size=sha_digest_size)
+		return WMessengerBytesEnvelope(message, meta=envelope)
