@@ -516,9 +516,10 @@ class WConsoleBase(WConsoleProto):
 
 	@verify_type(result=WCommandResult)
 	def handle_result(self, result):
+		if result.output is not None:
+			self.write(result.output)
 		if result.error is not None:
 			self.write('Error: %s' % str(result.error))
-		self.write(result.output)
 
 	@verify_type(e=Exception)
 	def handle_exception(self, e):
