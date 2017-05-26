@@ -50,3 +50,14 @@ class WExitCommand(WCommand):
 	def _exec(self, *command_tokens):
 		self.__console.stop()
 		return WCommandResult('Exiting...')
+
+
+class WEmptyCommand(WCommand):
+
+	@verify_type(command_tokens=str)
+	def match(self, *command_tokens):
+		return len(command_tokens) == 0
+
+	@verify_type(command_tokens=str)
+	def _exec(self, *command_tokens):
+		return WCommandResult()
