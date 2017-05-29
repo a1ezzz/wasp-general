@@ -34,7 +34,7 @@ from wasp_general.crypto.rsa import WRSA
 
 from wasp_general.network.messenger.proto import WMessengerOnionSessionProto
 from wasp_general.network.messenger.envelope import WMessengerTextEnvelope, WMessengerBytesEnvelope
-from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerProto
+from wasp_general.network.messenger.layers import WMessengerOnionCoderLayerProto
 
 
 class WMessengerFixedModificationLayer(WMessengerOnionCoderLayerProto):

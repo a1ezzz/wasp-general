@@ -19,75 +19,17 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO: write tests
+
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from abc import abstractmethod
-from enum import Enum
-
 from wasp_general.verify import verify_type
 
-from wasp_general.network.messenger.proto import WMessengerOnionProto, WMessengerEnvelopeProto
-from wasp_general.network.messenger.proto import WMessengerOnionSessionProto, WMessengerOnionLayerProto
-from wasp_general.network.messenger.proto import WMessengerOnionSessionFlowProto
-
-from wasp_general.network.messenger.envelope import WMessengerTextEnvelope, WMessengerBytesEnvelope
-from wasp_general.network.messenger.session import WMessengerOnionSession
-
-
-class WMessengerOnionCoderLayerProto(WMessengerOnionLayerProto):
-	""" Class for layers, that are used for encryption/decryption, encoding/decoding. This layer class works with
-	strings and bytes and as a result generates strings and bytes
-	"""
-
-	class Mode(Enum):
-		""" Specifies layers mode
-		"""
-		encode = 1
-		""" Encryption/encoding mode
-		"""
-		decode = 2
-		""" Decryption/decoding mode
-		"""
-
-	@verify_type(envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
-	def process(self, envelope, session, mode=None, **kwargs):
-		""" :meth:`.WMessengerOnionLayerProto.process` implementation
-		"""
-		if mode is None:
-			raise RuntimeError('"mode" argument must be specified for this object')
-
-		if isinstance(mode, WMessengerOnionCoderLayerProto.Mode) is False:
-			raise TypeError('Invalid "mode" argument')
-
-		if mode == WMessengerOnionCoderLayerProto.Mode.encode:
-			return self.encode(envelope, session, **kwargs)
-		else:  # mode == WMessengerOnionCoderLayerProto.Mode.decode
-			return self.decode(envelope, session, **kwargs)
-
-	@abstractmethod
-	@verify_type(envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope), session=WMessengerOnionSessionProto)
-	def encode(self, envelope, session, **kwargs):
-		""" Encrypt/encode message
-
-		:param envelope: message to encrypt/encode
-		:param session: original session
-		:return: WMessengerTextEnvelope or WMessengerBytesEnvelope
-		"""
-		raise NotImplementedError('This method is abstract')
-
-	@abstractmethod
-	@verify_type(envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope), session=WMessengerOnionSessionProto)
-	def decode(self, envelope, session, **kwargs):
-		""" Decrypt/decode message
-
-		:param envelope: message to decrypt/decode
-		:param session: original session
-		:return: WMessengerTextEnvelope or WMessengerBytesEnvelope
-		"""
-		raise NotImplementedError('This method is abstract')
+from wasp_general.network.messenger.proto import WMessengerOnionProto
+from wasp_general.network.messenger.proto import WMessengerOnionLayerProto
 
 
 class WMessengerOnion(WMessengerOnionProto):

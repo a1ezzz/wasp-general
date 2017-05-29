@@ -2,75 +2,30 @@
 
 import pytest
 
-from wasp_general.network.messenger.proto import WMessengerOnionLayerProto, WMessengerOnionSessionFlowProto
-from wasp_general.network.messenger.proto import WMessengerOnionProto
-from wasp_general.network.messenger.envelope import WMessengerTextEnvelope
-from wasp_general.network.messenger.session import WMessengerOnionSession, WMessengerOnionSessionFlow
+from wasp_general.network.messenger.proto import WMessengerOnionProto, WMessengerOnionLayerProto
 
-from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerProto, WMessengerOnion
-
-
-def test_abstract():
-	envelope = WMessengerTextEnvelope('')
-	onion = WMessengerOnion()
-	session_flow = WMessengerOnionSessionFlow.sequence_flow(WMessengerOnionSessionFlowProto.IteratorInfo('layer'))
-	session = WMessengerOnionSession(onion, session_flow)
-
-	pytest.raises(TypeError, WMessengerOnionCoderLayerProto)
-	pytest.raises(NotImplementedError, WMessengerOnionCoderLayerProto.encode, None, envelope, session)
-	pytest.raises(NotImplementedError, WMessengerOnionCoderLayerProto.decode, None, envelope, session)
-
-
-class TestWMessengerOnionCoderLayerBase:
-
-	class Coder(WMessengerOnionCoderLayerProto):
-		state = []
-
-		def encode(self, envelope, session, **kwargs):
-			self.state.append('encoded')
-			return envelope
-
-		def decode(self, envelope, session, **kwargs):
-			self.state.append('decoded')
-			return envelope
-
-	def test(self):
-
-		c = TestWMessengerOnionCoderLayerBase.Coder('layer1')
-		assert(isinstance(c, WMessengerOnionCoderLayerProto) is True)
-		assert(isinstance(c, WMessengerOnionLayerProto) is True)
-
-		envelope = WMessengerTextEnvelope('')
-		onion = WMessengerOnion()
-		sf = WMessengerOnionSessionFlow.sequence_flow(WMessengerOnionSessionFlowProto.IteratorInfo('layer'))
-		session = WMessengerOnionSession(onion, sf)
-		pytest.raises(RuntimeError, c.process, envelope, session)
-
-		assert(TestWMessengerOnionCoderLayerBase.Coder.state == [])
-		c.process(envelope, session, mode=WMessengerOnionCoderLayerProto.Mode.encode)
-		assert(TestWMessengerOnionCoderLayerBase.Coder.state == ['encoded'])
-
-		c.process(envelope, session, mode=WMessengerOnionCoderLayerProto.Mode.decode)
-		assert(TestWMessengerOnionCoderLayerBase.Coder.state == ['encoded', 'decoded'])
-
-		pytest.raises(TypeError, c.process, envelope, session, mode=1)
+from wasp_general.network.messenger.onion import WMessengerOnion
 
 
 class TestWMessengerOnion:
+
+	class Layer(WMessengerOnionLayerProto):
+		def process(self, envelope, session, **kwargs):
+			pass
 
 	def test(self):
 		assert(isinstance(WMessengerOnion(), WMessengerOnion) is True)
 		assert(isinstance(WMessengerOnion(), WMessengerOnionProto) is True)
 
-		layer1 = TestWMessengerOnionCoderLayerBase.Coder('layer1')
-		layer2 = TestWMessengerOnionCoderLayerBase.Coder('layer2')
+		layer1 = TestWMessengerOnion.Layer('layer1')
+		layer2 = TestWMessengerOnion.Layer('layer2')
 
 		o = WMessengerOnion(layer1, layer2)
 		layers = o.layers_names()
 		layers.sort()
 		assert(layers == ['layer1', 'layer2'])
 
-		pytest.raises(ValueError, o.add_layers, TestWMessengerOnionCoderLayerBase.Coder('layer1'))
+		pytest.raises(ValueError, o.add_layers, TestWMessengerOnion.Layer('layer1'))
 
 		assert(o.layer('layer1') == layer1)
 		assert(o.layer('layer2') == layer2)

@@ -6,7 +6,8 @@ from wasp_general.crypto.aes import WFixedSecretAES, WAESMode
 from wasp_general.crypto.rsa import WRSA
 
 from wasp_general.network.messenger.envelope import WMessengerTextEnvelope, WMessengerBytesEnvelope
-from wasp_general.network.messenger.onion import WMessengerOnionCoderLayerProto, WMessengerOnion
+from wasp_general.network.messenger.layers import WMessengerOnionCoderLayerProto
+from wasp_general.network.messenger.onion import WMessengerOnion
 from wasp_general.network.messenger.proto import WMessengerOnionSessionFlowProto
 from wasp_general.network.messenger.session import WMessengerOnionSessionFlow, WMessengerOnionSession
 
