@@ -194,8 +194,8 @@ class WCursesWindow(WConsoleWindowBase):
 	def write_line(self, line_index, line):
 		self.console().screen().addstr(line_index, 0, line)
 
-	def refresh_window(self):
-		WConsoleWindowProto.refresh(self)
+	def refresh(self):
+		WConsoleWindowBase.refresh(self)
 		self.console().screen().refresh()
 
 	def set_cursor(self, y, x):
