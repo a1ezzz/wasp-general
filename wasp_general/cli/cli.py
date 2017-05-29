@@ -410,6 +410,16 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 		if cr is True:
 			self.__previous_data += '\n'
 
+	@verify_type(length=int)
+	@verify_value(length=lambda x: x >= 0)
+	def truncate_feedback(self, length):
+		""" Remove data from feedback (removes text from previous output)
+
+		:param length: string length to remove (including required cr-characters)
+		:return: None
+		"""
+		self.__previous_data = self.__previous_data[:-length]
+
 
 class WConsoleDrawerProto(metaclass=ABCMeta):
 	""" Basic class that helps displaying console content
@@ -501,6 +511,16 @@ class WConsoleBase(WConsoleProto):
 		:return: None
 		"""
 		self.window().write_feedback(result, cr=cr)
+
+	@verify_type(length=int)
+	@verify_value(length=lambda x: x >= 0)
+	def truncate(self, length):
+		"""  Shortcut for self.window().truncate_feedback(result) call
+
+		:param length: same as length in :meth:`WConsoleWindowProto.truncate_feedback`
+		:return: None
+		"""
+		self.window().truncate_feedback(length)
 
 	def refresh_window(self):
 		""" Shortcut for self.window().refresh() call
