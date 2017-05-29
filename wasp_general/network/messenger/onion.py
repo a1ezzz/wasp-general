@@ -47,6 +47,8 @@ class WMessengerOnion(WMessengerOnionProto):
 		WMessengerFixedModificationLayer(), WMessengerEncodingLayer(), WMessengerHexLayer(),
 		WMessengerBase64Layer(), WMessengerAESLayer(), WMessengerRSALayer(), WMessengerJSONPacker()
 	]}
+	""" Builtin layers
+	"""
 
 	@verify_type(layers=WMessengerOnionLayerProto)
 	def __init__(self, *layers):
