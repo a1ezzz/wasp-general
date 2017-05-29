@@ -42,16 +42,16 @@ class WCursesWindow(WConsoleWindowBase):
 		""" WConsoleWindowProto.DrawerProto implementation. Suites if there is nothing to display
 		"""
 
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
+		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		def suitable(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
 			if len(window.list_data(previous_data=True, console_row=True)) == 0:
 				return True
 			return False
 
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
+		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		def draw(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
 			"""
 			window.set_cursor(0, 0)
@@ -61,32 +61,44 @@ class WCursesWindow(WConsoleWindowBase):
 		width and height
 		"""
 
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
+		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		def suitable(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
-			lines = len(window.list_data(previous_data=True, console_row=True))
+			if prompt_show is True:
+				lines = len(window.list_data(previous_data=True, console_row=True))
+			else:
+				lines = len(window.list_data(previous_data=True))
+
 			if 1 <= lines < (window.height() - 1):
 				return True
 
 			return False
 
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
+		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		def draw(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
 			"""
-			data_lines = window.list_data(previous_data=True, console_row=True)
+			if prompt_show is True:
+				data_lines = window.list_data(previous_data=True, console_row=True)
+			else:
+				data_lines = window.list_data(previous_data=True)
+
 			window.write_data(data_lines)
 
-			data_lines_to_cursor = window.list_data(
-				previous_data=True, console_row_to_cursor=True
-			)
-			y = len(data_lines_to_cursor) - 1
+			if prompt_show is True:
+				data_lines_to_cursor = window.list_data(
+					previous_data=True, console_row_to_cursor=True
+				)
+				y = len(data_lines_to_cursor) - 1
 
-			line_length = len(window.console().prompt()) + window.cursor()
-			row_lines_to_cursor = window.list_data(console_row_to_cursor=True)
-			line_length += (len(row_lines_to_cursor) - 1)  # append one char offset
-			x = line_length % window.width()
+				line_length = len(window.console().prompt()) + window.cursor()
+				row_lines_to_cursor = window.list_data(console_row_to_cursor=True)
+				line_length += (len(row_lines_to_cursor) - 1)  # append one char offset
+				x = line_length % window.width()
+			else:
+				y = 0
+				x = 0
 
 			window.set_cursor(y, x)
 
@@ -95,24 +107,33 @@ class WCursesWindow(WConsoleWindowBase):
 		height but current row fits
 		"""
 
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
+		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		def suitable(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
 			height = window.height()
-			lines = len(window.list_data(previous_data=True, console_row=True))
-			console_row_lines = len(window.list_data(console_row=True))
-			if (lines >= (height - 1)) and (console_row_lines < (height - 1)):
-				return True
+
+			if prompt_show is True:
+				lines = len(window.list_data(previous_data=True, console_row=True))
+				console_row_lines = len(window.list_data(console_row=True))
+				if (lines >= (height - 1)) and (console_row_lines < (height - 1)):
+					return True
+			else:
+				lines = len(window.list_data(previous_data=True))
+				if lines >= (height - 1):
+					return True
 
 			return False
 
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
+		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		def draw(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
 			"""
 			height = window.height()
-			console_row_lines = window.list_data(console_row=True)
+			if prompt_show is True:
+				console_row_lines = window.list_data(console_row=True)
+			else:
+				console_row_lines = []
 
 			delta = (height - (len(console_row_lines) + 1))
 			previous_data = window.list_data(previous_data=True)
@@ -120,12 +141,16 @@ class WCursesWindow(WConsoleWindowBase):
 
 			window.write_data(delta_data + console_row_lines)
 
-			lines_to_cursor = window.list_data(console_row_to_cursor=True)
-			y = len(lines_to_cursor) - 1 + delta
+			if prompt_show is True:
+				lines_to_cursor = window.list_data(console_row_to_cursor=True)
+				y = len(lines_to_cursor) - 1 + delta
 
-			line_length = len(window.console().prompt()) + window.cursor()
-			line_length += (len(lines_to_cursor) - 1)  # append one char offset
-			x = line_length % window.width()
+				line_length = len(window.console().prompt()) + window.cursor()
+				line_length += (len(lines_to_cursor) - 1)  # append one char offset
+				x = line_length % window.width()
+			else:
+				y = 0
+				x = 0
 
 			window.set_cursor(y, x)
 
@@ -134,19 +159,22 @@ class WCursesWindow(WConsoleWindowBase):
 		window width and height
 		"""
 
-		@verify_type(window=WConsoleWindowProto)
-		def suitable(self, window):
+		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		def suitable(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
-			console_row_lines = len(window.list_data(console_row=True))
-			if console_row_lines >= (window.height() - 1):
-				return True
+			if prompt_show is True:
+				console_row_lines = len(window.list_data(console_row=True))
+				if console_row_lines >= (window.height() - 1):
+					return True
 			return False
 
-		@verify_type(window=WConsoleWindowProto)
-		def draw(self, window):
+		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		def draw(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
 			"""
+			assert(prompt_show is True)
+
 			height = window.height()
 			lines = window.list_data(console_row=True)
 			lines_to_cursor = window.list_data(console_row_to_cursor=True)
@@ -194,8 +222,9 @@ class WCursesWindow(WConsoleWindowBase):
 	def write_line(self, line_index, line):
 		self.console().screen().addstr(line_index, 0, line)
 
-	def refresh(self):
-		WConsoleWindowBase.refresh(self)
+	@verify_type(prompt_show=bool)
+	def refresh(self, prompt_show=True):
+		WConsoleWindowBase.refresh(self, prompt_show=prompt_show)
 		self.console().screen().refresh()
 
 	def set_cursor(self, y, x):

@@ -104,6 +104,7 @@ class WConsoleProto(metaclass=ABCMeta):
 		self.__history = WConsoleHistory()
 		self.__editable_history = None
 		self.__current_row = None
+		self.__prompt_show = None
 
 	def history(self):
 		""" Return changeable history
@@ -139,6 +140,7 @@ class WConsoleProto(metaclass=ABCMeta):
 		self.__current_row = ''
 		self.__history_mode = False
 		self.__editable_history = deepcopy(self.__history)
+		self.__prompt_show = True
 		self.refresh_window()
 
 	def fin_session(self):
@@ -146,6 +148,7 @@ class WConsoleProto(metaclass=ABCMeta):
 
 		:return: None
 		"""
+		self.__prompt_show = False
 		self.__history.add(self.row())
 		self.exec(self.row())
 
@@ -170,6 +173,13 @@ class WConsoleProto(metaclass=ABCMeta):
 			return self.__current_row
 		else:
 			return self.history().entry(self.history().position())
+
+	def prompt_show(self):
+		""" Return flag, that shows, whether to display prompt and current command at the window end, or not
+
+		:return: bool
+		"""
+		return self.__prompt_show
 
 	@abstractmethod
 	def prompt(self):
@@ -269,8 +279,12 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
-	def refresh(self):
+	@verify_type(prompt_show=bool)
+	def refresh(self, prompt_show=True):
 		""" Refresh current window. Clear current window and redraw it with one of drawers
+
+		:param prompt_show: flag, that specifies, whether to show prompt and current row at the
+		windows end, or not
 
 		:return: None
 		"""
@@ -426,21 +440,23 @@ class WConsoleDrawerProto(metaclass=ABCMeta):
 	"""
 
 	@abstractmethod
-	@verify_type(window=WConsoleWindowProto)
-	def suitable(self, window):
+	@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+	def suitable(self, window, prompt_show=True):
 		""" Check if this class can display console content
 
 		:param window: window that should be drawn
+		:param prompt_show: same as 'prompt_show' in :meth:`.WConsoleWindowProto.refresh` method
 		:return: bool (True if this class can draw console content, False - if it can not)
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type(window=WConsoleWindowProto)
-	def draw(self, window):
+	@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+	def draw(self, window, prompt_show=True):
 		""" Display console content on console window
 
 		:param window: windows to draw
+		:param prompt_show: same as 'prompt_show' in :meth:`.WConsoleWindowProto.refresh` method
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
@@ -459,15 +475,19 @@ class WConsoleWindowBase(WConsoleWindowProto, metaclass=ABCMeta):
 		self.__drawers = []
 		self.__drawers.extend(drawers)
 
-	def refresh(self):
+	@verify_type(prompt_show=bool)
+	def refresh(self, prompt_show=True):
 		""" Refresh current window. Clear current window and redraw it with one of drawers
+
+		:param prompt_show: flag, that specifies, whether to show prompt and current row at the
+		windows end, or not
 
 		:return: None
 		"""
 		self.clear()
 		for drawer in self.__drawers:
-			if drawer.suitable(self):
-				drawer.draw(self)
+			if drawer.suitable(self, prompt_show=prompt_show):
+				drawer.draw(self, prompt_show=prompt_show)
 				return
 
 		raise RuntimeError('No suitable drawer was found')
@@ -527,7 +547,7 @@ class WConsoleBase(WConsoleProto):
 
 		:return: None
 		"""
-		self.window().refresh()
+		self.window().refresh(prompt_show=self.prompt_show())
 
 	def prompt(self):
 		""" :meth:`.WConsoleProto.prompt` implementation
