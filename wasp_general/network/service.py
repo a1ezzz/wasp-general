@@ -29,6 +29,7 @@ from wasp_general.version import __status__
 
 from datetime import timedelta
 from abc import abstractmethod, ABCMeta
+from threading import Event
 
 from zmq import Context as ZMQContext
 from zmq.eventloop.ioloop import IOLoop
@@ -291,22 +292,6 @@ class WZMQHandler(WIOLoopServiceHandler, metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 
-class WZMQBindHandler(WZMQHandler, metaclass=ABCMeta):
-
-	def create_socket(self):
-		s = WZMQHandler.create_socket(self)
-		s.bind(self.connection())
-		return s
-
-
-class WZMQConnectHandler(WZMQHandler, metaclass=ABCMeta):
-
-	def create_socket(self):
-		s = WZMQHandler.create_socket(self)
-		s.connect(self.connection())
-		return s
-
-
 class WZMQService(WIOLoopService):
 
 	@verify_type(socket_type=int, connection=str, loop=(IOLoop, None), timeout=(int, None))
@@ -325,3 +310,47 @@ class WLoglessIOLoop(IOLoop):
 
 	def _setup_logging(self):
 		pass
+
+
+class WZMQBindHandler(WZMQHandler, metaclass=ABCMeta):
+
+	def create_socket(self):
+		s = WZMQHandler.create_socket(self)
+		s.bind(self.connection())
+		return s
+
+
+class WZMQConnectHandler(WZMQHandler, metaclass=ABCMeta):
+
+	def create_socket(self):
+		s = WZMQHandler.create_socket(self)
+		s.connect(self.connection())
+		return s
+
+
+class WSingleResponseZMQConnectHandler(WZMQConnectHandler):
+
+	@verify_type(context=ZMQContext, socket_type=int, connection=str)
+	def __init__(self, context, socket_type, connection):
+		WZMQConnectHandler.__init__(self, context, socket_type, connection)
+		self.__threaded_event = Event()
+		self.__received_data = None
+
+	def receive_event(self):
+		return self.__threaded_event
+
+	def received_data(self):
+		return self.__received_data
+
+	def on_recv(self, msg):
+		if self.__received_data is not None:
+			raise RuntimeError('Multiple responses for a single request')
+		self.__received_data = msg
+		self.__threaded_event.set()
+
+	@verify_type(data=bytes)
+	def stream_send(self, data):
+		self.__threaded_event.clear()
+		self.__received_data = None
+		self.stream().send(data)
+		self.stream().flush()
