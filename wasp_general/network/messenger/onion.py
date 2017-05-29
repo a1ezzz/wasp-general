@@ -31,11 +31,22 @@ from wasp_general.verify import verify_type
 from wasp_general.network.messenger.proto import WMessengerOnionProto
 from wasp_general.network.messenger.proto import WMessengerOnionLayerProto
 
+from wasp_general.network.messenger.coders import WMessengerFixedModificationLayer, WMessengerEncodingLayer
+from wasp_general.network.messenger.coders import WMessengerHexLayer, WMessengerBase64Layer, WMessengerAESLayer
+from wasp_general.network.messenger.coders import WMessengerRSALayer
+
+from wasp_general.network.messenger.packers import WMessengerJSONPacker
+
 
 class WMessengerOnion(WMessengerOnionProto):
 	""" :class:`.WMessengerOnionProto` implementation. This class holds layers
 	(:class:`WMessengerOnionLayerProto` class) that can be used for message processing.
 	"""
+
+	__builtin_layers__ = {x.name(): x for x in [
+		WMessengerFixedModificationLayer(), WMessengerEncodingLayer(), WMessengerHexLayer(),
+		WMessengerBase64Layer(), WMessengerAESLayer(), WMessengerRSALayer(), WMessengerJSONPacker()
+	]}
 
 	@verify_type(layers=WMessengerOnionLayerProto)
 	def __init__(self, *layers):
@@ -49,16 +60,18 @@ class WMessengerOnion(WMessengerOnionProto):
 	def layers_names(self):
 		""" :meth:`.WMessengerOnionProto.layer_names` method implementation.
 		"""
-		return list(self.__layers.keys())
+		return list(self.__class__.__builtin_layers__.keys()) + list(self.__layers.keys())
 
 	@verify_type(layer_name=str)
 	def layer(self, layer_name):
 		""" :meth:`.WMessengerOnionProto.layer` method implementation.
 		"""
-		try:
+		if layer_name in self.__layers.keys():
 			return self.__layers[layer_name]
-		except KeyError:
-			raise RuntimeError('Invalid layer name')
+		elif layer_name in self.__class__.__builtin_layers__:
+			return self.__class__.__builtin_layers__[layer_name]
+
+		raise RuntimeError('Invalid layer name')
 
 	@verify_type(layer=WMessengerOnionLayerProto)
 	def add_layers(self, *layers):
