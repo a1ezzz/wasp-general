@@ -257,53 +257,128 @@ class WNativeSocketHandler(WBasicNativeSocketHandler):
 
 class WZMQHandler(WIOLoopServiceHandler, metaclass=ABCMeta):
 
-	@verify_type(context=ZMQContext, socket_type=int, connection=str)
-	def __init__(self, context, socket_type, connection):
-		self.__socket_type = socket_type
-		self.__context = context
-		self.__connection = connection
-		self.__socket = None
+	class SetupAgent:
+
+		@verify_type(socket_type=int, connection=str)
+		def __init__(self, socket_type, connection):
+			self.__socket_type = socket_type
+			self.__connection = connection
+
+		def socket_type(self):
+			return self.__socket_type
+
+		def connection(self):
+			return self.__connection
+
+		def create_socket(self, handler):
+			if isinstance(handler, WZMQHandler) is False:
+				raise TypeError('Invalid handler type')
+			return handler.context().socket(self.socket_type())
+
+		@verify_type(io_loop=IOLoop)
+		def setup_handler(self, handler, io_loop):
+			if isinstance(handler, WZMQHandler) is False:
+				raise TypeError('Invalid handler type')
+			s = self.create_socket(handler)
+			return ZMQStream(s, io_loop=io_loop)
+
+		def setup_receiver(self, handler, receive_agent):
+			if isinstance(handler, WZMQHandler) is False:
+				raise TypeError('Invalid handler type')
+
+			if isinstance(receive_agent, WZMQHandler.ReceiveAgent) is False:
+				raise TypeError('Invalid receive agent type')
+
+			stream = handler.stream()
+			if stream is None:
+				raise RuntimeError("Handler stream wasn't set")
+
+			def callback(msg):
+				receive_agent.on_receive(handler, msg)
+
+			receive_agent.setup_receiver(handler)
+			stream.on_recv(callback)
+
+	class BindSetupAgent(SetupAgent):
+
+		def create_socket(self, handler):
+			socket = WZMQHandler.SetupAgent.create_socket(self, handler)
+			socket.bind(self.connection())
+			return socket
+
+	class ConnectSetupAgent(SetupAgent):
+
+		def create_socket(self, handler):
+			socket = WZMQHandler.SetupAgent.create_socket(self, handler)
+			socket.connect(self.connection())
+			return socket
+
+	class SendAgent:
+
+		@verify_type(data=bytes)
+		def send(self, handler, data):
+			if isinstance(handler, WZMQHandler) is False:
+				raise TypeError('Invalid handler type')
+
+			stream = handler.stream()
+			if stream is None:
+				raise RuntimeError("Handler stream wasn't set")
+
+			stream.send(data)
+			stream.flush()
+
+	class ReceiveAgent:
+
+		@abstractmethod
+		def on_receive(self, handler, msg):
+			raise NotImplementedError('This method is abstract')
+
+		def setup_receiver(self, handler):
+			pass
+
+	@verify_type(context=(ZMQContext, None))
+	def __init__(self, context=None):
+		self.__context = context if context is not None else ZMQContext()
 		self.__stream = None
+		self.__setup_agent = None
+		self.__receive_agent = None
 
-	def socket_type(self):
-		return self.__socket_type
-
-	def connection(self):
-		return self.__connection
-
-	def socket(self):
-		return self.__socket
-
-	def create_socket(self):
-		self.__socket = self.__context.socket(self.socket_type())
-		return self.__socket
+	def context(self):
+		return self.__context
 
 	def stream(self):
 		return self.__stream
 
+	def setup_agent(self):
+		return self.__setup_agent
+
+	def receive_agent(self):
+		return self.__receive_agent
+
+	def configure(self, setup_agent, receive_agent=None):
+		if self.__setup_agent is not None:
+			raise RuntimeError('Unable to configure handler multiple time')
+		self.__setup_agent = setup_agent
+		self.__receive_agent = receive_agent
+
 	@verify_type(io_loop=IOLoop)
 	def setup_handler(self, io_loop):
-		s = self.create_socket()
-		self.__stream = ZMQStream(s, io_loop=io_loop)
-		self.__stream.on_recv(self.on_recv)
-
-	@abstractmethod
-	def on_recv(self, msg):
-		raise NotImplementedError('This method is abstract')
+		setup_agent = self.setup_agent()
+		self.__stream = setup_agent.setup_handler(self, io_loop)
+		receive_agent = self.receive_agent()
+		if receive_agent is not None:
+			setup_agent.setup_receiver(self, receive_agent)
 
 
 class WZMQService(WIOLoopService):
 
-	@verify_type(socket_type=int, connection=str, loop=(IOLoop, None), timeout=(int, None))
-	@verify_type(context=(ZMQContext, None))
-	@verify_subclass(handler_cls=WZMQHandler)
-	def __init__(self, socket_type, connection, handler_cls, loop=None, timeout=None, context=None):
-		self.__context = context if context is not None else ZMQContext()
-		handler = handler_cls(self.__context, socket_type, connection)
+	@verify_type(setup_agent=WZMQHandler.SetupAgent, loop=(IOLoop, None), handler=(WZMQHandler, None))
+	@verify_type(receive_agent=(WZMQHandler.ReceiveAgent, None), timeout=(int, None))
+	def __init__(self, setup_agent, loop=None, handler=None, receive_agent=None, timeout=None):
+		if handler is None:
+			handler = WZMQHandler()
+		handler.configure(setup_agent, receive_agent)
 		WIOLoopService.__init__(self, handler, loop=loop, timeout=timeout)
-
-	def context(self):
-		return self.__context
 
 
 class WLoglessIOLoop(IOLoop):
@@ -312,45 +387,63 @@ class WLoglessIOLoop(IOLoop):
 		pass
 
 
-class WZMQBindHandler(WZMQHandler, metaclass=ABCMeta):
+class WZMQSyncAgent(WZMQHandler.ReceiveAgent):
 
-	def create_socket(self):
-		s = WZMQHandler.create_socket(self)
-		s.bind(self.connection())
-		return s
-
-
-class WZMQConnectHandler(WZMQHandler, metaclass=ABCMeta):
-
-	def create_socket(self):
-		s = WZMQHandler.create_socket(self)
-		s.connect(self.connection())
-		return s
-
-
-class WSingleResponseZMQConnectHandler(WZMQConnectHandler):
-
-	@verify_type(context=ZMQContext, socket_type=int, connection=str)
-	def __init__(self, context, socket_type, connection):
-		WZMQConnectHandler.__init__(self, context, socket_type, connection)
+	@verify_type(send_agent=(WZMQHandler.SendAgent, None), timeout=(int, float, None))
+	def __init__(self, send_agent=None, timeout=None):
+		self.__send_agent = send_agent if send_agent is not None else WZMQHandler.SendAgent()
+		self.__timeout = timeout
 		self.__threaded_event = Event()
-		self.__received_data = None
+		self.__data = None
+		self.__handler = None
 
-	def receive_event(self):
+	def send_agent(self):
+		return self.__send_agent
+
+	def timeout(self):
+		return self.__timeout
+
+	def event(self):
 		return self.__threaded_event
 
-	def received_data(self):
-		return self.__received_data
+	def data(self):
+		data = self.__data
+		self.__data = None
+		return data
 
-	def on_recv(self, msg):
-		if self.__received_data is not None:
-			raise RuntimeError('Multiple responses for a single request')
-		self.__received_data = msg
-		self.__threaded_event.set()
+	def handler(self):
+		return self.__handler
 
 	@verify_type(data=bytes)
-	def stream_send(self, data):
+	def send(self, data):
+		if self.__data is not None:
+			raise RuntimeError("Data must be fetched before the next request")
+
+		handler = self.handler()
+		if handler is None:
+			raise RuntimeError("Agent wasn't configured for any handler")
+
 		self.__threaded_event.clear()
-		self.__received_data = None
-		self.stream().send(data)
-		self.stream().flush()
+		self.send_agent().send(handler, data)
+
+	def on_receive(self, handler, msg):
+		if self.__data is not None:
+			raise RuntimeError('Multiple responses for a single request')
+		self.__data = msg
+		self.__threaded_event.set()
+
+	@verify_type(handler=WZMQHandler)
+	def setup_receiver(self, handler):
+		if self.__handler is None:
+			self.__handler = handler
+		else:
+			raise RuntimeError('Unable to setup receive agent multiple times')
+
+	@verify_type(data=bytes)
+	def request(self, data):
+		self.send(data)
+		status = self.event().wait(self.timeout())
+		if status is True:
+			return self.data()
+
+		raise TimeoutError('Request timeout reached')
