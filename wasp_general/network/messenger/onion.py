@@ -37,6 +37,8 @@ from wasp_general.network.messenger.coders import WMessengerRSALayer
 
 from wasp_general.network.messenger.packers import WMessengerJSONPacker
 
+from wasp_general.network.messenger.transport import WMessengerSendAgentLayer, WMessengerSyncReceiveAgentLayer
+
 
 class WMessengerOnion(WMessengerOnionProto):
 	""" :class:`.WMessengerOnionProto` implementation. This class holds layers
@@ -45,7 +47,8 @@ class WMessengerOnion(WMessengerOnionProto):
 
 	__builtin_layers__ = {x.name(): x for x in [
 		WMessengerFixedModificationLayer(), WMessengerEncodingLayer(), WMessengerHexLayer(),
-		WMessengerBase64Layer(), WMessengerAESLayer(), WMessengerRSALayer(), WMessengerJSONPacker()
+		WMessengerBase64Layer(), WMessengerAESLayer(), WMessengerRSALayer(), WMessengerJSONPacker(),
+		WMessengerSendAgentLayer(), WMessengerSyncReceiveAgentLayer()
 	]}
 	""" Builtin layers
 	"""
