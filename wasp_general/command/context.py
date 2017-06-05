@@ -193,7 +193,7 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 	def specification(self):
 		""" Return adapter specification
 
-		:return: WContextProto
+		:return: WContextProto or None
 		"""
 		return self.__spec
 
@@ -225,7 +225,7 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 
 
 class WCommandContext(WCommandProto):
-	""" Command that can be adapt by a context
+	""" Command that can be adapted by a context
 	"""
 
 	@verify_type(command=WCommandProto, context_adapter=WCommandContextAdapter)
