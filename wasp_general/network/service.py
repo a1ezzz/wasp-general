@@ -389,16 +389,12 @@ class WLoglessIOLoop(IOLoop):
 
 class WZMQSyncAgent(WZMQHandler.ReceiveAgent):
 
-	@verify_type(send_agent=(WZMQHandler.SendAgent, None), timeout=(int, float, None))
-	def __init__(self, send_agent=None, timeout=None):
-		self.__send_agent = send_agent if send_agent is not None else WZMQHandler.SendAgent()
+	@verify_type(timeout=(int, float, None))
+	def __init__(self, timeout=None):
 		self.__timeout = timeout
 		self.__threaded_event = Event()
 		self.__data = None
 		self.__handler = None
-
-	def send_agent(self):
-		return self.__send_agent
 
 	def timeout(self):
 		return self.__timeout
@@ -409,22 +405,11 @@ class WZMQSyncAgent(WZMQHandler.ReceiveAgent):
 	def data(self):
 		data = self.__data
 		self.__data = None
+		self.__threaded_event.clear()
 		return data
 
 	def handler(self):
 		return self.__handler
-
-	@verify_type(data=bytes)
-	def send(self, data):
-		if self.__data is not None:
-			raise RuntimeError("Data must be fetched before the next request")
-
-		handler = self.handler()
-		if handler is None:
-			raise RuntimeError("Agent wasn't configured for any handler")
-
-		self.__threaded_event.clear()
-		self.send_agent().send(handler, data)
 
 	def on_receive(self, handler, msg):
 		if self.__data is not None:
@@ -439,9 +424,7 @@ class WZMQSyncAgent(WZMQHandler.ReceiveAgent):
 		else:
 			raise RuntimeError('Unable to setup receive agent multiple times')
 
-	@verify_type(data=bytes)
-	def request(self, data):
-		self.send(data)
+	def receive(self):
 		status = self.event().wait(self.timeout())
 		if status is True:
 			return self.data()
