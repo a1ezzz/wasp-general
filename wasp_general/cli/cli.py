@@ -27,6 +27,8 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
+import traceback
+
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
@@ -566,7 +568,8 @@ class WConsoleBase(WConsoleProto):
 		if isinstance(e, WCommandSet.NoCommandFound):
 			self.write('Error: no suitable command found')
 		else:
-			self.write('Error: %s' % str(e))
+			self.write('Internal error. Traceback and exception information:')
+			self.write(traceback.format_exc())
 
 	def exec(self, row):
 		command_set = self.command_set()
