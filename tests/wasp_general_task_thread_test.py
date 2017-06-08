@@ -3,8 +3,8 @@
 import pytest
 import time
 
-from wasp_general.task.base import WTaskStatus, WStoppableTask, WTerminatableTask
-from wasp_general.task.thread import WThreadTask
+from wasp_general.task.base import WTaskStatus, WStoppableTask, WTerminatableTask, WTask
+from wasp_general.task.thread import WThreadTask, WThreadCustomTask
 
 
 class TestWThreadTask:
@@ -54,16 +54,21 @@ class TestWThreadTask:
 		assert(t.started() is False)
 		assert(t.join_timeout() == FastTask.__thread_join_timeout__)
 		assert(t.stop_event().is_set() is False)
+		assert(t.ready_event() is None)
+
 		t.start()
 		assert(t.thread() is not None)
 		assert(t.started() is True)
 		assert(t.thread().name != 'custom thread name')
 		assert(t.stop_event().is_set() is False)
+		assert(t.ready_event() is None)
+
 		t.stop()
 		assert(t.thread() is None)
 		assert(t.started() is False)
 		assert(t.stop_event().is_set() is False)
 		assert(FastTask.call_stack == ['FastTask.start', 'FastTask.stop'])
+		assert(t.ready_event() is None)
 
 		FastTask.__thread_join_timeout__ = 2
 		t = FastTask(thread_name='custom thread name')
@@ -107,3 +112,64 @@ class TestWThreadTask:
 		t.close_thread()
 		assert(t.thread() is None)
 		assert(t.started() is False)
+
+		slow_task = SlowTask(ready_to_stop=True)
+		assert(slow_task.ready_event().is_set() is False)
+
+		slow_task.start()
+		assert(slow_task.ready_event().is_set() is False)
+		assert(slow_task.stop_event().is_set() is False)
+
+		slow_task.ready_event().wait(SlowTask.sleep_time * 2)
+		assert(slow_task.ready_event().is_set() is True)
+		assert(slow_task.stop_event().is_set() is False)
+
+		slow_task.stop()
+		assert(slow_task.ready_event().is_set() is False)
+		assert(slow_task.stop_event().is_set() is False)
+
+
+class TestWThreadCustomTask:
+
+	__call_stack__ = []
+
+	class Task(WTask):
+
+		def start(self):
+			TestWThreadCustomTask.__call_stack__.append('Task::start')
+
+	class StoppableTask(WStoppableTask):
+
+		def start(self):
+			TestWThreadCustomTask.__call_stack__.append('StoppableTask::start')
+
+		def stop(self):
+			TestWThreadCustomTask.__call_stack__.append('StoppableTask::stop')
+
+	def test(self):
+		task = TestWThreadCustomTask.Task()
+		threaded_task = WThreadCustomTask(task)
+
+		assert(isinstance(threaded_task, WThreadCustomTask) is True)
+		assert(isinstance(threaded_task, WThreadTask) is True)
+
+		TestWThreadCustomTask.__call_stack__.clear()
+		assert(TestWThreadCustomTask.__call_stack__ == [])
+
+		threaded_task.start()
+		assert(TestWThreadCustomTask.__call_stack__ == ['Task::start'])
+
+		threaded_task.stop()
+		assert(TestWThreadCustomTask.__call_stack__ == ['Task::start'])
+
+		task = TestWThreadCustomTask.StoppableTask()
+		threaded_task = WThreadCustomTask(task)
+
+		TestWThreadCustomTask.__call_stack__.clear()
+		assert(TestWThreadCustomTask.__call_stack__ == [])
+
+		threaded_task.start()
+		assert(TestWThreadCustomTask.__call_stack__ == ['StoppableTask::start'])
+
+		threaded_task.stop()
+		assert(TestWThreadCustomTask.__call_stack__ == ['StoppableTask::start', 'StoppableTask::stop'])
