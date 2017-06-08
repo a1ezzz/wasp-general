@@ -18,7 +18,7 @@ class TestWMessengerOnion:
 		assert(isinstance(WMessengerOnion(), WMessengerOnionProto) is True)
 
 		o = WMessengerOnion()
-		assert(len(o.layers_names()) == 7)
+		assert(len(o.layers_names()) == 9)
 
 		layer1 = TestWMessengerOnion.Layer('layer1')
 		layer2 = TestWMessengerOnion.Layer('layer2')
@@ -26,7 +26,7 @@ class TestWMessengerOnion:
 		o = WMessengerOnion(layer1, layer2)
 		layers = o.layers_names()
 		layers.sort()
-		assert(len(layers) == 9)
+		assert(len(layers) == 11)
 		assert('layer1' in layers)
 		assert('layer2' in layers)
 
