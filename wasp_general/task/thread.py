@@ -24,18 +24,24 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 from threading import Thread, Event
 
 from wasp_general.task.base import WTaskStatus, WStoppableTask, WTask
 from wasp_general.verify import verify_type
 
 
+class WThreadJoiningTimeoutError(Exception):
+	""" Exception is raised when thread joining timeout is expired
+	"""
+	pass
+
+
 class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 	""" Task that runs in a separate thread.
 	"""
 
-	__thread_join_timeout__ = 5
+	__thread_join_timeout__ = 10
 	""" Default thread joining time (in seconds)
 	"""
 
@@ -71,8 +77,9 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 
 		:param thread_name: name of the thread. It is used only in thread constructor as name value
 		:param join_on_stop: define whether to decorate stop method or not. If task isn't stop for \
-		:meth:`.WThreadTask.join_timeout` period of time, then RuntimeError will be raised. When \
-		flag is set, stop event object is created (is accessible from :meth:`.WThreadTask.stop_event`)
+		:meth:`.WThreadTask.join_timeout` period of time, then :class:`.WThreadJoiningTimeoutError` will be \
+		raised. When flag is set, stop event object is created (is accessible from \
+		:meth:`.WThreadTask.stop_event`)
 		:param ready_to_stop: flag creates ready event, which will be set at the task end
 		:param thread_join_timeout: timeout for joining operation. If it isn't set then default \
 		:attr:`.WThreadTask.__thread_join_timeout__` value will be used.
@@ -136,7 +143,7 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 		:return: None
 		"""
 		if self.__thread.is_alive() is True:
-			raise RuntimeError('Thread is still alive')
+			raise WThreadJoiningTimeoutError('Thread is still alive. Thread name: %s' % self.__thread.name)
 		self.__thread = None
 		if self.__stop_event is not None:
 			self.__stop_event.clear()
@@ -199,10 +206,14 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 			return
 
 		def stop():
-			self.original_stop()()
-			if self.thread() is not None:
+			thread = self.thread()
+			if thread is not None:
 				self.stop_event().set()
-				self.thread().join(self.join_timeout())
+
+			self.original_stop()()
+
+			if thread is not None:
+				thread.join(self.join_timeout())
 				self.close_thread()
 		self.stop = stop
 
@@ -253,3 +264,70 @@ class WThreadCustomTask(WThreadTask):
 		task = self.task()
 		if isinstance(task, WStoppableTask) is True:
 			task.stop()
+
+
+class WPollingThreadTask(WThreadTask, metaclass=ABCMeta):
+	""" Create task, that will be executed in a separate thread, and will wait for stop event and till that
+	will do small piece of work
+
+	Polling timeout is a timeout after which next call for a small piece of work will be done. Real
+	:meth:`.WPollingThreadTask.__polling_iteration` method implementation must be fast
+	(faster then joining timeout), so it must do small piece of work each time only. It is crucial to do that,
+	because busy thread can be terminated at any time, and so can not be finalized gracefully.
+
+	If one thread spawns other threads it is obvious to stop them from the same thread they are generated.
+	And at this point wrong joining and polling timeouts could break start-stop mechanics. So parent thread
+	should have joining timeout not less then children threads have (it is better to have joining timeout greater
+	then children timeout). And polling timeout should be not greater (as little as possible is better) then
+	children threads have
+	"""
+
+	__thread_polling_timeout__ = WThreadTask.__thread_join_timeout__ / 4
+	""" Default polling timeout
+	"""
+
+	@verify_type(thread_name=(str, None), join_on_stop=bool, ready_to_stop=bool)
+	@verify_type(thread_join_timeout=(int, float, None), polling_timeout=(int, float, None))
+	def __init__(
+		self, thread_name=None, join_on_stop=True, ready_to_stop=False, thread_join_timeout=None,
+		polling_timeout=None
+	):
+		""" Create new task
+
+		:param thread_name: same as 'thread_name' in :meth:`.WThreadTask.__init__`
+		:param join_on_stop: same as 'join_on_stop' in :meth:`.WThreadTask.__init__`
+		:param ready_to_stop: same as 'ready_to_stop' in :meth:`.WThreadTask.__init__`
+		:param thread_join_timeout: same as 'thread_join_timeout' in :meth:`.WThreadTask.__init__`
+		:param polling_timeout: polling timeout for this task
+		"""
+		WThreadTask.__init__(
+			self, thread_name=thread_name, join_on_stop=join_on_stop, ready_to_stop=ready_to_stop,
+			thread_join_timeout=thread_join_timeout
+		)
+		self.__polling_timeout = \
+			polling_timeout if polling_timeout is not None else self.__class__.__thread_polling_timeout__
+
+	def polling_timeout(self):
+		""" Task polling timeout
+
+		:return: int or float
+		"""
+		return self.__polling_timeout
+
+	def start(self):
+		""" Start polling for a stop event and do small work via :meth:`.WPollingThreadTask.__polling_iteration`
+		method call
+
+		:return: None
+		"""
+		while self.stop_event().is_set() is False:
+			self._polling_iteration()
+			self.stop_event().wait(self.polling_timeout())
+
+	@abstractmethod
+	def _polling_iteration(self):
+		""" Do small work
+
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')

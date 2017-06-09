@@ -4,7 +4,7 @@ import pytest
 import time
 
 from wasp_general.task.base import WTaskStatus, WStoppableTask, WTerminatableTask, WTask
-from wasp_general.task.thread import WThreadTask, WThreadCustomTask
+from wasp_general.task.thread import WThreadTask, WThreadCustomTask, WThreadJoiningTimeoutError, WPollingThreadTask
 
 
 class TestWThreadTask:
@@ -90,7 +90,7 @@ class TestWThreadTask:
 		t = SlowTask(thread_join_timeout=0.01)
 		t.start()
 		assert(t.stop_event().is_set() is False)
-		pytest.raises(RuntimeError, t.stop)
+		pytest.raises(WThreadJoiningTimeoutError, t.stop)
 		assert(t.stop_event().is_set() is True)
 		t.thread().join(SlowTask.sleep_time)
 		t.close_thread()
@@ -173,3 +173,52 @@ class TestWThreadCustomTask:
 
 		threaded_task.stop()
 		assert(TestWThreadCustomTask.__call_stack__ == ['StoppableTask::start', 'StoppableTask::stop'])
+
+
+class TestWPollingThreadTask:
+
+	class Task(WPollingThreadTask):
+
+		call_stack = []
+
+		def _polling_iteration(self):
+			TestWPollingThreadTask.Task.call_stack.append('Task iteration')
+
+		def stop(self):
+			TestWPollingThreadTask.Task.call_stack.append('Task stop')
+
+	def test(self):
+		pytest.raises(TypeError, WPollingThreadTask)
+		pytest.raises(NotImplementedError, WPollingThreadTask._polling_iteration, None)
+		pytest.raises(NotImplementedError, WPollingThreadTask.stop, None)
+
+		task = TestWPollingThreadTask.Task()
+		assert(isinstance(task, WPollingThreadTask) is True)
+		assert(isinstance(task, WThreadTask) is True)
+		assert(task.polling_timeout() == WPollingThreadTask.__thread_polling_timeout__)
+
+		timeout = WPollingThreadTask.__thread_polling_timeout__ + 2
+		task = TestWPollingThreadTask.Task(polling_timeout=timeout)
+		assert(task.polling_timeout() == timeout)
+
+		timeout = 0.001
+		task = TestWPollingThreadTask.Task(polling_timeout=timeout)
+		task.start()
+		time.sleep(timeout * 5)
+		task.stop()
+		assert(TestWPollingThreadTask.Task.call_stack[:4] == [
+			'Task iteration', 'Task iteration', 'Task iteration', 'Task iteration'
+		])
+		assert (TestWPollingThreadTask.Task.call_stack[-1] == 'Task stop')
+
+		TestWPollingThreadTask.Task.call_stack.clear()
+		TestWPollingThreadTask.Task.__thread_polling_timeout__ = 0.1
+		task = TestWPollingThreadTask.Task()
+		assert(task.polling_timeout() == TestWPollingThreadTask.Task.__thread_polling_timeout__)
+		task.start()
+		time.sleep(timeout * 2)
+		task.stop()
+		assert(len(TestWPollingThreadTask.Task.call_stack[:-1]) <= 3)
+		for call in TestWPollingThreadTask.Task.call_stack[:-1]:
+			assert(call == 'Task iteration')
+		assert (TestWPollingThreadTask.Task.call_stack[-1] == 'Task stop')
