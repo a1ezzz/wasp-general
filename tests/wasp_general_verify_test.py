@@ -36,23 +36,23 @@ class FNameChecker:
 @pytest.mark.usefixtures('verifier_env')
 class TestVerifier:
 
-	def test_check_disabled(self):
+	def test_decorate_disabled(self):
 
 		pytest.raises(KeyError, 'os.environ[Verifier.__default_environment_var__]')
 
-		assert(Verifier().check_disabled() is False)
-		assert(Verifier('test_tag1').check_disabled() is False)
-		assert(Verifier('test_tag1', 'test_tag2').check_disabled() is False)
+		assert(Verifier().decorate_disabled() is False)
+		assert(Verifier('test_tag1').decorate_disabled() is False)
+		assert(Verifier('test_tag1', 'test_tag2').decorate_disabled() is False)
 
 		os.environ[Verifier.__default_environment_var__] = 'foo:bar:test_tag1:value3'
-		assert(Verifier().check_disabled() is False)
-		assert(Verifier('test_tag1').check_disabled() is True)
-		assert(Verifier('test_tag1', 'test_tag2').check_disabled() is False)
+		assert(Verifier().decorate_disabled() is False)
+		assert(Verifier('test_tag1').decorate_disabled() is True)
+		assert(Verifier('test_tag1', 'test_tag2').decorate_disabled() is False)
 
 		os.environ[Verifier.__default_environment_var__] = 'foo:bar:test_tag1:value3:test_tag2'
-		assert(Verifier().check_disabled() is False)
-		assert(Verifier('test_tag1').check_disabled() is True)
-		assert(Verifier('test_tag1', 'test_tag2').check_disabled() is True)
+		assert(Verifier().decorate_disabled() is False)
+		assert(Verifier('test_tag1').decorate_disabled() is True)
+		assert(Verifier('test_tag1', 'test_tag2').decorate_disabled() is True)
 
 	def test_check(self):
 		check = Verifier().check(None, '', lambda x: None)
@@ -71,7 +71,7 @@ class TestVerifier:
 		verifier = Verifier()
 
 		assert(verifier.decorator()(foo) != foo)
-		verifier.check_disabled = lambda: True
+		verifier.decorate_disabled = lambda: True
 		assert(verifier.decorator()(foo) == foo)
 		verifier = Verifier()
 
