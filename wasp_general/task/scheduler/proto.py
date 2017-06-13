@@ -66,7 +66,7 @@ class WTaskSchedule:
 		postpone_first = 3  # stack the first task and drop all the following tasks with the same task ID
 		postpone_last = 4  # stack the last task and drop all the previous tasks with the same task ID
 
-	@verify_type(task=WScheduledTask, starting_datetime=datetime, task_id=(str, None))
+	@verify_type(task=WScheduledTask, task_id=(str, None))
 	@verify_value(on_drop=lambda x: x is None or callable(x))
 	def __init__(self, task, policy=None, task_id=None, on_drop=None):
 
