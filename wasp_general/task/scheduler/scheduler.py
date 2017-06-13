@@ -134,6 +134,7 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 	def task_finished(self, watching_dog):
 		if isinstance(watching_dog, WSchedulerWatchingDog) is False:
 			raise TypeError('Invalid type of watching dog')
+		self.__running_registry.remove(watching_dog)
 		self.__done_registry.append(watching_dog)
 		self.cleanup_event().set()
 
@@ -149,7 +150,7 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 		self.cleanup_event().clear()
 
 	def stop(self):
-		self.cleanup_event()
+		self.cleanup()
 		self.stop_running_tasks()
 
 	@WCriticalResource.critical_section()
