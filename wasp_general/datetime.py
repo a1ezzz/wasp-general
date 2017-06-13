@@ -47,6 +47,7 @@ def utc_datetime(dt=None, local_value=True):
 	:param local_value: whether dt is a datetime in system timezone or UTC datetime without timezone information
 	:return: datetime in UTC with tz set
 	"""
+	# TODO: rename local_value to local_tz
 	if dt is None:
 		return datetime.now(tz=timezone.utc)
 
@@ -68,6 +69,7 @@ def local_datetime(dt=None, utc_value=True):
 	:param utc_value: whether dt is a datetime in UTC or in system timezone without timezone information
 	:return: datetime for system (local) timezone with tz set
 	"""
+	# TODO: rename utc_value to utc_tz
 	if dt is None:
 		return datetime.now(tz=local_tz())
 
