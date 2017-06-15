@@ -182,6 +182,13 @@ class WCommandSelector:
 		for command in self.__commands:
 			yield command
 
+	def __len__(self):
+		""" Return command count
+
+		:return: int
+		"""
+		return len(self.__commands)
+
 
 class WCommandPrioritizedSelector(WCommandSelector):
 	""" This class has priority for every stored commands. Command with lower priority value will be selected first.
@@ -227,6 +234,16 @@ class WCommandPrioritizedSelector(WCommandSelector):
 		for priority in priorities:
 			for command in self.__priorities[priority]:
 				yield command
+
+	def __len__(self):
+		""" Return command count
+
+		:return: int
+		"""
+		result = 0
+		for commands in self.__priorities.values():
+			result += len(commands)
+		return result
 
 
 class WCommandSet:

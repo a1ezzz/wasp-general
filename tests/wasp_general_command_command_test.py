@@ -62,8 +62,11 @@ class TestWCommandSelector:
 		create_world_cmd = TestWCommand.Command('create', 'world')
 
 		command_selector = WCommandSelector()
+		assert(len(command_selector) == 0)
 		command_selector.add(create_cmd)
+		assert(len(command_selector) == 1)
 		command_selector.add(create_world_cmd)
+		assert(len(command_selector) == 2)
 		assert(command_selector.select('create') == create_cmd)
 		assert(command_selector.select('create', 'world') == create_cmd)
 
@@ -83,11 +86,14 @@ class TestWCommandPrioritizedSelector:
 		create_world_cmd = TestWCommand.Command('create', 'world')
 
 		command_selector = WCommandPrioritizedSelector()
+		assert(len(command_selector) == 0)
 		assert(isinstance(command_selector, WCommandPrioritizedSelector) is True)
 		assert(isinstance(command_selector, WCommandSelector) is True)
 
 		command_selector.add(create_cmd)
+		assert(len(command_selector) == 1)
 		command_selector.add(create_world_cmd)
+		assert(len(command_selector) == 2)
 		assert(command_selector.select('create') == create_cmd)
 		assert(command_selector.select('create', 'world') == create_cmd)
 
