@@ -41,19 +41,19 @@ class WCronSchedule:
 
 	__calendar__ = {1: 31, 2: 29, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31}
 
-	@verify_type(start_datetime=datetime, minute=(int, None), hour=(int, None), day_of_month=(int, None))
+	@verify_type(start_datetime=(datetime, None), minute=(int, None), hour=(int, None), day_of_month=(int, None))
 	@verify_type(day_of_week=(int, None), month=(int, None))
 	@verify_value(minute=lambda x: x is None or (0 <= x <= 59))
 	@verify_value(hour=lambda x: x is None or (0 <= x <= 23))
 	@verify_value(day_of_month=lambda x: x is None or (1 <= x <= 31))
 	@verify_value(day_of_week=lambda x: x is None or (1 <= x <= 7))
 	@verify_value(month=lambda x: x is None or (1 <= x <= 12))
-	def __init__(self, start_datetime, minute=None, hour=None, day_of_month=None, day_of_week=None, month=None):
+	def __init__(self, start_datetime=None, minute=None, hour=None, day_of_month=None, day_of_week=None, month=None):
 
 		if month is not None and day_of_month is not None and day_of_month > WCronSchedule.__calendar__[month]:
 			raise ValueError('Invalid day and month combination')
 
-		self.__start_datetime = start_datetime
+		self.__start_datetime = start_datetime if start_datetime is not None else self.now()
 		self.__next_start = None
 
 		self.__minute = minute
@@ -106,7 +106,8 @@ class WCronSchedule:
 	def final_datetime(self):
 		return datetime(MAXYEAR, 12, 31, 23, 59)
 
-	def now(self):
+	@classmethod
+	def now(cls):
 		return datetime.now()
 
 	def update(self):
@@ -285,7 +286,7 @@ class WCronSchedule:
 
 class WCronUTCSchedule(WCronSchedule):
 
-	@verify_type(start_datetime=datetime, minute=(int, None), hour=(int, None), day_of_month=(int, None))
+	@verify_type(start_datetime=(datetime, None), minute=(int, None), hour=(int, None), day_of_month=(int, None))
 	@verify_type(day_of_week=(int, None), month=(int, None))
 	@verify_value(start_datetime=lambda x: x.tzinfo is not None and x.tzinfo == timezone.utc)
 	@verify_value(minute=lambda x: x is None or (0 <= x <= 59))
@@ -293,7 +294,7 @@ class WCronUTCSchedule(WCronSchedule):
 	@verify_value(day_of_month=lambda x: x is None or (1 <= x <= 31))
 	@verify_value(day_of_week=lambda x: x is None or (1 <= x <= 7))
 	@verify_value(month=lambda x: x is None or (1 <= x <= 12))
-	def __init__(self, start_datetime, minute=None, hour=None, day_of_month=None, day_of_week=None, month=None):
+	def __init__(self, start_datetime=None, minute=None, hour=None, day_of_month=None, day_of_week=None, month=None):
 		WCronSchedule.__init__(
 			self, start_datetime, minute=minute, hour=hour, day_of_month=day_of_month,
 			day_of_week=day_of_week, month=month
@@ -313,8 +314,21 @@ class WCronUTCSchedule(WCronSchedule):
 	def _datetime(self, year, month, day, hour, minute):
 		return utc_datetime(datetime(year, month, day, hour, minute), local_value=False)
 
-	def now(self):
+	@classmethod
+	def now(cls):
 		return utc_datetime()
+
+	@staticmethod
+	@verify_type(scheduled=str)
+	def from_string(scheduled):
+		tokens = filter(lambda x: len(x) > 0, scheduled.strip().split(' '))
+		tokens = [int(x) if x != '*' else None for x in tokens]
+		if len(tokens) != 5:
+			raise ValueError('Malformed cron-schedule')
+		return WCronUTCSchedule(
+			utc_datetime(), minute=tokens[0], hour=tokens[1], day_of_month=tokens[2], day_of_week=tokens[3],
+			month=tokens[4]
+		)
 
 
 class WCronTaskSchedule(WTaskSchedule):
@@ -362,7 +376,7 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 	def __update(self, task=None):
 		if task is not None:
 			next_start = task.cron_schedule().next_start()
-			if self.__next_task is None or next_start < self.__next_start.cron_schedule().next_start():
+			if self.__next_task is None or next_start < self.__next_task.cron_schedule().next_start():
 				self.__next_task = task
 		elif len(self.__tasks) > 0:
 			next_task = self.__tasks[0]
@@ -385,4 +399,3 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 	def next_start(self):
 		if self.__next_task is not None:
 			return self.__next_task.cron_schedule().next_start()
-
