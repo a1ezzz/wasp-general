@@ -35,44 +35,98 @@ class WCacheStorage(metaclass=ABCMeta):
 	""" Abstract class for cache storage
 	"""
 
+	class CacheMissedException(Exception):
+		""" Exception is raised in :meth:`.WCacheStorage.get_result` and derived methods as an error for
+		accessing cache record that doesn't exist
+		"""
+		pass
+
+	class CacheHit:
+		""" Cache request result, is used in :meth:`.WCacheStorage.get_cache` to determine if there is a
+		cached value and what that value is.
+		"""
+
+		@verify_type(has_value=bool)
+		def __init__(self, has_value=False, cached_value=None):
+			""" Create new request result
+
+			:param has_value: defines whether there is a cached value (True) or not (False)
+			:param cached_value: defines cached value, this parameter should be used only if
+			has_value is True
+			"""
+			self.has_value = has_value
+			self.cached_value = cached_value
+
 	@abstractmethod
+	@verify_value(decorated_function=lambda x: callable(x))
 	def put(self, result, decorated_function, *args, **kwargs):
 		""" Save (or replace) result for given function
 
 		:param result: result to be saved
-		:param decorated_function: calling function (original)
+		:param decorated_function: called function (original)
 		:param args: args with which function is called
 		:param kwargs: kwargs with which function is called
+
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
+	@verify_value(decorated_function=lambda x: callable(x))
+	def get_cache(self, decorated_function, *args, **kwargs):
+		""" Get "cache hit" (:class:`.WCacheStorage.CacheHit`) for the specified arguments
+
+		:param decorated_function: called function (original)
+		:param args: args with which function is called
+		:param kwargs: kwargs with which function is called
+
+		:return: WCacheStorage.CacheHit
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	@verify_value(decorated_function=lambda x: x is None or callable(x))
+	def clear(self, decorated_function=None):
+		""" Remove results from this storage
+
+		:param decorated_function: if specified, then results will be removed for this function only
+
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@verify_value(decorated_function=lambda x: callable(x))
 	def has(self, decorated_function, *args, **kwargs):
 		""" Check if there is a result for given function
 
-		:param decorated_function: calling function (original)
+		:param decorated_function: called function (original)
 		:param args: args with which function is called
 		:param kwargs: kwargs with which function is called
+
 		:return: None
 		"""
-		raise NotImplementedError('This method is abstract')
+		return self.get_cache(decorated_function, *args, **kwargs).has_value
 
-	@abstractmethod
-	def get(self, decorated_function, *args, **kwargs):
-		""" Get result from storage for specified function. Will raise an exception if there is no result.
+	@verify_value(decorated_function=lambda x: callable(x))
+	def get_result(self, decorated_function, *args, **kwargs):
+		""" Get result from storage for specified function. Will raise an exception
+		(:class:`.WCacheStorage.CacheMissedException`) if there is no cached result.
 
-		:param decorated_function: calling function (original)
+		:param decorated_function: called function (original)
 		:param args: args with which function is called
 		:param kwargs: kwargs with which function is called
-		:return: result (any type, even None)
+
+		:return: (any type, even None)
 		"""
-		raise NotImplementedError('This method is abstract')
+		cache_hit = self.get_cache(decorated_function, *args, **kwargs)
+		if cache_hit.has_value is False:
+			raise WCacheStorage.CacheMissedException('No cache record found')
+		return cache_hit.cached_value
 
 
 class WGlobalSingletonCacheStorage(WCacheStorage):
-	""" Simple storage that acts as global singleton. Result (singleton) is saved on the first call. It doesn't
-	matter with which parameters function was called, result will be the result from the first call.
+	""" Simple storage that acts as global singleton. Result (singleton) is saved on the very first call. It doesn't
+	matter with which parameters function was called, result will be the same for all the rest calls.
 	"""
 
 	def __init__(self):
@@ -80,41 +134,141 @@ class WGlobalSingletonCacheStorage(WCacheStorage):
 		"""
 		self._storage = {}
 
+	@verify_value(decorated_function=lambda x: callable(x))
 	def put(self, result, decorated_function, *args, **kwargs):
 		""" :meth:`WCacheStorage.put` method implementation
 		"""
 		self._storage[decorated_function] = result
 
+	@verify_value(decorated_function=lambda x: callable(x))
 	def has(self, decorated_function, *args, **kwargs):
 		""" :meth:`WCacheStorage.has` method implementation
 		"""
 		return decorated_function in self._storage.keys()
 
-	def get(self, decorated_function, *args, **kwargs):
-		""" :meth:`WCacheStorage.get` method implementation
+	@verify_value(decorated_function=lambda x: callable(x))
+	def get_result(self, decorated_function, *args, **kwargs):
+		""" :meth:`WCacheStorage.get_result` method implementation
 		"""
-		return self._storage[decorated_function]
+		try:
+			return self._storage[decorated_function]
+		except KeyError:
+			raise WCacheStorage.CacheMissedException('No cache record found')
+
+	@verify_value(decorated_function=lambda x: callable(x))
+	def get_cache(self, decorated_function, *args, **kwargs):
+		""" :meth:`WCacheStorage.get_cache` method implementation
+		"""
+		has_value = self.has(decorated_function, *args, **kwargs)
+		cached_value = None
+		if has_value is True:
+			cached_value = self.get_result(decorated_function, *args, **kwargs)
+		return WCacheStorage.CacheHit(has_value=has_value, cached_value=cached_value)
+
+	@verify_value(decorated_function=lambda x: x is None or callable(x))
+	def clear(self, decorated_function=None):
+		""" :meth:`WCacheStorage.clear` method implementation
+		"""
+		if decorated_function is not None and decorated_function in self._storage:
+			self._storage.pop(decorated_function)
+		else:
+			self._storage.clear()
 
 
 class WInstanceSingletonCacheStorage(WCacheStorage):
-	""" This storage acts like :class:`.WGlobalSingletonCacheStorage` storage, but works with bounded methods only
-	(class methods or object method). For every object it keeps the first result of called bounded method.
+	""" This storage acts similar to :class:`.WGlobalSingletonCacheStorage` storage, but works with bounded
+	methods only (class methods or object method). For every object it keeps results with "cache-record" class
+	(:class:`.WInstanceSingletonCacheStorage.InstanceCacheRecord`), this class (is used by default) saves
+	the very first result and returns it every time. For example, by default if we have two object derived
+	from the same class, and the same method is called, then this storage will keep two separate results,
+	one for each instance.
 
-	For example. If we have two object derived from the same class, and the same method is called, then this
-	storage will keep two separate results, one for each instance.
+	Exact behaviour can be tweaked through :class:`.WInstanceSingletonCacheStorage.InstanceCacheRecord` inheritance.
+	So derived "cache-records" classes can do things in there own way, they may save every called result, or may not
+	save anything.
 
-	This implementation uses weakrefs, so memory leak doesn't happen (here).
+	:note: This implementation uses weakrefs, so memory leak doesn't happen (here).
 	"""
 
-	def __init__(self):
+	class InstanceCacheRecord:
+		""" Class is used to save cached results for the specified method and for the single instance. This
+		class saves the very first result only. This class uses :class:`.WCacheStorage.CacheHit` the same way
+		as :class:`.WCacheStorage` storage does - it help to determine, whether there is a cached value or not.
+
+		Because derived class constructor signature may differ from this class constructor signature, then
+		in order to create cache record there should be a unified method, which is
+		:meth:`.WInstanceSingletonCacheStorage.InstanceCacheRecord.create`
+		"""
+
+		@verify_value(decorated_function=lambda x: callable(x))
+		def __init__(self, result, decorated_function):
+			""" Create new cache record
+
+			:param result: result to keep
+			:param decorated_function: called bounded method (original)
+			"""
+			self.__decorated_function = decorated_function
+			self.__result = result
+
+		def decorated_function(self):
+			""" Return original method
+
+			:return: bounded method
+			"""
+			return self.__decorated_function
+
+		def cache_hit(self, *args, **kwargs):
+			""" Return "cache-hit" for the specified arguments
+
+			:param args: args with which bounded method was called
+			:param kwargs: kwargs with which bounded method was called
+
+			:return: WCacheStorage.CacheHit
+			"""
+			return WCacheStorage.CacheHit(has_value=True, cached_value=self.__result)
+
+		def update(self, result, *args, **kwargs):
+			""" Update (or add other one) result, that was generated with specified arguments
+
+			:param result: result to keep
+			:param args: args with which bounded method was called
+			:param kwargs: kwargs with which bounded method was called
+
+			:return: None
+			"""
+			self.__result = result
+
+		@classmethod
+		@verify_value(decorated_function=lambda x: callable(x))
+		def create(cls, result, decorated_function, *args, **kwargs):
+			""" Create new "cache-record" for the specified arguments
+
+			:param result: result to keep
+			:param decorated_function: called bounded method
+			:param args: args with which bounded method was called
+			:param kwargs: kwargs with which bounded method was called
+
+			:return: WInstanceSingletonCacheStorage.InstanceCacheRecord
+			"""
+			return cls(result, decorated_function)
+
+	def __init__(self, cache_record_cls=None):
 		""" Construct new storage
 		"""
 		self._storage = {}
+		self._cache_record_cls = None
+		if cache_record_cls is not None:
+			if issubclass(cache_record_cls, WInstanceSingletonCacheStorage.InstanceCacheRecord) is False:
+				raise TypeError('Invalid cache record class')
+			self._cache_record_cls = cache_record_cls
+		else:
+			self._cache_record_cls = WInstanceSingletonCacheStorage.InstanceCacheRecord
 
+	@verify_value(decorated_function=lambda x: callable(x))
 	def __check(self, decorated_function, *args, **kwargs):
 		""" Check whether function is a bounded method or not. If check fails then exception is raised
 
-		:param decorated_function: calling function (original)
+		:param decorated_function: called function (original)
 		:param args: args with which function is called
 		:param kwargs: kwargs with which function is called
 		:return: None
@@ -129,6 +283,7 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 
 		raise RuntimeError('Only bounded methods are allowed')
 
+	@verify_value(decorated_function=lambda x: callable(x))
 	def put(self, result, decorated_function, *args, **kwargs):
 		""" :meth:`WCacheStorage.put` method implementation
 		"""
@@ -136,16 +291,19 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 
 		ref = weakref.ref(args[0])
 		if decorated_function not in self._storage:
-			self._storage[decorated_function] = [{'instance': ref, 'result': result}]
+			cache_entry = self._cache_record_cls.create(result, decorated_function, *args, **kwargs)
+			self._storage[decorated_function] = [{'instance': ref, 'result': cache_entry}]
 		else:
-			found = False
+			instance_found = False
 			for i in self._storage[decorated_function]:
 				if i['instance']() == args[0]:
-					i['result'] = result
-					found = True
+					cache_entry = i['result']
+					cache_entry.update(result, *args, **kwargs)
+					instance_found = True
 					break
-			if found is False:
-				self._storage[decorated_function].append({'instance': ref, 'result': result})
+			if instance_found is False:
+				cache_entry = self._cache_record_cls.create(result, decorated_function, *args, **kwargs)
+				self._storage[decorated_function].append({'instance': ref, 'result': cache_entry})
 
 		def finalize_ref():
 			if decorated_function in self._storage:
@@ -160,26 +318,25 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 
 		weakref.finalize(args[0], finalize_ref)
 
-	def has(self, decorated_function, *args, **kwargs):
-		""" :meth:`WCacheStorage.has` method implementation
+	@verify_value(decorated_function=lambda x: callable(x))
+	def get_cache(self, decorated_function, *args, **kwargs):
+		""" :meth:`WCacheStorage.get_cache` method implementation
 		"""
 		self.__check(decorated_function, *args, **kwargs)
-
 		if decorated_function in self._storage:
 			for i in self._storage[decorated_function]:
 				if i['instance']() == args[0]:
-					return True
-		return False
+					return i['result'].cache_hit(*args, **kwargs)
+		return WCacheStorage.CacheHit()
 
-	def get(self, decorated_function, *args, **kwargs):
-		""" :meth:`WCacheStorage.get` method implementation
+	@verify_value(decorated_function=lambda x: x is None or callable(x))
+	def clear(self, decorated_function=None):
+		""" :meth:`WCacheStorage.clear` method implementation
 		"""
-		self.__check(decorated_function, *args, **kwargs)
-
-		for i in self._storage[decorated_function]:
-			if i['instance']() == args[0]:
-				return i['result']
-		raise RuntimeError('Result unavailable')
+		if decorated_function is not None and decorated_function in self._storage:
+			self._storage.pop(decorated_function)
+		else:
+			self._storage.clear()
 
 
 @verify_type(storage=(None, WCacheStorage))
@@ -208,16 +365,17 @@ def cache_control(validator=None, storage=None):
 		storage = WGlobalSingletonCacheStorage()
 
 	def first_level_decorator(decorated_function):
-		def second_level_decorator(decorated_function_sl, *args, **kwargs):
+		def second_level_decorator(original_function, *args, **kwargs):
 
-			validator_check = validator(decorated_function_sl, *args, **kwargs)
+			validator_check = validator(original_function, *args, **kwargs)
+			cache_hit = storage.get_cache(original_function, *args, **kwargs)
 
-			if validator_check is not True or storage.has(decorated_function_sl, *args, **kwargs) is False:
-				result = decorated_function_sl(*args, **kwargs)
-				storage.put(result, decorated_function_sl, *args, **kwargs)
+			if validator_check is not True or cache_hit.has_value is False:
+				result = original_function(*args, **kwargs)
+				storage.put(result, original_function, *args, **kwargs)
 				return result
 			else:
-				return storage.get(decorated_function_sl, *args, **kwargs)
+				return cache_hit.cached_value
 
 		return decorator(second_level_decorator)(decorated_function)
 	return first_level_decorator
