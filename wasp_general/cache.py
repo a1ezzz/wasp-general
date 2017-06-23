@@ -148,14 +148,15 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 				self._storage[decorated_function].append({'instance': ref, 'result': result})
 
 		def finalize_ref():
-			fn_list = self._storage[decorated_function]
-			if len(fn_list) == 1 and fn_list[0]['instance'] == ref:
-				del self._storage[decorated_function]
+			if decorated_function in self._storage:
+				fn_list = self._storage[decorated_function]
+				if len(fn_list) == 1 and fn_list[0]['instance'] == ref:
+					del self._storage[decorated_function]
 
-			for i in range(len(fn_list)):
-				if fn_list[i]['instance'] == ref:
-					fn_list.pop(i)
-					return
+				for i in range(len(fn_list)):
+					if fn_list[i]['instance'] == ref:
+						fn_list.pop(i)
+						return
 
 		weakref.finalize(args[0], finalize_ref)
 
