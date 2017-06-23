@@ -340,3 +340,12 @@ class WTaskDependencyRegistry(WTaskRegistry):
 		"""
 		registry = cls.registry_storage()
 		registry.stop_task(task_tag, stop_dependent=stop_dependent, stop_requirements=stop_requirements)
+
+	@classmethod
+	def all_stop(cls):
+		""" Stop every task started within this registry
+
+		:return: None
+		"""
+		for task_tag in cls.registry_storage().tags():
+			cls.stop_task(task_tag)

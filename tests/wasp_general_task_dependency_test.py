@@ -301,3 +301,12 @@ class TestWTaskDependencyRegistry:
 		assert(R1.registry_storage().started_task('task1') is None)
 		assert(R1.registry_storage().started_task('task2') is None)
 		assert(T2.last_call_result == 'T2.stop')
+
+		R1.start_task('task1')
+		R1.start_task('task2')
+		assert(isinstance(R1.registry_storage().started_task('task1'), T1) is True)
+		assert(isinstance(R1.registry_storage().started_task('task2'), T2) is True)
+
+		R1.all_stop()
+		assert(R1.registry_storage().started_task('task1') is None)
+		assert(R1.registry_storage().started_task('task2') is None)
