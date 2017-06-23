@@ -258,7 +258,7 @@ class WCronSchedule:
 		if hour is None and minute is None:
 			hour = start_hour
 			minute = start_minute
-			while hour < max_hour or (hour == max_hour and minute <= max_minute):
+			while start_hour <= hour < max_hour or (hour == max_hour and start_minute <= minute <= max_minute):
 				yield ((hour, minute))
 				if minute < 59:
 					minute += 1
@@ -267,19 +267,19 @@ class WCronSchedule:
 					hour += 1
 		elif hour is not None and minute is None:
 			minute = start_minute
-			if hour <= max_hour:
+			if start_hour <= hour <= max_hour:
 				while minute <= max_minute:
 					yield ((hour, minute))
 					minute += 1
 		elif hour is not None and minute is not None:
-			if hour < max_hour or (hour == max_hour and minute <= max_minute):
+			if start_hour <= hour < max_hour or (hour == max_hour and start_minute <= minute <= max_minute):
 				yield ((hour, minute))
 		else:  # hour is None and minute is not None
 			hour = start_hour
 			if start_minute > minute:
 				hour += 1
 
-			while hour < max_hour or (hour == max_hour and minute <= max_minute):
+			while start_hour <= hour < max_hour or (hour == max_hour and start_minute <= minute <= max_minute):
 				yield ((hour, minute))
 				hour += 1
 
@@ -389,8 +389,8 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 
 	@WCriticalResource.critical_section()
 	def has_tasks(self):
-		if self.__next_task is not None:
-			result = [self.__next_task] if self.__next_task.cron_schedule().next_start() <= utc_datetime() else None
+		if self.__next_task is not None and self.__next_task.cron_schedule().next_start() <= utc_datetime():
+			result = [self.__next_task]
 			self.__next_task.complete()
 			self.__update()
 			return result
