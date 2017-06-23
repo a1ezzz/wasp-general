@@ -59,6 +59,7 @@ class WScheduledTask(WThreadTask):
 
 
 class WTaskSchedule:
+	# TODO: add policy for running tasks (like skipping tasks, that is already running)
 
 	class PostponePolicy(Enum):
 		wait = 1  # will stack every postponed task to execute them later (default)
