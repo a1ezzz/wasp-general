@@ -117,7 +117,7 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 	@verify_type(task_schedule=WTaskSchedule)
 	def exec(self, task_schedule):
 		watching_dog = self.watching_dog_class().create(
-			task_schedule, self, 'TaskSchedulerWatchingDog-%s' % str(uuid.uuid4())
+			task_schedule, self, 'TaskScheduler-WatchingDog-%s' % str(uuid.uuid4())
 		)
 		watching_dog.start()
 		self.__running_registry.append(watching_dog)
