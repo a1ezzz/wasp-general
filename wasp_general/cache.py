@@ -41,7 +41,7 @@ class WCacheStorage(metaclass=ABCMeta):
 		"""
 		pass
 
-	class CacheHit:
+	class CacheEntry:
 		""" Cache request result, is used in :meth:`.WCacheStorage.get_cache` to determine if there is a
 		cached value and what that value is.
 		"""
@@ -74,13 +74,13 @@ class WCacheStorage(metaclass=ABCMeta):
 	@abstractmethod
 	@verify_value(decorated_function=lambda x: callable(x))
 	def get_cache(self, decorated_function, *args, **kwargs):
-		""" Get "cache hit" (:class:`.WCacheStorage.CacheHit`) for the specified arguments
+		""" Get cache entry (:class:`.WCacheStorage.CacheEntry`) for the specified arguments
 
 		:param decorated_function: called function (original)
 		:param args: args with which function is called
 		:param kwargs: kwargs with which function is called
 
-		:return: WCacheStorage.CacheHit
+		:return: WCacheStorage.CacheEntry
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -118,10 +118,10 @@ class WCacheStorage(metaclass=ABCMeta):
 
 		:return: (any type, even None)
 		"""
-		cache_hit = self.get_cache(decorated_function, *args, **kwargs)
-		if cache_hit.has_value is False:
+		cache_entry = self.get_cache(decorated_function, *args, **kwargs)
+		if cache_entry.has_value is False:
 			raise WCacheStorage.CacheMissedException('No cache record found')
-		return cache_hit.cached_value
+		return cache_entry.cached_value
 
 
 class WGlobalSingletonCacheStorage(WCacheStorage):
@@ -163,7 +163,7 @@ class WGlobalSingletonCacheStorage(WCacheStorage):
 		cached_value = None
 		if has_value is True:
 			cached_value = self.get_result(decorated_function, *args, **kwargs)
-		return WCacheStorage.CacheHit(has_value=has_value, cached_value=cached_value)
+		return WCacheStorage.CacheEntry(has_value=has_value, cached_value=cached_value)
 
 	@verify_value(decorated_function=lambda x: x is None or callable(x))
 	def clear(self, decorated_function=None):
@@ -187,12 +187,16 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 	So derived "cache-records" classes can do things in there own way, they may save every called result, or may not
 	save anything.
 
+	This class was extended to support internal statistics with cache hits and misses. Still, this class is not
+	thread safe, but accessing statistics from a separate thread should work. Statistics is calculated for
+	records that was fetch through :meth:`WInstanceSingletonCacheStorage.get_cache` method only
+
 	:note: This implementation uses weakrefs, so memory leak doesn't happen (here).
 	"""
 
 	class InstanceCacheRecord:
 		""" Class is used to save cached results for the specified method and for the single instance. This
-		class saves the very first result only. This class uses :class:`.WCacheStorage.CacheHit` the same way
+		class saves the very first result only. This class uses :class:`.WCacheStorage.CacheEntry` the same way
 		as :class:`.WCacheStorage` storage does - it help to determine, whether there is a cached value or not.
 
 		Because derived class constructor signature may differ from this class constructor signature, then
@@ -217,15 +221,15 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 			"""
 			return self.__decorated_function
 
-		def cache_hit(self, *args, **kwargs):
-			""" Return "cache-hit" for the specified arguments
+		def cache_entry(self, *args, **kwargs):
+			""" Return cache entry for the specified arguments
 
 			:param args: args with which bounded method was called
 			:param kwargs: kwargs with which bounded method was called
 
-			:return: WCacheStorage.CacheHit
+			:return: WCacheStorage.CacheEntry
 			"""
-			return WCacheStorage.CacheHit(has_value=True, cached_value=self.__result)
+			return WCacheStorage.CacheEntry(has_value=True, cached_value=self.__result)
 
 		def update(self, result, *args, **kwargs):
 			""" Update (or add other one) result, that was generated with specified arguments
@@ -252,8 +256,12 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 			"""
 			return cls(result, decorated_function)
 
-	def __init__(self, cache_record_cls=None):
+	@verify_type(statistic=bool)
+	def __init__(self, cache_record_cls=None, statistic=False):
 		""" Construct new storage
+
+		:param cache_record_cls: class for keeping cache
+		:param statistic: whether to store statistics about cache hits and misses or not
 		"""
 		self._storage = {}
 		self._cache_record_cls = None
@@ -263,6 +271,9 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 			self._cache_record_cls = cache_record_cls
 		else:
 			self._cache_record_cls = WInstanceSingletonCacheStorage.InstanceCacheRecord
+		self.__statistic = statistic
+		self.__cache_missed = 0 if self.__statistic is True else None
+		self.__cache_hit = 0 if self.__statistic is True else None
 
 	@verify_value(decorated_function=lambda x: callable(x))
 	def __check(self, decorated_function, *args, **kwargs):
@@ -326,17 +337,45 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 		if decorated_function in self._storage:
 			for i in self._storage[decorated_function]:
 				if i['instance']() == args[0]:
-					return i['result'].cache_hit(*args, **kwargs)
-		return WCacheStorage.CacheHit()
+					result = i['result'].cache_entry(*args, **kwargs)
+					if self.__statistic is True:
+						if result.has_value is True:
+							self.__cache_hit += 1
+						else:
+							self.__cache_missed += 1
+					return result
+
+		if self.__statistic is True:
+			self.__cache_missed += 1
+
+		return WCacheStorage.CacheEntry()
 
 	@verify_value(decorated_function=lambda x: x is None or callable(x))
 	def clear(self, decorated_function=None):
-		""" :meth:`WCacheStorage.clear` method implementation
+		""" :meth:`WCacheStorage.clear` method implementation (Clears statistics also)
 		"""
 		if decorated_function is not None and decorated_function in self._storage:
 			self._storage.pop(decorated_function)
 		else:
 			self._storage.clear()
+
+		if self.__statistic is True:
+			self.__cache_missed = 0
+			self.__cache_hit = 0
+
+	def cache_missed(self):
+		""" Return cache misses (return None if class was constructed without 'statistic' flag)
+
+		:return: int or None
+		"""
+		return self.__cache_missed
+
+	def cache_hit(self):
+		""" Return cache hits (return None if class was constructed without 'statistic' flag)
+
+		:return: int or None
+		"""
+		return self.__cache_hit
 
 
 @verify_type(storage=(None, WCacheStorage))
@@ -368,14 +407,14 @@ def cache_control(validator=None, storage=None):
 		def second_level_decorator(original_function, *args, **kwargs):
 
 			validator_check = validator(original_function, *args, **kwargs)
-			cache_hit = storage.get_cache(original_function, *args, **kwargs)
+			cache_entry = storage.get_cache(original_function, *args, **kwargs)
 
-			if validator_check is not True or cache_hit.has_value is False:
+			if validator_check is not True or cache_entry.has_value is False:
 				result = original_function(*args, **kwargs)
 				storage.put(result, original_function, *args, **kwargs)
 				return result
 			else:
-				return cache_hit.cached_value
+				return cache_entry.cached_value
 
 		return decorator(second_level_decorator)(decorated_function)
 	return first_level_decorator

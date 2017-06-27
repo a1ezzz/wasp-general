@@ -20,13 +20,13 @@ class TestWCacheStorage:
 
 		assert(issubclass(WCacheStorage.CacheMissedException, Exception) is True)
 
-		cache_hit = WCacheStorage.CacheHit()
-		assert(cache_hit.has_value is False)
-		assert(cache_hit.cached_value is None)
+		cache_entry = WCacheStorage.CacheEntry()
+		assert(cache_entry.has_value is False)
+		assert(cache_entry.cached_value is None)
 
-		cache_hit = WCacheStorage.CacheHit(has_value=True, cached_value=1)
-		assert(cache_hit.has_value is True)
-		assert(cache_hit.cached_value == 1)
+		cache_entry = WCacheStorage.CacheEntry(has_value=True, cached_value=1)
+		assert(cache_entry.has_value is True)
+		assert(cache_entry.cached_value == 1)
 
 		foo = TestWCacheStorage.foo
 
@@ -37,7 +37,7 @@ class TestWCacheStorage:
 
 		class Storage(WCacheStorage):
 
-			__cache_value__ = WCacheStorage.CacheHit(has_value=True, cached_value='zzz')
+			__cache_value__ = WCacheStorage.CacheEntry(has_value=True, cached_value='zzz')
 
 			def put(self, result, decorated_function, *args, **kwargs):
 				pass
@@ -52,7 +52,7 @@ class TestWCacheStorage:
 		assert(storage.has(foo) is True)
 		assert(storage.get_result(foo) == 'zzz')
 
-		storage.__cache_value__ = WCacheStorage.CacheHit()
+		storage.__cache_value__ = WCacheStorage.CacheEntry()
 		assert(storage.has(foo) is False)
 		pytest.raises(WCacheStorage.CacheMissedException, storage.get_result, foo)
 
@@ -110,18 +110,18 @@ class TestWInstanceSingletonCacheStorage:
 
 		cache_record = WInstanceSingletonCacheStorage.InstanceCacheRecord('qaz', foo)
 		assert(cache_record.decorated_function() == foo)
-		cache_hit = cache_record.cache_hit()
-		assert(isinstance(cache_hit, WCacheStorage.CacheHit) is True)
-		assert(cache_hit.has_value is True)
-		assert(cache_hit.cached_value == 'qaz')
+		cache_entry = cache_record.cache_entry()
+		assert(isinstance(cache_entry, WCacheStorage.CacheEntry) is True)
+		assert(cache_entry.has_value is True)
+		assert(cache_entry.cached_value == 'qaz')
 
 		cache_record.update('wsx')
-		assert(cache_record.cache_hit().cached_value == 'wsx')
+		assert(cache_record.cache_entry().cached_value == 'wsx')
 
 		cache_record = WInstanceSingletonCacheStorage.InstanceCacheRecord.create('zxc', foo)
 		assert(isinstance(cache_record, WInstanceSingletonCacheStorage.InstanceCacheRecord) is True)
-		assert(cache_record.cache_hit().has_value is True)
-		assert(cache_record.cache_hit().cached_value == 'zxc')
+		assert(cache_record.cache_entry().has_value is True)
+		assert(cache_record.cache_entry().cached_value == 'zxc')
 
 	def test(self):
 		foo = TestWCacheStorage.foo
@@ -214,14 +214,99 @@ class TestWInstanceSingletonCacheStorage:
 
 		class DummyCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
 
-			def cache_hit(self, *args, **kwargs):
-				return WCacheStorage.CacheHit()
+			def cache_entry(self, *args, **kwargs):
+				return WCacheStorage.CacheEntry()
 
 		pytest.raises(TypeError, WInstanceSingletonCacheStorage, cache_record_cls=A)
 		instance_singleton_storage = WInstanceSingletonCacheStorage(cache_record_cls=DummyCacheRecord)
 
 		instance_singleton_storage.put('d', A.bar, a2)
 		assert(instance_singleton_storage.has(A.bar, a2) is False)
+
+	def test_get_cache(self):
+
+		class A:
+			def foo(self):
+				pass
+
+		a1 = A()
+		a2 = A()
+		a3 = A()
+
+		instance_singleton_storage = WInstanceSingletonCacheStorage()
+		assert(instance_singleton_storage.cache_hit() is None)
+		assert(instance_singleton_storage.cache_missed() is None)
+
+		assert(instance_singleton_storage.get_cache(A.foo, a1).has_value is False)
+		assert(instance_singleton_storage.cache_hit() is None)
+		assert(instance_singleton_storage.cache_missed() is None)
+
+		instance_singleton_storage.put(1, A.foo, a1)
+		assert(instance_singleton_storage.get_cache(A.foo, a1).has_value is True)
+		assert(instance_singleton_storage.cache_hit() is None)
+		assert(instance_singleton_storage.cache_missed() is None)
+
+		instance_singleton_storage = WInstanceSingletonCacheStorage(statistic=True)
+		assert(instance_singleton_storage.cache_hit() == 0)
+		assert(instance_singleton_storage.cache_missed() == 0)
+
+		assert(instance_singleton_storage.get_cache(A.foo, a1).has_value is False)
+		assert(instance_singleton_storage.cache_hit() == 0)
+		assert(instance_singleton_storage.cache_missed() == 1)
+
+		assert(instance_singleton_storage.get_cache(A.foo, a2).has_value is False)
+		assert(instance_singleton_storage.cache_hit() == 0)
+		assert(instance_singleton_storage.cache_missed() == 2)
+
+		instance_singleton_storage.put(1, A.foo, a1)
+		assert(instance_singleton_storage.get_cache(A.foo, a1).has_value is True)
+		assert(instance_singleton_storage.cache_hit() == 1)
+		assert(instance_singleton_storage.cache_missed() == 2)
+
+		assert(instance_singleton_storage.get_cache(A.foo, a3).has_value is False)
+		assert(instance_singleton_storage.cache_hit() == 1)
+		assert(instance_singleton_storage.cache_missed() == 3)
+
+		instance_singleton_storage.put(1, A.foo, a3)
+		assert(instance_singleton_storage.get_cache(A.foo, a3).has_value is True)
+		assert(instance_singleton_storage.cache_hit() == 2)
+		assert(instance_singleton_storage.cache_missed() == 3)
+
+		assert(instance_singleton_storage.get_cache(A.foo, a3).has_value is True)
+		assert(instance_singleton_storage.cache_hit() == 3)
+		assert(instance_singleton_storage.cache_missed() == 3)
+
+		assert(instance_singleton_storage.get_cache(A.foo, a3).has_value is True)
+		assert(instance_singleton_storage.cache_hit() == 4)
+		assert(instance_singleton_storage.cache_missed() == 3)
+
+		instance_singleton_storage.clear()
+		assert(instance_singleton_storage.cache_hit() == 0)
+		assert(instance_singleton_storage.cache_missed() == 0)
+
+		assert(instance_singleton_storage.get_cache(A.foo, a3).has_value is False)
+		assert(instance_singleton_storage.cache_hit() == 0)
+		assert(instance_singleton_storage.cache_missed() == 1)
+
+		class DummyCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
+
+			def cache_entry(self, *args, **kwargs):
+				return WCacheStorage.CacheEntry()
+
+		instance_singleton_storage = WInstanceSingletonCacheStorage(
+			cache_record_cls=DummyCacheRecord, statistic=True
+		)
+		assert(instance_singleton_storage.cache_hit() == 0)
+		assert(instance_singleton_storage.cache_missed() == 0)
+
+		instance_singleton_storage.put(1, A.foo, a1)
+		assert(instance_singleton_storage.get_cache(A.foo, a1).has_value is False)
+		assert(instance_singleton_storage.cache_hit() == 0)
+		assert(instance_singleton_storage.cache_missed() == 1)
+
+		assert(instance_singleton_storage.get_cache(A.foo, a2).has_value is False)
+		assert(instance_singleton_storage.cache_hit() == 0)
+		assert(instance_singleton_storage.cache_missed() == 2)
 
 
 def test_cache_control():
