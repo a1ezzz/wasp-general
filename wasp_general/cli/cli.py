@@ -85,6 +85,8 @@ class WConsoleHistory:
 		"""
 		return self.__history[position]
 
+	@verify_type(value=str, position=(int, None))
+	@verify_value(position=lambda x: x is None or x >= 0)
 	def update(self, value, position):
 		""" Change record in this history
 
@@ -329,8 +331,8 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 
 		return result
 
-	@verify_type(previous_data=bool, prompt=bool, console_row=bool, console_row_to_cursor=bool)
-	@verify_type(console_row_from_cursor=bool)
+	@verify_type('paranoid', previous_data=bool, prompt=bool, console_row=bool, console_row_to_cursor=bool)
+	@verify_type('paranoid', console_row_from_cursor=bool)
 	def list_data(
 		self, previous_data=False, prompt=False, console_row=False,
 		console_row_to_cursor=False, console_row_from_cursor=False
@@ -351,8 +353,9 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 		"""
 		return self.__console
 
-	@verify_type(data=list, start_position=int)
-	@verify_value(start_position=lambda x: x >= 0)
+	@verify_type('paranoid', start_position=int)
+	@verify_value('paranoid', start_position=lambda x: x >= 0)
+	@verify_type(data=list)
 	def write_data(self, data, start_position=0):
 		""" Write data from the specified line
 
@@ -361,7 +364,7 @@ class WConsoleWindowProto(metaclass=ABCMeta):
 		:return:
 		"""
 		if len(data) > self.height():
-			raise ValueError('data too long (too many strings)')
+			raise ValueError('Data too long (too many strings)')
 
 		for i in range(len(data)):
 			self.write_line(start_position + i, data[i])
@@ -477,7 +480,7 @@ class WConsoleWindowBase(WConsoleWindowProto, metaclass=ABCMeta):
 		self.__drawers = []
 		self.__drawers.extend(drawers)
 
-	@verify_type(prompt_show=bool)
+	@verify_type('paranoid', prompt_show=bool)
 	def refresh(self, prompt_show=True):
 		""" Refresh current window. Clear current window and redraw it with one of drawers
 
@@ -524,7 +527,7 @@ class WConsoleBase(WConsoleProto):
 		self.window().commit()
 		WConsoleProto.fin_session(self)
 
-	@verify_type(result=str, cr=bool)
+	@verify_type('paranoid', result=str, cr=bool)
 	def write(self, result, cr=True):
 		"""  Shortcut for self.window().write_feedback(result) call
 
@@ -534,8 +537,8 @@ class WConsoleBase(WConsoleProto):
 		"""
 		self.window().write_feedback(result, cr=cr)
 
-	@verify_type(length=int)
-	@verify_value(length=lambda x: x >= 0)
+	@verify_type('paranoid', length=int)
+	@verify_value('paranoid', length=lambda x: x >= 0)
 	def truncate(self, length):
 		"""  Shortcut for self.window().truncate_feedback(result) call
 
@@ -561,7 +564,11 @@ class WConsoleBase(WConsoleProto):
 		if result.output is not None:
 			self.write(result.output)
 		if result.error is not None:
-			self.write('Error: %s' % str(result.error))
+			if result.output is not None:
+				msg = 'Error: %s' % str(result.output)
+			else:
+				msg = 'Error processing command'
+			self.write(msg)
 
 	@verify_type(e=Exception)
 	def handle_exception(self, e):
@@ -571,6 +578,7 @@ class WConsoleBase(WConsoleProto):
 			self.write('Internal error. Traceback and exception information:')
 			self.write(traceback.format_exc())
 
+	@verify_type('paranoid', row=str)
 	def exec(self, row):
 		command_set = self.command_set()
 		try:

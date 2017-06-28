@@ -196,8 +196,9 @@ class WThreadCustomTask(WThreadTask):
 	within constructor
 	"""
 
-	@verify_type(task=WTask, thread_name=(str, None), join_on_stop=bool, ready_to_stop=bool)
-	@verify_type(thread_join_timeout=(int, float, None))
+	@verify_type(task=WTask)
+	@verify_type('paranoid', thread_name=(str, None), join_on_stop=bool, ready_to_stop=bool)
+	@verify_type('paranoid', thread_join_timeout=(int, float, None))
 	def __init__(self, task, thread_name=None, join_on_stop=True, ready_to_stop=False, thread_join_timeout=None):
 		""" Create new WThreadTask task for the given task
 
@@ -258,7 +259,7 @@ class WPollingThreadTask(WThreadTask, metaclass=ABCMeta):
 	""" Default polling timeout
 	"""
 
-	@verify_type(thread_name=(str, None), thread_join_timeout=(int, float, None))
+	@verify_type('paranoid', thread_name=(str, None), thread_join_timeout=(int, float, None))
 	@verify_type(polling_timeout=(int, float, None))
 	def __init__(self, thread_name=None, thread_join_timeout=None, polling_timeout=None):
 		""" Create new task
@@ -304,8 +305,9 @@ class WThreadedTaskChain(WPollingThreadTask):
 	""" Threaded task, that executes given tasks sequentially
 	"""
 
-	@verify_type(threaded_task_chain=WThreadTask, thread_name=(str, None), thread_join_timeout=(int, float, None))
-	@verify_type(polling_timeout=(int, float, None))
+	@verify_type(threaded_task_chain=WThreadTask)
+	@verify_type('paranoid', thread_name=(str, None), thread_join_timeout=(int, float, None))
+	@verify_type('paranoid', polling_timeout=(int, float, None))
 	def __init__(
 		self, *threaded_task_chain, thread_name=None, thread_join_timeout=None, polling_timeout=None
 	):

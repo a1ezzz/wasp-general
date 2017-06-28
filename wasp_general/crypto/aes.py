@@ -69,7 +69,7 @@ class WSimplePadding(WBlockPadding):
 	"""
 
 	@verify_type(padding=(int, None))
-	@verify_value(padding=lambda x: x is None or (x >= 0 and x <= 127))
+	@verify_value(padding=lambda x: x is None or (0 <= x <= 127))
 	def __init__(self, padding=None):
 		""" Create new padding class
 
@@ -423,7 +423,8 @@ class WFixedSecretAES(WAES):
 	""" AES implementation with fixed static secret key
 	"""
 
-	@verify_type(secret=(str, bytes), mode=WAESMode)
+	@verify_type('paranoid', mode=WAESMode)
+	@verify_type(secret=(str, bytes))
 	def __init__(self, secret, mode):
 		""" Create new cipher
 
@@ -458,7 +459,8 @@ class WConfigSecretAES(WAES):
 	""" AES implementation with secret key specified in given configuration. (Secret key is always str object)
 	"""
 
-	@verify_type(config=WConfig, section=str, option=str, mode=WAESMode)
+	@verify_type('paranoid', mode=WAESMode)
+	@verify_type(config=WConfig, section=str, option=str)
 	def __init__(self, config, section, option, mode):
 		""" Construct new AES cipher
 

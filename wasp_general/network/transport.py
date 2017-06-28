@@ -250,14 +250,14 @@ class WBroadcastNetworkTransport(WUDPNetworkNativeTransport):
 	""" Network transport, that uses IPv4 broadcast (UDP) communication
 	"""
 
-	@verify_type(target_socket_config=WNetworkNativeTransportSocketConfig)
-	@verify_type(bind_socket_config=WNetworkNativeTransportSocketConfig)
+	@verify_type('paranoid', target_socket_config=WNetworkNativeTransportSocketConfig)
+	@verify_type('paranoid', bind_socket_config=WNetworkNativeTransportSocketConfig)
 	def __init__(self, target_socket_config, bind_socket_config):
 		""" Create new broadcast transport
 		"""
 		WNetworkNativeTransport.__init__(self, target_socket_config, bind_socket_config)
 
-	@verify_type(config=WConfig)
+	@verify_type('paranoid', config=WConfig)
 	def target_socket(self, config):
 		""" This method overrides :meth:`.WNetworkNativeTransport.target_socket` method. Do the same thing as
 		basic method do, but also checks that the result address is IPv4 address.
@@ -270,7 +270,7 @@ class WBroadcastNetworkTransport(WUDPNetworkNativeTransport):
 			raise ValueError('Invalid address for broadcast transport')
 		return target
 
-	@verify_type(config=WConfig)
+	@verify_type('paranoid', config=WConfig)
 	def create_client_socket(self, config):
 		""" Create client broadcast socket
 
@@ -286,14 +286,14 @@ class WMulticastNetworkTransport(WUDPNetworkNativeTransport):
 	""" Network transport, that uses IPv4 multicast communication
 	"""
 
-	@verify_type(target_socket_config=WNetworkNativeTransportSocketConfig)
-	@verify_type(bind_socket_config=WNetworkNativeTransportSocketConfig)
+	@verify_type('paranoid', target_socket_config=WNetworkNativeTransportSocketConfig)
+	@verify_type('paranoid', bind_socket_config=WNetworkNativeTransportSocketConfig)
 	def __init__(self, target_socket_config, bind_socket_config):
 		""" Create new multicast transport
 		"""
 		WUDPNetworkNativeTransport.__init__(self, target_socket_config, bind_socket_config)
 
-	@verify_type(config=WConfig)
+	@verify_type('paranoid', config=WConfig)
 	def target_socket(self, config):
 		""" This method overrides :meth:`.WNetworkNativeTransport.target_socket` method. Do the same thing as
 		basic method do, but also checks that the result address is IPv4 multicast address.
@@ -306,7 +306,7 @@ class WMulticastNetworkTransport(WUDPNetworkNativeTransport):
 			raise ValueError('IP multicast address not RFC compliant')
 		return target
 
-	@verify_type(config=WConfig)
+	@verify_type('paranoid', config=WConfig)
 	def create_server_socket(self, config):
 		""" Create server multicast socket. Socket will be joined to the multicast-group (same as it is
 		specified in client configuration, same as client does)

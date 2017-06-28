@@ -158,8 +158,8 @@ class WBeaconHandler(WNativeSocketHandler):
 		'unicast_tcp' - not implemented yet
 	"""
 
-	@verify_type(config=WConfig, io_handler=WBeaconIOHandler, server_mode=bool)
-	@verify_type(transport=(WNetworkNativeTransportProto, None))
+	@verify_type('paranoid', io_handler=WBeaconIOHandler, server_mode=bool)
+	@verify_type(config=WConfig, transport=(WNetworkNativeTransportProto, None))
 	def __init__(self, config, io_handler, server_mode, transport=None):
 
 		if transport is None:
@@ -178,7 +178,7 @@ class WBeaconHandler(WNativeSocketHandler):
 
 		WNativeSocketHandler.__init__(self, transport, config, io_handler, server_mode)
 
-	@verify_type(io_loop=IOLoop)
+	@verify_type('paranoid', io_loop=IOLoop)
 	def setup_handler(self, io_loop):
 		""" :meth:`.WIOLoopServiceHandler.setup_handler` implementation. When this object is in
 		'non-server mode' (client mode), then beacon message is sent
@@ -199,8 +199,8 @@ class WNetworkBeaconBase(WIOLoopService):
 	This service automatically creates :class:`.WBeaconHandler` object with the specified io-handler.
 	"""
 
-	@verify_type(config=WConfig, io_handler=WBeaconIOHandler, server_mode=bool)
-	@verify_type(transport=(WNetworkNativeTransportProto, None), timeout=(int, None))
+	@verify_type('paranoid', config=WConfig, io_handler=WBeaconIOHandler, server_mode=bool)
+	@verify_type('paranoid', transport=(WNetworkNativeTransportProto, None), timeout=(int, None))
 	def __init__(self, config, io_handler, server_mode, transport, timeout=None):
 		""" Create new beacon service
 
@@ -225,8 +225,9 @@ class WNetworkServerBeacon(WBeaconConfig, WNetworkBeaconBase):
 		callback (if available) will process this request as invalid
 		"""
 
-		@verify_type(config=WConfig, messanger=(WBeaconMessengerBase, None))
-		@verify_type(callback=(WNetworkBeaconCallback, None), process_any=bool)
+		@verify_type('paranoid', config=WConfig, messanger=(WBeaconMessengerBase, None))
+		@verify_type('paranoid', callback=(WNetworkBeaconCallback, None))
+		@verify_type(process_any=bool)
 		def __init__(self, config, messenger=None, callback=None, process_any=False):
 			""" Create new handler
 
@@ -269,9 +270,9 @@ class WNetworkServerBeacon(WBeaconConfig, WNetworkBeaconBase):
 				if messenger.valid_response(self.config(), request, original_address):
 					callback(request, original_address, direction)
 
-	@verify_type(config=(WConfig, None), config_section=(str, None), messanger=(WBeaconMessengerBase, None))
-	@verify_type(callback=(WNetworkBeaconCallback, None), process_any=bool)
-	@verify_type(transport=(WNetworkNativeTransportProto, None))
+	@verify_type('paranoid', config=(WConfig, None), config_section=(str, None))
+	@verify_type('paranoid', messanger=(WBeaconMessengerBase, None), callback=(WNetworkBeaconCallback, None))
+	@verify_type('paranoid', process_any=bool, transport=(WNetworkNativeTransportProto, None))
 	def __init__(
 		self, config=None, config_section=None, messenger=None, callback=None, process_any=False, transport=None
 	):
@@ -314,8 +315,9 @@ class WNetworkClientBeacon(WBeaconConfig, WNetworkBeaconBase):
 				if messenger.valid_response(self.config(), response, server_si):
 					callback(response, server_si, direction)
 
-	@verify_type(config=(WConfig, None), config_section=(str, None), messanger=(WBeaconMessengerBase, None))
-	@verify_type(callback=(WNetworkBeaconCallback, None), transport=(WNetworkNativeTransportProto, None))
+	@verify_type('paranoid', config=(WConfig, None), config_section=(str, None))
+	@verify_type('paranoid', messenger=(WBeaconMessengerBase, None), callback=(WNetworkBeaconCallback, None))
+	@verify_type('paranoid', transport=(WNetworkNativeTransportProto, None))
 	def __init__(self, config=None, config_section=None, messenger=None, callback=None, transport=None):
 		""" Create new client beacon
 

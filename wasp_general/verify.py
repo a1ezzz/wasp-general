@@ -58,6 +58,10 @@ class Verifier:
 	__default_environment_var__ = 'WASP_VERIFIER_DISABLE_CHECKS'
 	""" Default environment variable name that is used for check bypassing. Variable must contain tags separated by \
 	:attr:`.Verifier.__tags_delimiter__`. To bypass certain check all of its tags must be defined in variable.
+
+	Currently used values:
+		'paranoid' - for excess checks, like that test parameters, that doesn't processed by the specific
+		function or is passing them to other function that has checks
 	"""
 
 	__tags_delimiter__ = ':'

@@ -59,6 +59,7 @@ class WWebRequest(WWebRequestProto):
 		:param method: called HTTP-method
 		:param path: called HTTP-path
 		"""
+		WWebRequestProto.__init__(self)
 		self.__session = session
 		self.__method = method.upper()
 		self.__path = path
@@ -124,6 +125,8 @@ class WWebRequest(WWebRequestProto):
 		self.__request_data = request_data
 
 	@classmethod
+	@verify_type('paranoid', session=WWebSessionProto)
+	@verify_type(request_line=str)
 	def parse_request_line(cls, session, request_line):
 		""" Parse given request line like 'GET /foo' or 'POST /zzz HTTP/1.0'
 
@@ -137,6 +140,7 @@ class WWebRequest(WWebRequestProto):
 			return WWebRequest(session, method, path)
 		raise ValueError('Invalid request line')
 
+	@verify_type('paranoid', http_code=str)
 	def parse_headers(self, http_code):
 		""" Parse http-code (like 'Header-X: foo\r\nHeader-Y: bar\r\n') and retrieve (save) HTTP-headers
 

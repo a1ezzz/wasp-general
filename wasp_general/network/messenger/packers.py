@@ -61,11 +61,13 @@ class WMessengerJSONPacker(WMessengerOnionPackerLayerProto):
 		"""
 		WMessengerOnionPackerLayerProto.__init__(self, WMessengerJSONPacker.__layer_name__)
 
-	@verify_type(envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerEnvelopeProto)
 	def pack(self, envelope, session, **kwargs):
 		json_data = json.dumps(envelope.message(), cls=WMessengerJSONPacker.JSONEncoder)
 		return WMessengerTextEnvelope(json_data, meta=envelope)
 
-	@verify_type(envelope=WMessengerTextEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerTextEnvelope)
 	def unpack(self, envelope, session, **kwargs):
 		return WMessengerEnvelope(json.loads(envelope.message()), meta=envelope)

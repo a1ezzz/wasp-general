@@ -36,7 +36,8 @@ class WFixedSizeByteArray:
 	"""
 
 	byte_size = 8
-	""" Bits in byte. Derived classed can modify without broking the code. Derived class can do this, but why?!
+	""" Bits in byte. Derived classed can modify this without breaking the code. Derived class can do this,
+	but why?!
 	"""
 
 	@verify_type(size=int, value=(WBinArray, int, bytes, None))
@@ -114,7 +115,8 @@ class WFixedSizeByteArray:
 		"""
 		return self.__array[item]
 
-	@verify_type(key=int, value=(WBinArray, int))
+	@verify_type('paranoid', value=(WBinArray, int))
+	@verify_type(key=int)
 	def __setitem__(self, key, value):
 		""" Set value for the given index. Specified value must resign within byte capability (must be non
 		negative and be less then 2^<byte_size>).

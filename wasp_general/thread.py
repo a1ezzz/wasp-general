@@ -61,8 +61,9 @@ def critical_section_dynamic_lock(lock_fn=None, blocking=True, timeout=None, rai
 	return first_level_decorator
 
 
-@verify_type(lock=Lock().__class__, blocking=bool, timeout=(int, float, None), raise_exception=bool)
-@verify_value(timeout=lambda x: x is None or x > 0)
+@verify_type('paranoid', lock=Lock().__class__, blocking=bool, timeout=(int, float, None), raise_exception=bool)
+@verify_value('paranoid', timeout=lambda x: x is None or x > 0)
+@verify_type(lock=Lock().__class__)
 def critical_section_lock(lock=None, blocking=True, timeout=None, raise_exception=False):
 
 	def lock_getter(*args, **kwargs):
@@ -82,8 +83,8 @@ class WCriticalResource:
 		return self.__lock
 
 	@staticmethod
-	@verify_type(blocking=bool, timeout=(int, float, None), raise_exception=bool)
-	@verify_value(timeout=lambda x: x is None or x > 0)
+	@verify_type('paranoid', blocking=bool, timeout=(int, float, None), raise_exception=bool)
+	@verify_value('paranoid', timeout=lambda x: x is None or x > 0)
 	def critical_section(blocking=True, timeout=None, raise_exception=False):
 
 		def lock_getter(self, *args, **kwargs):

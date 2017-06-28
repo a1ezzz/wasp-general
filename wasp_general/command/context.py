@@ -253,7 +253,7 @@ class WCommandContext(WCommandProto):
 		"""
 		return self.__adapter
 
-	@verify_type(command_tokens=str)
+	@verify_type('paranoid', command_tokens=str)
 	def match(self, *command_tokens):
 		""" Match original command like if no context specified
 
@@ -262,7 +262,7 @@ class WCommandContext(WCommandProto):
 		"""
 		return self.match_context(*command_tokens)
 
-	@verify_type(command_tokens=str, request_context=(WContextProto, None))
+	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
 	def match_context(self, *command_tokens, request_context=None):
 		""" Checks whether this command (modified original one) can be called with the given tokens and
 		the given context. Return True - if match, False - otherwise
@@ -277,7 +277,7 @@ class WCommandContext(WCommandProto):
 		command_tokens = self.adapter().adapt(*command_tokens, request_context=request_context)
 		return self.original_command().match(*command_tokens)
 
-	@verify_type(command_tokens=str)
+	@verify_type('paranoid', command_tokens=str)
 	def exec(self, *command_tokens):
 		""" Execute original command like if no context specified
 
@@ -286,7 +286,7 @@ class WCommandContext(WCommandProto):
 		"""
 		return self.exec_context(*command_tokens)
 
-	@verify_type(command_tokens=str, request_context=(WContextProto, None))
+	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
 	def exec_context(self, *command_tokens, request_context=None):
 		""" Execute this command (modified original one) and return result
 
@@ -312,7 +312,8 @@ class WCommandContextResult(WCommandResult):
 	switching as a result of some command execution
 	"""
 
-	@verify_type(output=(str, None), context=(WContextProto, None))
+	@verify_type('paranoid', output=(str, None))
+	@verify_type(context=(WContextProto, None))
 	def __init__(self, output=None, error=None, context=None):
 		""" Create new result
 
@@ -329,7 +330,7 @@ class WCommandContextSelector(WCommandPrioritizedSelector):
 	:meth:`.WCommandContext.match_context` call
 	"""
 
-	@verify_type(command_tokens=str, request_context=(WContextProto, None))
+	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
 	def select(self, *command_tokens, request_context=None):
 		""" Select command from internal storage, that matches the given tokens and the given context
 
@@ -380,7 +381,7 @@ class WCommandContextSet(WCommandSet):
 		"""
 		return self.__context
 
-	@verify_type(command_str=str, request_context=(WContextProto, None))
+	@verify_type('paranoid', command_str=str, request_context=(WContextProto, None))
 	def exec_context(self, command_str, request_context=None):
 		""" Execute command with context (if specified). If command result will set context, this context will
 		be set to this object for future use

@@ -125,7 +125,7 @@ class WCommand(WCommandProto):
 		return False
 
 	@abstractmethod
-	@verify_type(command_tokens=str)
+	@verify_type('paranoid', command_tokens=str)
 	def _exec(self, *command_tokens):
 		""" Derived classes must implement this function, in order to do a real command work.
 
@@ -270,7 +270,7 @@ class WCommandSet:
 		"""
 		return self.__commands
 
-	@verify_type(command_str=str)
+	@verify_type('paranoid', command_str=str)
 	def exec(self, command_str):
 		""" Execute the given command (command will be split into tokens, every space that is a part of a token
 		must be quoted)

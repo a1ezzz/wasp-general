@@ -45,8 +45,8 @@ class WMessengerSendAgentLayer(WMessengerOnionLayerProto):
 	def __init__(self):
 		WMessengerOnionLayerProto.__init__(self, WMessengerSendAgentLayer.__layer_name__)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
-	@verify_type(send_agent=WZMQHandler.SendAgent, handler=WZMQHandler)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerBytesEnvelope, send_agent=WZMQHandler.SendAgent, handler=WZMQHandler)
 	def process(self, envelope, session, send_agent=None, handler=None, **kwargs):
 		send_agent.send(handler, envelope.message())
 		return envelope
@@ -60,8 +60,9 @@ class WMessengerSyncReceiveAgentLayer(WMessengerOnionLayerProto):
 	def __init__(self):
 		WMessengerOnionLayerProto.__init__(self, WMessengerSyncReceiveAgentLayer.__layer_name__)
 
-	@verify_type(envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
-	@verify_type(receive_agent=WZMQSyncAgent, timeout=(int, float, None), copy_meta=(bool, None))
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerEnvelopeProto, receive_agent=WZMQSyncAgent, timeout=(int, float, None))
+	@verify_type(copy_meta=(bool, None))
 	def process(self, envelope, session, receive_agent=None, timeout=None, copy_meta=None, **kwargs):
 		timeout = timeout if timeout is not None else receive_agent.timeout()
 		if receive_agent.event().wait(timeout) is not True:

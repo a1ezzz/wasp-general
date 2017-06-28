@@ -42,7 +42,7 @@ class WCursesWindow(WConsoleWindowBase):
 		""" WConsoleWindowProto.DrawerProto implementation. Suites if there is nothing to display
 		"""
 
-		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		@verify_type('paranoid', window=WConsoleWindowProto, prompt_show=bool)
 		def suitable(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
@@ -50,7 +50,7 @@ class WCursesWindow(WConsoleWindowBase):
 				return True
 			return False
 
-		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		@verify_type('paranoid', window=WConsoleWindowProto, prompt_show=bool)
 		def draw(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
 			"""
@@ -61,7 +61,7 @@ class WCursesWindow(WConsoleWindowBase):
 		width and height
 		"""
 
-		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		@verify_type('paranoid', window=WConsoleWindowProto, prompt_show=bool)
 		def suitable(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
@@ -75,7 +75,7 @@ class WCursesWindow(WConsoleWindowBase):
 
 			return False
 
-		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		@verify_type('paranoid', window=WConsoleWindowProto, prompt_show=bool)
 		def draw(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
 			"""
@@ -107,7 +107,7 @@ class WCursesWindow(WConsoleWindowBase):
 		height but current row fits
 		"""
 
-		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		@verify_type('paranoid', window=WConsoleWindowProto, prompt_show=bool)
 		def suitable(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
@@ -125,7 +125,7 @@ class WCursesWindow(WConsoleWindowBase):
 
 			return False
 
-		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		@verify_type('paranoid', window=WConsoleWindowProto, prompt_show=bool)
 		def draw(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
 			"""
@@ -159,7 +159,7 @@ class WCursesWindow(WConsoleWindowBase):
 		window width and height
 		"""
 
-		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		@verify_type('paranoid', window=WConsoleWindowProto, prompt_show=bool)
 		def suitable(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.suitable` method implementation
 			"""
@@ -169,7 +169,7 @@ class WCursesWindow(WConsoleWindowBase):
 					return True
 			return False
 
-		@verify_type(window=WConsoleWindowProto, prompt_show=bool)
+		@verify_type('paranoid', window=WConsoleWindowProto, prompt_show=bool)
 		def draw(self, window, prompt_show=True):
 			""" :meth:`WConsoleWindowProto.DrawerProto.draw` method implementation
 			"""
@@ -203,7 +203,7 @@ class WCursesWindow(WConsoleWindowBase):
 			x = line_length % window.width()
 			window.set_cursor(y, x)
 
-	@verify_type(console=WConsoleProto)
+	@verify_type('paranoid', console=WConsoleProto)
 	def __init__(self, console):
 		WConsoleWindowBase.__init__(
 			self, console, WCursesWindow.EmptyWindowDrawer(), WCursesWindow.SmallWindowDrawer(),
@@ -222,7 +222,7 @@ class WCursesWindow(WConsoleWindowBase):
 	def write_line(self, line_index, line):
 		self.console().screen().addstr(line_index, 0, line)
 
-	@verify_type(prompt_show=bool)
+	@verify_type('paranoid', prompt_show=bool)
 	def refresh(self, prompt_show=True):
 		WConsoleWindowBase.refresh(self, prompt_show=prompt_show)
 		self.console().screen().refresh()
@@ -358,7 +358,7 @@ class WCursesKeyResize(WCursesKeyAction):
 
 class WCursesConsole(WConsoleBase):
 
-	@verify_type(command_set=(WCommandSet, None))
+	@verify_type('paranoid', command_set=(WCommandSet, None))
 	def __init__(self, command_set=None):
 		WConsoleBase.__init__(self, command_set=command_set)
 

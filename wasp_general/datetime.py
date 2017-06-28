@@ -47,7 +47,7 @@ def utc_datetime(dt=None, local_value=True):
 	:param local_value: whether dt is a datetime in system timezone or UTC datetime without timezone information
 	:return: datetime in UTC with tz set
 	"""
-	# TODO: rename local_value to local_tz
+	# TODO: rename local_value to local_tz or in_local_tz
 	if dt is None:
 		return datetime.now(tz=timezone.utc)
 
@@ -61,6 +61,7 @@ def utc_datetime(dt=None, local_value=True):
 	return result.astimezone(timezone.utc)
 
 
+@verify_type(dt=(datetime, None), utc_value=bool)
 def local_datetime(dt=None, utc_value=True):
 	""" Convert UTC datetime and/or datetime without timezone information to local datetime with timezone
 	information
@@ -69,7 +70,7 @@ def local_datetime(dt=None, utc_value=True):
 	:param utc_value: whether dt is a datetime in UTC or in system timezone without timezone information
 	:return: datetime for system (local) timezone with tz set
 	"""
-	# TODO: rename utc_value to utc_tz
+	# TODO: rename utc_value to utc_tz or in_utc_tz
 	if dt is None:
 		return datetime.now(tz=local_tz())
 

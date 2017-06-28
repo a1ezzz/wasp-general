@@ -242,8 +242,8 @@ class WTaskRegistry:
 		return cls.__registry_storage__
 
 	@classmethod
-	@verify_subclass(task_cls=WTask)
-	@verify_type(task_cls=WRegisteredTask)
+	@verify_subclass('paranoid', task_cls=WTask)
+	@verify_type('paranoid', task_cls=WRegisteredTask)
 	def add(cls, task_cls):
 		""" Add task class to storage
 
@@ -257,8 +257,8 @@ class WTaskRegistry:
 		cls.registry_storage().add(task_cls)
 
 	@classmethod
-	@verify_subclass(task_cls=WTask)
-	@verify_type(task_cls=WRegisteredTask)
+	@verify_subclass('paranoid', task_cls=WTask)
+	@verify_type('paranoid', task_cls=WRegisteredTask)
 	def remove(cls, task_cls):
 		""" Remove task class to storage
 

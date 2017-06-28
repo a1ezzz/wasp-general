@@ -98,7 +98,8 @@ class WMessengerFixedModificationLayer(WMessengerOnionCoderLayerProto):
 		elif isinstance(modification_code, bytes) is False:
 			raise TypeError('Invalid "modification_code" argument for specified envelope')
 
-	@verify_type(envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope), session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope))
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
 	def encode(self, envelope, session, target=None, modification_code=None, **kwargs):
 		""" Methods appends 'modification_code' to the specified envelope.
 
@@ -122,7 +123,8 @@ class WMessengerFixedModificationLayer(WMessengerOnionCoderLayerProto):
 		else:  # target == WMessengerFixedModificationLayer.Target.tail
 			return target_envelope_cls(envelope.message() + modification_code, meta=envelope)
 
-	@verify_type(envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope), session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', envelope=(WMessengerTextEnvelope, WMessengerBytesEnvelope))
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
 	def decode(self, envelope, session, target=None, modification_code=None, **kwargs):
 		""" Methods checks envelope for 'modification_code' existence and removes it.
 
@@ -169,7 +171,8 @@ class WMessengerEncodingLayer(WMessengerOnionCoderLayerProto):
 		"""
 		WMessengerOnionCoderLayerProto.__init__(self, WMessengerEncodingLayer.__layer_name__)
 
-	@verify_type(envelope=WMessengerTextEnvelope, session=WMessengerOnionSessionProto, encoding=(str, None))
+	@verify_type('paranoid', envelope=WMessengerTextEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type(encoding=(str, None))
 	def encode(self, envelope, session, encoding=None, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
@@ -184,7 +187,8 @@ class WMessengerEncodingLayer(WMessengerOnionCoderLayerProto):
 		message = message.encode() if encoding is None else message.encode(encoding)
 		return WMessengerBytesEnvelope(message, meta=envelope)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto, encoding=(str, None))
+	@verify_type('paranoid', envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type(encoding=(str, None))
 	def decode(self, envelope, session, encoding=None, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 
@@ -214,7 +218,8 @@ class WMessengerHexLayer(WMessengerOnionCoderLayerProto):
 		"""
 		WMessengerOnionCoderLayerProto.__init__(self, WMessengerHexLayer.__layer_name__)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerBytesEnvelope)
 	def encode(self, envelope, session, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
@@ -226,7 +231,8 @@ class WMessengerHexLayer(WMessengerOnionCoderLayerProto):
 		"""
 		return WMessengerTextEnvelope(str(WHex(envelope.message())), meta=envelope)
 
-	@verify_type(envelope=WMessengerTextEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerTextEnvelope)
 	def decode(self, envelope, session, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 
@@ -254,7 +260,8 @@ class WMessengerBase64Layer(WMessengerOnionCoderLayerProto):
 		"""
 		WMessengerOnionCoderLayerProto.__init__(self, WMessengerBase64Layer.__layer_name__)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerBytesEnvelope)
 	def encode(self, envelope, session, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
@@ -266,7 +273,8 @@ class WMessengerBase64Layer(WMessengerOnionCoderLayerProto):
 		"""
 		return WMessengerBytesEnvelope(b64encode(envelope.message()), meta=envelope)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerBytesEnvelope)
 	def decode(self, envelope, session, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 
@@ -293,7 +301,8 @@ class WMessengerAESLayer(WMessengerOnionCoderLayerProto):
 		"""
 		WMessengerOnionCoderLayerProto.__init__(self, WMessengerAESLayer.__layer_name__)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerBytesEnvelope)
 	@verify_type(aes_cipher=WAES)
 	def encode(self, envelope, session, aes_cipher=None, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
@@ -307,7 +316,8 @@ class WMessengerAESLayer(WMessengerOnionCoderLayerProto):
 		"""
 		return WMessengerBytesEnvelope(aes_cipher.encrypt(envelope.message()), meta=envelope)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto)
+	@verify_type(envelope=WMessengerBytesEnvelope)
 	@verify_type(aes_cipher=WAES)
 	def decode(self, envelope, session, aes_cipher=None, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
@@ -336,8 +346,8 @@ class WMessengerRSALayer(WMessengerOnionCoderLayerProto):
 		"""
 		WMessengerOnionCoderLayerProto.__init__(self, WMessengerRSALayer.__layer_name__)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
-	@verify_type(public_key=WRSA.wrapped_class, sha_digest_size=int)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto, public_key=WRSA.wrapped_class, sha_digest_size=int)
+	@verify_type(envelope=WMessengerBytesEnvelope)
 	def encode(self, envelope, session, public_key=None, sha_digest_size=32, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
@@ -352,8 +362,9 @@ class WMessengerRSALayer(WMessengerOnionCoderLayerProto):
 		message = WRSA.encrypt(envelope.message(), public_key, sha_digest_size=sha_digest_size)
 		return WMessengerBytesEnvelope(message, meta=envelope)
 
-	@verify_type(envelope=WMessengerBytesEnvelope, session=WMessengerOnionSessionProto)
-	@verify_type(private_key=WRSA.wrapped_class, sha_digest_size=int)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto, private_key=WRSA.wrapped_class)
+	@verify_type('paranoid', sha_digest_size=int)
+	@verify_type(envelope=WMessengerBytesEnvelope)
 	def decode(self, envelope, session, private_key=None, sha_digest_size=32, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 

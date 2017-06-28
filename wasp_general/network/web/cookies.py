@@ -156,7 +156,8 @@ class WHTTPCookie:
 			name = suggested_name
 		return name
 
-	@verify_type(attr_name=str, attr_value=(str, None))
+	@verify_type('paranoid', attr_name=str)
+	@verify_type(attr_value=(str, None))
 	def attr(self, attr_name, attr_value=None):
 		""" Return attribute value. Attribute value can be updated with this method. In order to update
 		attribute value attr_value must be set. Cookie attribute value couldn't be changed if cookie is
@@ -176,7 +177,7 @@ class WHTTPCookie:
 			return attr_value
 		return self.__attrs[name]
 
-	@verify_type(attr_name=str)
+	@verify_type('paranoid', attr_name=str)
 	def remove_attr(self, attr_name):
 		""" Remove cookie attribute. Cookie attribute couldn't be removed if cookie is in read-only mode
 		(RuntimeError exception is raised).
@@ -311,6 +312,7 @@ class WHTTPCookieJar:
 		return cookie_jar
 
 	@classmethod
+	@verify_type(cookie_text=str)
 	def import_header_text(cls, cookie_text):
 		""" Create cookie jar from HTTP Header text like 'Set-Cookie: cookie=value'
 

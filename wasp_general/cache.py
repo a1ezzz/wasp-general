@@ -95,7 +95,7 @@ class WCacheStorage(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
-	@verify_value(decorated_function=lambda x: callable(x))
+	@verify_value('paranoid', decorated_function=lambda x: callable(x))
 	def has(self, decorated_function, *args, **kwargs):
 		""" Check if there is a result for given function
 
@@ -107,7 +107,7 @@ class WCacheStorage(metaclass=ABCMeta):
 		"""
 		return self.get_cache(decorated_function, *args, **kwargs).has_value
 
-	@verify_value(decorated_function=lambda x: callable(x))
+	@verify_value('paranoid', decorated_function=lambda x: callable(x))
 	def get_result(self, decorated_function, *args, **kwargs):
 		""" Get result from storage for specified function. Will raise an exception
 		(:class:`.WCacheStorage.CacheMissedException`) if there is no cached result.
@@ -155,7 +155,7 @@ class WGlobalSingletonCacheStorage(WCacheStorage):
 		except KeyError:
 			raise WCacheStorage.CacheMissedException('No cache record found')
 
-	@verify_value(decorated_function=lambda x: callable(x))
+	@verify_value('paranoid', decorated_function=lambda x: callable(x))
 	def get_cache(self, decorated_function, *args, **kwargs):
 		""" :meth:`WCacheStorage.get_cache` method implementation
 		"""
@@ -204,7 +204,7 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 		:meth:`.WInstanceSingletonCacheStorage.InstanceCacheRecord.create`
 		"""
 
-		@verify_value(decorated_function=lambda x: callable(x))
+		@verify_value('paranoid', decorated_function=lambda x: callable(x))
 		def __init__(self, result, decorated_function):
 			""" Create new cache record
 
@@ -243,7 +243,7 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 			self.__result = result
 
 		@classmethod
-		@verify_value(decorated_function=lambda x: callable(x))
+		@verify_value('paranoid', decorated_function=lambda x: callable(x))
 		def create(cls, result, decorated_function, *args, **kwargs):
 			""" Create new "cache-record" for the specified arguments
 
@@ -275,7 +275,7 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 		self.__cache_missed = 0 if self.__statistic is True else None
 		self.__cache_hit = 0 if self.__statistic is True else None
 
-	@verify_value(decorated_function=lambda x: callable(x))
+	@verify_value('paranoid', decorated_function=lambda x: callable(x))
 	def __check(self, decorated_function, *args, **kwargs):
 		""" Check whether function is a bounded method or not. If check fails then exception is raised
 
@@ -284,6 +284,7 @@ class WInstanceSingletonCacheStorage(WCacheStorage):
 		:param kwargs: kwargs with which function is called
 		:return: None
 		"""
+		# TODO replace this function with decorator which can be turned off like verify_* does
 		if len(args) >= 1:
 			obj = args[0]
 			function_name = decorated_function.__name__

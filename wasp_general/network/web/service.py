@@ -44,7 +44,7 @@ class WSimpleErrorPresenter(WWebErrorPresenter):
 	""" Simple :class:`.WWebErrorPresenter` implementation
 	"""
 
-	@verify_type(request=WWebRequestProto)
+	@verify_type('paranoid', request=WWebRequestProto)
 	def __init__(self, request):
 		""" Create new error presenter
 
@@ -62,8 +62,8 @@ class WSimpleErrorPresenter(WWebErrorPresenter):
 			return self.__messages[code]
 		return 'Internal error: %i' % code
 
-	@verify_type(code=int)
-	@verify_value(code=lambda x: x > 0)
+	@verify_type('paranoid', code=int)
+	@verify_value('paranoid', code=lambda x: x > 0)
 	def error_code(self, code):
 		""" :meth:`.WWebErrorPresenter.error_code` method implementation
 		"""
@@ -233,9 +233,9 @@ class WWebRoute:
 	""" Regexp for source argument compilation
 	"""
 
-	@verify_type(pattern=str, presenter=str, action=str, virtual_hosts=(list, tuple, set))
-	@verify_type(protocols=(list, tuple, set), ports=(list, tuple, set))
-	@verify_type(methods=(list, tuple, set))
+	@verify_type(pattern=str, presenter=str, action=(str, None), virtual_hosts=(list, tuple, set, None))
+	@verify_type(protocols=(list, tuple, set, None), ports=(list, tuple, set, None))
+	@verify_type(methods=(list, tuple, set, None))
 	def __init__(self, pattern, presenter, **kwargs):
 		""" Create new route
 
@@ -512,7 +512,7 @@ class WWebRouteMap(WWebRouteMapProto):
 		self.__routes = []
 		self.__error_presenter = WSimpleErrorPresenter
 
-	@verify_type(request=WWebRequestProto, service=WWebServiceProto)
+	@verify_type('paranoid', request=WWebRequestProto, service=WWebServiceProto)
 	def route(self, request, service):
 		""" :meth:`.WWebRouteMapProto.route` method implementation
 		"""
@@ -536,7 +536,7 @@ class WWebRouteMap(WWebRouteMapProto):
 		"""
 		self.__error_presenter = presenter
 
-	@verify_type(pattern=str, presenter=str)
+	@verify_type('paranoid', pattern=str, presenter=str)
 	def connect(self, pattern, presenter, **kwargs):
 		""" Connect the given pattern with the given presenter
 
@@ -717,7 +717,7 @@ class WWebService(WWebServiceProto):
 		if debugger_session_id is not None:
 			debugger.finalize(debugger_session_id)
 
-	@verify_type(request=WWebRequestProto, target_route=WWebTargetRouteProto)
+	@verify_type('paranoid', request=WWebRequestProto, target_route=WWebTargetRouteProto)
 	def create_presenter(self, request, target_route):
 		""" Create presenter from the given requests and target routes
 
@@ -731,7 +731,7 @@ class WWebService(WWebServiceProto):
 		presenter_class = self.presenter_collection().presenter(presenter_name)
 		return self.presenter_factory().instantiate(presenter_class, request, target_route, self)
 
-	@verify_type(request=WWebRequestProto, target_route=WWebTargetRouteProto)
+	@verify_type('paranoid', request=WWebRequestProto, target_route=WWebTargetRouteProto)
 	def execute(self, request, target_route):
 		""" :meth:`.WWebServiceProto.execute` method implementation
 		"""
@@ -768,8 +768,8 @@ class WWebService(WWebServiceProto):
 
 		return action(*action_args, **action_kwargs)
 
-	@verify_type(pattern=str, presenter=(type, str))
-	@verify_value(presenter=lambda x: issubclass(x, WWebPresenter) or isinstance(x, str))
+	@verify_type('paranoid', pattern=str, presenter=(type, str))
+	@verify_value('paranoid', presenter=lambda x: issubclass(x, WWebPresenter) or isinstance(x, str))
 	def connect(self, pattern, presenter, **kwargs):
 		""" Shortcut for self.route_map().connect() method. It is possible to pass presenter class instead of
 		its name - in that case such class will be saved in presenter collection and it will be available in
@@ -799,7 +799,8 @@ class WWebService(WWebServiceProto):
 			for route in presenter.__public_routes__():
 				self.route_map().append(route)
 
-	@verify_type(request=WWebRequestProto, original_target_route=WWebTargetRoute, presenter_name=str)
+	@verify_type('paranoid', request=WWebRequestProto, presenter_name=str)
+	@verify_type(original_target_route=WWebTargetRoute)
 	def proxy(self, request, original_target_route, presenter_name, **kwargs):
 		""" Execute the given presenter as a target for the given client request
 
@@ -832,7 +833,8 @@ class WWebEnhancedPresenter(WWebPresenter, metaclass=ABCMeta):
 	could use an origin service instance and an origin target route
 	"""
 
-	@verify_type(request=WWebRequestProto, target_route=WWebTargetRoute, service=WWebService)
+	@verify_type('paranoid', request=WWebRequestProto)
+	@verify_type(target_route=WWebTargetRoute, service=WWebService)
 	def __init__(self, request, target_route, service):
 		""" Create new enhanced presenter
 
@@ -868,7 +870,7 @@ class WWebEnhancedPresenter(WWebPresenter, metaclass=ABCMeta):
 		"""
 		return tuple()
 
-	@verify_type(presenter_name=str)
+	@verify_type('paranoid', presenter_name=str)
 	def __proxy__(self, presenter_name, **kwargs):
 		""" Execute the given presenter as a target for the original client request
 
@@ -934,8 +936,8 @@ class WWebPresenterFactory(WWebPresenterFactoryProto):
 		"""
 		return presenter_class.__init__ in self.__constructors.keys()
 
-	@verify_type(request=WWebRequestProto, target_route=WWebTargetRouteProto, service=WWebService)
-	@verify_subclass(presenter_class=WWebPresenter)
+	@verify_type('paranoid', request=WWebRequestProto, target_route=WWebTargetRouteProto, service=WWebService)
+	@verify_subclass('paranoid', presenter_class=WWebPresenter)
 	def instantiate(self, presenter_class, request, target_route, service, *args, **kwargs):
 		""" :meth:`.WWebPresenterFactoryProto.instantiate` method implementation.
 

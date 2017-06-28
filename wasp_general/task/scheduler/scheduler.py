@@ -49,7 +49,7 @@ class WSchedulerWatchingDog(WPollingThreadTask):
 	def create(cls, task_schedule, registry, thread_name):
 		return cls(task_schedule, registry, thread_name)
 
-	@verify_type(task_schedule=WTaskSchedule)
+	@verify_type('paranoid', task_schedule=WTaskSchedule)
 	def __init__(self, task_schedule, registry, thread_name):
 		WPollingThreadTask.__init__(self, thread_name=thread_name)
 		if isinstance(registry, WRunningTaskRegistry) is False:
@@ -114,7 +114,7 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 		return self.__watching_dog_cls
 
 	@WCriticalResource.critical_section()
-	@verify_type(task_schedule=WTaskSchedule)
+	@verify_type('paranoid', task_schedule=WTaskSchedule)
 	def exec(self, task_schedule):
 		watching_dog = self.watching_dog_class().create(
 			task_schedule, self, 'TaskScheduler-WatchingDog-%s' % str(uuid.uuid4())
@@ -302,10 +302,11 @@ class WTaskSchedulerService(WTaskSchedulerProto, WPollingThreadTask):
 	__thread_polling_timeout__ = WPollingThreadTask.__thread_polling_timeout__ / 4
 	__default_maximum_running_tasks__ = 10
 
-	@verify_type(maximum_running_tasks=(int, None), maximum_postponed_tasks=(int, None))
+	@verify_type('paranoid', maximum_postponed_tasks=(int, None))
+	@verify_value('paranoid', maximum_postponed_tasks=lambda x: x is None or x > 0)
+	@verify_subclass('paranoid', watching_dog_cls=(WSchedulerWatchingDog, None))
+	@verify_type(maximum_running_tasks=(int, None))
 	@verify_value(maximum_running_tasks=lambda x: x is None or x > 0)
-	@verify_value(maximum_postponed_tasks=lambda x: x is None or x > 0)
-	@verify_subclass(watching_dog_cls=(WSchedulerWatchingDog, None))
 	def __init__(self, maximum_running_tasks=None, maximum_postponed_tasks=None, watching_dog_cls=None):
 		WTaskSchedulerProto.__init__(self)
 		WPollingThreadTask.__init__(self, thread_name='TaskScheduler')

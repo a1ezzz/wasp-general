@@ -78,8 +78,8 @@ class WHTTPHeaders:
 		"""
 		return tuple(self.__headers.keys())
 
-	@verify_type(header_name=str)
-	@verify_value(header_name=lambda x: WHTTPHeaders.header_name_check(x))
+	@verify_type('paranoid', header_name=str)
+	@verify_value('paranoid', header_name=lambda x: WHTTPHeaders.header_name_check(x))
 	def remove_headers(self, header_name):
 		""" Remove header by its name
 
@@ -92,8 +92,9 @@ class WHTTPHeaders:
 		if header_name in self.__headers.keys():
 			self.__headers.pop(header_name)
 
-	@verify_type(header_name=str, value=str, values=str)
-	@verify_value(header_name=lambda x: WHTTPHeaders.header_name_check(x))
+	@verify_type('paranoid', header_name=str)
+	@verify_value('paranoid', header_name=lambda x: WHTTPHeaders.header_name_check(x))
+	@verify_type(value=str, values=str)
 	def add_headers(self, header_name, value, *values):
 		""" Add new header
 
@@ -114,8 +115,8 @@ class WHTTPHeaders:
 		for single_value in values:
 			self.__headers[header_name].append(single_value)
 
-	@verify_type(header_name=str, value=str, values=str)
-	@verify_value(header_name=lambda x: WHTTPHeaders.header_name_check(x))
+	@verify_type('paranoid', header_name=str, value=str, values=str)
+	@verify_value('paranoid', header_name=lambda x: WHTTPHeaders.header_name_check(x))
 	def replace_headers(self, header_name, value, *values):
 		""" Replace header value with specified value and/or values
 
@@ -131,8 +132,8 @@ class WHTTPHeaders:
 		self.remove_headers(header_name)
 		self.add_headers(header_name, value, *values)
 
-	@verify_type(header_name=str)
-	@verify_value(header_name=lambda x: WHTTPHeaders.header_name_check(x))
+	@verify_type('paranoid', header_name=str)
+	@verify_value('paranoid', header_name=lambda x: WHTTPHeaders.header_name_check(x))
 	def get_headers(self, header_name):
 		""" Return header value by its name
 
@@ -143,8 +144,8 @@ class WHTTPHeaders:
 		if header_name in self.__headers.keys():
 			return tuple(self.__headers[header_name])
 
-	@verify_type(item=str)
-	@verify_value(item=lambda x: WHTTPHeaders.header_name_check(x))
+	@verify_type('paranoid', item=str)
+	@verify_value('paranoid', item=lambda x: WHTTPHeaders.header_name_check(x))
 	def __getitem__(self, item):
 		""" Return header value by its name
 
@@ -204,7 +205,7 @@ class WHTTPHeaders:
 		ro_headers.__ro_flag = True
 		return ro_headers
 
-	@verify_type(value=(str, None))
+	@verify_type('paranoid', value=(str, None))
 	def content_type(self, value=None):
 		""" Set (replace) and or get "Content-Type" header value
 
@@ -242,12 +243,13 @@ class WHTTPHeaders:
 		return cookie_jar.ro()
 
 	@classmethod
+	@verify_type(http_code=str)
 	def import_headers(cls, http_code):
 		""" Create WHTTPHeaders by the given code. If code has 'Set-Cookie' headers, that headers are
 		parsed, data are stored in internal cookie jar. At the end of parsing 'Set-Cookie' headers are
 		removed from the result
 
-		:param http_code: HTP code to parse
+		:param http_code: HTTP code to parse
 		:return: WHTTPHeaders
 		"""
 		headers = WHTTPHeaders()

@@ -43,6 +43,7 @@ class WWebResponse(WWebResponseProto):
 		:param headers: response headers
 		:param response_data: response data
 		"""
+		WWebResponseProto.__init__(self)
 		self.__status = status
 		self.__headers = headers
 		self.__response_data = response_data

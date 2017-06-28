@@ -72,12 +72,12 @@ class WCronSchedule:
 		self.__start_datetime = start_datetime
 		self.__next_start = None
 
-	@verify_type(year=int, month=int, day=int, hour=int, minute=int)
-	@verify_value(year=lambda x: x > 0)
-	@verify_value(month=lambda x: x is None or (1 <= x <= 12))
-	@verify_value(day=lambda x: x is None or (1 <= x <= 31))
-	@verify_value(hour=lambda x: x is None or (0 <= x <= 23))
-	@verify_value(minute=lambda x: x is None or (0 <= x <= 59))
+	@verify_type('paranoid', year=int, month=int, day=int, hour=int, minute=int)
+	@verify_value('paranoid', year=lambda x: x > 0)
+	@verify_value('paranoid', month=lambda x: x is None or (1 <= x <= 12))
+	@verify_value('paranoid', day=lambda x: x is None or (1 <= x <= 31))
+	@verify_value('paranoid', hour=lambda x: x is None or (0 <= x <= 23))
+	@verify_value('paranoid', minute=lambda x: x is None or (0 <= x <= 59))
 	def _datetime(self, year, month, day, hour, minute):
 		return datetime(year, month, day, hour, minute)
 
@@ -286,14 +286,14 @@ class WCronSchedule:
 
 class WCronUTCSchedule(WCronSchedule):
 
-	@verify_type(start_datetime=(datetime, None), minute=(int, None), hour=(int, None), day_of_month=(int, None))
-	@verify_type(day_of_week=(int, None), month=(int, None))
+	@verify_type('paranoid', start_datetime=(datetime, None), minute=(int, None), hour=(int, None))
+	@verify_type('paranoid', day_of_month=(int, None), day_of_week=(int, None), month=(int, None))
+	@verify_value('paranoid', minute=lambda x: x is None or (0 <= x <= 59))
+	@verify_value('paranoid', hour=lambda x: x is None or (0 <= x <= 23))
+	@verify_value('paranoid', day_of_month=lambda x: x is None or (1 <= x <= 31))
+	@verify_value('paranoid', day_of_week=lambda x: x is None or (1 <= x <= 7))
+	@verify_value('paranoid', month=lambda x: x is None or (1 <= x <= 12))
 	@verify_value(start_datetime=lambda x: x.tzinfo is not None and x.tzinfo == timezone.utc)
-	@verify_value(minute=lambda x: x is None or (0 <= x <= 59))
-	@verify_value(hour=lambda x: x is None or (0 <= x <= 23))
-	@verify_value(day_of_month=lambda x: x is None or (1 <= x <= 31))
-	@verify_value(day_of_week=lambda x: x is None or (1 <= x <= 7))
-	@verify_value(month=lambda x: x is None or (1 <= x <= 12))
 	def __init__(self, start_datetime=None, minute=None, hour=None, day_of_month=None, day_of_week=None, month=None):
 		WCronSchedule.__init__(
 			self, start_datetime, minute=minute, hour=hour, day_of_month=day_of_month,
@@ -305,12 +305,12 @@ class WCronUTCSchedule(WCronSchedule):
 	def _set_start_datetime(self, start_datetime):
 		WCronSchedule._set_start_datetime(self, start_datetime)
 
-	@verify_type(year=int, month=int, day=int, hour=int, minute=int)
-	@verify_value(year=lambda x: x > 0)
-	@verify_value(month=lambda x: x is None or (1 <= x <= 12))
-	@verify_value(day=lambda x: x is None or (1 <= x <= 31))
-	@verify_value(hour=lambda x: x is None or (0 <= x <= 23))
-	@verify_value(minute=lambda x: x is None or (0 <= x <= 59))
+	@verify_type('paranoid', year=int, month=int, day=int, hour=int, minute=int)
+	@verify_value('paranoid', year=lambda x: x > 0)
+	@verify_value('paranoid', month=lambda x: x is None or (1 <= x <= 12))
+	@verify_value('paranoid', day=lambda x: x is None or (1 <= x <= 31))
+	@verify_value('paranoid', hour=lambda x: x is None or (0 <= x <= 23))
+	@verify_value('paranoid', minute=lambda x: x is None or (0 <= x <= 59))
 	def _datetime(self, year, month, day, hour, minute):
 		return utc_datetime(datetime(year, month, day, hour, minute), local_value=False)
 
@@ -333,8 +333,9 @@ class WCronUTCSchedule(WCronSchedule):
 
 class WCronTaskSchedule(WTaskSchedule):
 
-	@verify_type(schedule=WCronUTCSchedule, task=WScheduledTask, task_id=(str, None))
-	@verify_value(on_drop=lambda x: x is None or callable(x))
+	@verify_type('paranoid', task=WScheduledTask, task_id=(str, None))
+	@verify_value('paranoid', on_drop=lambda x: x is None or callable(x))
+	@verify_type(schedule=WCronUTCSchedule, omit_skipped=bool)
 	def __init__(self, cron_schedule, task, policy=None, task_id=None, on_drop=None, omit_skipped=True):
 		WTaskSchedule.__init__(self, task, policy=policy, task_id=task_id, on_drop=on_drop)
 		self.__schedule = cron_schedule
@@ -367,12 +368,12 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 		self.scheduler().update(task_source=self)
 
 	@WCriticalResource.critical_section()
-	@verify_type(task=WCronTaskSchedule)
+	@verify_type('paranoid', task=WCronTaskSchedule)
 	def __add_task(self, task):
 		self.__tasks.append(task)
 		self.__update(task)
 
-	@verify_type(task=(WCronTaskSchedule, None))
+	@verify_type('paranoid', task=(WCronTaskSchedule, None))
 	def __update(self, task=None):
 		if task is not None:
 			next_start = task.cron_schedule().next_start()

@@ -54,7 +54,7 @@ class WMessengerOnionModeLayerProto(WMessengerOnionLayerProto):
 		WMessengerOnionLayerProto.__init__(self, name)
 		self.__mode_cls = mode_cls
 
-	@verify_type(envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
 	def process(self, envelope, session, mode=None, **kwargs):
 		""" :meth:`.WMessengerOnionLayerProto.process` implementation
 		"""
@@ -104,7 +104,7 @@ class WMessengerOnionCoderLayerProto(WMessengerOnionModeLayerProto):
 		"""
 		WMessengerOnionModeLayerProto.__init__(self, name, WMessengerOnionCoderLayerProto.Mode)
 
-	@verify_type(envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
 	def _process(self, envelope, session, mode, **kwargs):
 		""" :meth:`.WMessengerOnionLayerProto.process` implementation
 		"""
@@ -158,7 +158,7 @@ class WMessengerOnionPackerLayerProto(WMessengerOnionModeLayerProto):
 	def __init__(self, name):
 		WMessengerOnionModeLayerProto.__init__(self, name, WMessengerOnionPackerLayerProto.Mode)
 
-	@verify_type(envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
+	@verify_type('paranoid', envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
 	def _process(self, envelope, session, mode, **kwargs):
 		""" :meth:`.WMessengerOnionLayerProto.process` implementation
 		"""

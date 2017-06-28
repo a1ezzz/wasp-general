@@ -113,35 +113,39 @@ class WBeaconMessenger(WBeaconMessengerBase):
 	""" Client request
 	"""
 
-	@verify_type(beacon_config=WConfig)
+	@verify_type('paranoid', beacon_config=WConfig)
 	def request(self, beacon_config):
 		""" :meth:`.WBeaconMessengerBase.request` method implementation.
 		Sends :attr:`.WBeaconMessenger.__beacon_hello_msg__` to a server
 		"""
 		return self.__beacon_hello_msg__
 
-	@verify_type(beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, client_address=WIPV4SocketInfo)
+	@verify_type(request=bytes)
 	def has_response(self, beacon_config, request, client_address):
 		""" :meth:`.WBeaconMessengerBase.has_response` method implementation. This class has a response only if
 		the request wasn't empty
 		"""
 		return True if len(request) > 0 else False
 
-	@verify_type(beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, client_address=WIPV4SocketInfo)
+	@verify_type(request=bytes)
 	def response(self, beacon_config, request, client_address):
 		""" :meth:`.WBeaconMessengerBase.response` method implementation.
 		In response sends the same data as server has got
 		"""
 		return request
 
-	@verify_type(beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, request=bytes)
+	@verify_type(client_address=WIPV4SocketInfo)
 	def response_address(self, beacon_config, request, client_address):
 		""" :meth:`.WBeaconMessengerBase.request` method implementation.
 		Return the same address, that server detects (assume that clients address is correct)
 		"""
 		return client_address
 
-	@verify_type(beacon_config=WConfig, response=bytes, server_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, response=bytes, server_address=WIPV4SocketInfo)
+	@verify_type(response=bytes)
 	def valid_response(self, beacon_config, response, server_address):
 		""" :meth:`.WBeaconMessengerBase.valid_response` method implementation. Response is valid if it has
 		anything.
@@ -208,7 +212,7 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 			hello_message.append(self.__gouverneur_message[i])
 		return bytes(hello_message)
 
-	@verify_type(beacon_config=WConfig, invert_hello=bool)
+	@verify_type('paranoid', beacon_config=WConfig, invert_hello=bool)
 	def _message(self, beacon_config, invert_hello=False):
 		""" Generate request/response message.
 
@@ -275,7 +279,7 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 
 		return WIPV4SocketInfo(address, port)
 
-	@verify_type(beacon_config=WConfig)
+	@verify_type('paranoid', beacon_config=WConfig)
 	def request(self, beacon_config):
 		""" :meth:`.WBeaconMessengerBase.request` method implementation.
 
@@ -283,7 +287,7 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 		"""
 		return self._message(beacon_config)
 
-	@verify_type(beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
 	def has_response(self, beacon_config, request, client_address):
 		""" :meth:`.WBeaconMessengerBase.has_response` method implementation. This method compares request
 		header with internal one.
@@ -295,7 +299,7 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 			pass
 		return False
 
-	@verify_type(beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
 	def response(self, beacon_config, request, client_address):
 		""" :meth:`.WBeaconMessengerBase.request` method implementation.
 
@@ -303,7 +307,8 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 		"""
 		return self._message(beacon_config, invert_hello=self.__invert_hello)
 
-	@verify_type(beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, request=bytes)
+	@verify_type(client_address=WIPV4SocketInfo)
 	def response_address(self, beacon_config, request, client_address):
 		""" :meth:`.WBeaconMessengerBase.request` method implementation.
 
@@ -317,7 +322,7 @@ class WBeaconGouverneurMessenger(WBeaconMessengerBase):
 			port if port is not None else client_address.port()
 		)
 
-	@verify_type(beacon_config=WConfig, response=bytes, server_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, response=bytes, server_address=WIPV4SocketInfo)
 	def valid_response(self, beacon_config, response, server_address):
 		""" :meth:`.WBeaconMessengerBase.valid_response` method implementation. Response when it has correct
 		header. Response header must be reversed if this messenger was constructed with 'invert_hello' flag.
@@ -368,9 +373,10 @@ class WHostgroupBeaconMessenger(WBeaconGouverneurMessenger):
 	""" Regular expression for host group name validation
 	"""
 
-	@verify_type(hello_message=bytes, invert_hello=bool, hostgroup_names=str)
-	@verify_value(hello_message=lambda x: len(x.decode('ascii')) >= 0)
-	@verify_value(hello_message=lambda x: WHostgroupBeaconMessenger.__message_groups_splitter__ not in x)
+	@verify_type('paranoid', hello_message=bytes, invert_hello=bool)
+	@verify_value('paranoid', hello_message=lambda x: len(x.decode('ascii')) >= 0)
+	@verify_value('paranoid', hello_message=lambda x: WHostgroupBeaconMessenger.__message_groups_splitter__ not in x)
+	@verify_type(hostgroup_names=str)
 	@verify_value(hostgroup_names=lambda x: WHostgroupBeaconMessenger.re_hostgroup_name.match(x) is not None)
 	def __init__(self, hello_message, *hostgroup_names, invert_hello=False):
 		""" Create new messenger
@@ -390,7 +396,7 @@ class WHostgroupBeaconMessenger(WBeaconGouverneurMessenger):
 		"""
 		return [x.decode() for x in self.__hostgroups]
 
-	@verify_type(beacon_config=WConfig, invert_hello=bool)
+	@verify_type('paranoid', beacon_config=WConfig, invert_hello=bool)
 	def _message(self, beacon_config, invert_hello=False):
 		""" Overridden :meth:`.WBeaconGouverneurMessenger._message` method. Appends encoded host group names
 		to requests and responses.
@@ -432,7 +438,7 @@ class WHostgroupBeaconMessenger(WBeaconGouverneurMessenger):
 		else:
 			raise ValueError('Invalid message. Too many separators')
 
-	@verify_type(beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
 	def has_response(self, beacon_config, request, client_address):
 		""" :meth:`.WBeaconMessengerBase.has_response` method implementation. This method compares request
 		headers as :meth:`.WBeaconGouverneurMessenger.has_response` do and compares specified group names
@@ -452,7 +458,8 @@ class WHostgroupBeaconMessenger(WBeaconGouverneurMessenger):
 			pass
 		return False
 
-	@verify_type(beacon_config=WConfig, request=bytes, client_address=WIPV4SocketInfo)
+	@verify_type('paranoid', beacon_config=WConfig, request=bytes)
+	@verify_type(client_address=WIPV4SocketInfo)
 	def response_address(self, beacon_config, request, client_address):
 		""" :meth:`.WBeaconMessengerBase.response_address` method implementation. It just removes host group names
 		part and return :meth:`.WBeaconMessengerBase.response_address` result

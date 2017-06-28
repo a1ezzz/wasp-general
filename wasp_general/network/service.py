@@ -203,8 +203,9 @@ class WNativeSocketHandler(WBasicNativeSocketHandler):
 	is capable to set up the specified IO-handler with :class:`.WIOLoopService` service
 	"""
 
-	@verify_type(server_mode=bool, transport=WNetworkNativeTransportProto, config=WConfig)
-	@verify_type(io_handler=WNativeSocketIOHandler)
+	@verify_type('paranoid', transport=WNetworkNativeTransportProto, config=WConfig)
+	@verify_type('paranoid', io_handler=WNativeSocketIOHandler)
+	@verify_type(server_mode=bool)
 	def __init__(self, transport, config, io_handler, server_mode):
 		""" Create new loop-handler
 
@@ -372,8 +373,9 @@ class WZMQHandler(WIOLoopServiceHandler, metaclass=ABCMeta):
 
 class WZMQService(WIOLoopService):
 
-	@verify_type(setup_agent=WZMQHandler.SetupAgent, loop=(IOLoop, None), handler=(WZMQHandler, None))
-	@verify_type(receive_agent=(WZMQHandler.ReceiveAgent, None), timeout=(int, None))
+	@verify_type('paranoid', setup_agent=WZMQHandler.SetupAgent, loop=(IOLoop, None))
+	@verify_type('paranoid', receive_agent=(WZMQHandler.ReceiveAgent, None), timeout=(int, None))
+	@verify_type(handler=(WZMQHandler, None))
 	def __init__(self, setup_agent, loop=None, handler=None, receive_agent=None, timeout=None):
 		if handler is None:
 			handler = WZMQHandler()

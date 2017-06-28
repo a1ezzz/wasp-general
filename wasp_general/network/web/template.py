@@ -90,7 +90,8 @@ class WWebTemplateLookup(WWebTemplate):
 
 class WWebTemplateResponse(WWebResponse):
 
-	@verify_type(template=WWebTemplate, context=(None, dict), status=(int, None), headers=(WHTTPHeaders, None))
+	@verify_type('paranoid', status=(int, None))
+	@verify_type(template=WWebTemplate, context=(None, dict), headers=(WHTTPHeaders, None))
 	def __init__(self, template, context=None, status=None, headers=None):
 		WWebResponse.__init__(self, status=status, headers=(headers if headers is not None else WHTTPHeaders()))
 		self.__template = template

@@ -59,7 +59,7 @@ class WMACAddress:
 	""" Regular expression for MAC address written without separator like '001122334455'
 	"""
 
-	@verify_type(address=(str, WBinArray, int, None))
+	@verify_type('paranoid', address=(str, WBinArray, int, None))
 	def __init__(self, address=None):
 		""" Construct new address
 
@@ -138,7 +138,7 @@ class WIPV4Address:
 	""" Address bytes count
 	"""
 
-	@verify_type(address=(str, bytes, WBinArray, int, None))
+	@verify_type('paranoid', address=(str, bytes, WBinArray, int, None))
 	def __init__(self, address=None):
 		""" Create new address
 
@@ -317,7 +317,7 @@ class WNetworkIPV4:
 		"""
 		return WNetworkIPV4Iterator(self, skip_network_address, skip_broadcast_address)
 
-	@verify_type(item=WIPV4Address)
+	@verify_type(address=WIPV4Address)
 	def __contains__(self, address):
 		""" Check if this network contains specified IP address.
 
@@ -392,7 +392,7 @@ class WIPPort:
 	"""
 
 	@verify_type(port=int)
-	@verify_value(port=lambda x: x >= WIPPort.minimum_port_number and x <= WIPPort.maximum_port_number)
+	@verify_value(port=lambda x: WIPPort.minimum_port_number <= x <= WIPPort.maximum_port_number)
 	def __init__(self, port):
 		""" Construct new IP port
 
@@ -508,7 +508,7 @@ class WIPV4SocketInfo:
 	see :meth:`.WIPV4SocketInfo.pair`
 	"""
 
-	@verify_type(address=(WFQDN, WIPV4Address, str, WBinArray, int, None), port=(WIPPort, int, None))
+	@verify_type('paranoid', address=(WFQDN, WIPV4Address, str, WBinArray, int, None), port=(WIPPort, int, None))
 	def __init__(self, address=None, port=None):
 		""" Construct new pair
 

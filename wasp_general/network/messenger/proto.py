@@ -177,7 +177,7 @@ class WMessengerOnionSessionFlowProto(metaclass=ABCMeta):
 		next. Iterators next layer (next iterator) can be defined at a runtime.
 		"""
 
-		@verify_type(layer_name=str)
+		@verify_type('paranoid', layer_name=str)
 		def __init__(self, layer_name, next_iterator=None, **kwargs):
 			""" Create iterator with the specified layer call information and the layer to be called next.
 
@@ -191,7 +191,7 @@ class WMessengerOnionSessionFlowProto(metaclass=ABCMeta):
 					raise TypeError('Invalid type for next_iterator argument')
 			self.__next_iterator = next_iterator
 
-		@verify_type(envelope=WMessengerEnvelopeProto)
+		@verify_type('paranoid', envelope=WMessengerEnvelopeProto)
 		def next(self, envelope):
 			""" Return next layer (iterator) to be called or None to stop execution
 
