@@ -15,15 +15,15 @@ class TestWThreadTask:
 		assert(issubclass(WThreadTask, WStoppableTask) is True)
 		assert(issubclass(WThreadTask, WTerminatableTask) is False)
 		pytest.raises(TypeError, WThreadTask)
-		pytest.raises(NotImplementedError, WThreadTask.start, None)
-		pytest.raises(NotImplementedError, WThreadTask.stop, None)
+		pytest.raises(NotImplementedError, WThreadTask.thread_started, None)
+		pytest.raises(NotImplementedError, WThreadTask.thread_stopped, None)
 
 		class T(WThreadTask):
 
-			def start(self):
+			def thread_started(self):
 				pass
 
-			def stop(self):
+			def thread_stopped(self):
 				pass
 
 		T()
@@ -36,17 +36,17 @@ class TestWThreadTask:
 
 			call_stack = []
 
-			def start(self):
+			def thread_started(self):
 				FastTask.call_stack.append('FastTask.start')
 
-			def stop(self):
+			def thread_stopped(self):
 				FastTask.call_stack.append('FastTask.stop')
 
 		class SlowTask(FastTask):
 
 			sleep_time = 0.5
 
-			def start(self):
+			def thread_started(self):
 				FastTask.start(self)
 				time.sleep(SlowTask.sleep_time)
 
@@ -185,13 +185,13 @@ class TestWPollingThreadTask:
 		def _polling_iteration(self):
 			TestWPollingThreadTask.Task.call_stack.append('Task iteration')
 
-		def stop(self):
+		def thread_stopped(self):
 			TestWPollingThreadTask.Task.call_stack.append('Task stop')
 
 	def test(self):
 		pytest.raises(TypeError, WPollingThreadTask)
 		pytest.raises(NotImplementedError, WPollingThreadTask._polling_iteration, None)
-		pytest.raises(NotImplementedError, WPollingThreadTask.stop, None)
+		pytest.raises(NotImplementedError, WPollingThreadTask.thread_stopped, None)
 
 		task = TestWPollingThreadTask.Task()
 		assert(isinstance(task, WPollingThreadTask) is True)
@@ -233,28 +233,30 @@ class TestWThreadedTaskChain:
 		assert(isinstance(chain, WThreadedTaskChain) is True)
 		assert(isinstance(chain, WPollingThreadTask) is True)
 
-		assert (chain.stop_event().is_set() is False)
+		assert (chain.ready_event().is_set() is False)
 		chain.start()
 		time.sleep(polling_timeout * 5)
-		assert(chain.stop_event().is_set() is True)
+		assert(chain.ready_event().is_set() is True)
 		chain.stop()
 
 		class Task(WThreadTask):
 
 			call_trace = []
 
-			def __init__(self, sleep_timeout, call_trace_id):
-				WThreadTask.__init__(self)
+			def __init__(self, sleep_timeout, call_trace_id, ready_to_stop=True):
+				WThreadTask.__init__(self, ready_to_stop=ready_to_stop)
 				self.__sleep_timeout = sleep_timeout
 				self.__trace_id = call_trace_id
 
-			def start(self):
+			def thread_started(self):
 				time.sleep(self.__sleep_timeout)
 				Task.call_trace.append(self.__trace_id)
 				self.stop_event().set()
 
-			def stop(self):
+			def thread_stopped(self):
 				pass
+
+		pytest.raises(ValueError, WThreadedTaskChain, Task(0, 'task', ready_to_stop=False))
 
 		task1_sleep_timeout = 0.1
 		task1 = Task(task1_sleep_timeout, 'task1')

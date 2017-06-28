@@ -38,7 +38,11 @@ class WThreadJoiningTimeoutError(Exception):
 
 
 class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
-	""" Task that runs in a separate thread.
+	""" Task that runs in a separate thread. Since there is no right way in Python to stop or terminate neighbor
+	thread, so it's highly important for derived classes to be capable to stop correctly.
+
+	This class implements :meth:`.WTask.start` method by creating new thread. Thread that is call
+	:meth:`.WTask.thread_started` method.
 	"""
 
 	__thread_join_timeout__ = 10
@@ -50,39 +54,38 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 	@verify_type(thread_name=(str, None), join_on_stop=bool, ready_to_stop=bool)
 	@verify_type(thread_join_timeout=(int, float, None))
 	def __init__(self, thread_name=None, join_on_stop=True, ready_to_stop=False, thread_join_timeout=None):
-		""" Construct new threaded task. Since there is no right way in Python to stop or terminate neighbor
-		thread, so it's highly important for derived classed to be capable to be stopped correctly.
+		""" Construct new threaded task.
 
-		Original object "start" (and sometimes "stop") methods are "decorated" inside constructor with
-		:meth:`.WThreadTask._decorate_start` and :meth:`.WThreadTask._decorate_stop` methods. This decoration
-		helps to write derived start method in synchronous (foreground) way, and the same code will be called
-		in a separate thread.
+		If 'ready_to_stop' is True, then thread event object is created (can be accessed through
+		:meth:`.WThreadTask.ready_event`). This event shows, that this thread task has been done and it
+		is ready to be stopped correctly. This event is set automatically after :meth:`.WTask.thread_started`
+		method call. So, it implies that this method doesn't call extra thread or process creation,
+		or :meth:`.WTask.thread_started` method waits for a thread/process termination. It implies that there
+		are no leftover threads or processes (which can be cleaned up later, in the
+		:meth:`.WTask.thread_stopped` method).
 
-		If ready_to_stop is True, then it implies that "start" method doesn't call extra thread or process
-		creation, or "start" method waits for a thread/process termination. It implies that there are no
-		leftover threads or processes. So if this flag is set, then ready event is accessible via
-		:meth:`.WThreadTask.ready_event` method, and this event will be marked at the "start" method end
+		If 'join_on_stop' is True, then thread event object is created (can be accessed through
+		:meth:`.WThreadTask.stop_event`). This event shows, that there was a request for task to stop. Since
+		task can be requested to stop at any time (application terminated, task canceled, ...) , it is
+		better to enable and poll this flag. This flag enables automatic call of thread cleanup. When
+		this flag is False, then child class must do all the cleaning itself (like
+		thread joining and :meth:`.WThreadTask.close_thread` method calling).
 
-		If join_on_stop is True, then this constructor wraps stop method with join call (timeout are defined
-		with WThreadTask.__thread_join_timeout__ and thread_join_timeout). It means, that derived class can
-		be interrupt at any time, so task have to poll :meth:`.WThreadTask.stop_event` event for
-		notification of stopping.
+		With both flags ('ready_to_stop' and 'join_on_stop') there can be a situation, when ready event
+		wasn't set, but stop event has been set already. This situation shows, that task was terminated
+		before completion.
 
-		If join_on_stop is False, then child class must do all the stop-work itself (after that
-		:meth:`.WThreadTask.close_thread` method must be called, otherwise task wouldn't start again).
+		:note: With join_on_stop flag enabled, :meth:`.WThreadTask.stop` method can not be called from the same
+		execution thread. It means, that it can not be called from :meth:`.WThreadTask.start` or
+		:meth:`.WThreadTask.thread_start` methods in direct or indirect way.
 
-		:note: With join_on_stop flag enabled, WThreadTask.stop method can not be called from the same
-		execution thread. It means, that it can not be called from WThreadTask.start method in direct or
-		indirect way.
-
-		:param thread_name: name of the thread. It is used only in thread constructor as name value
-		:param join_on_stop: define whether to decorate stop method or not. If task isn't stop for \
-		:meth:`.WThreadTask.join_timeout` period of time, then :class:`.WThreadJoiningTimeoutError` will be \
-		raised. When flag is set, stop event object is created (is accessible from \
-		:meth:`.WThreadTask.stop_event`)
-		:param ready_to_stop: flag creates ready event, which will be set at the task end
+		:param thread_name: name of the thread. It is used in thread constructor as name value only
+		:param join_on_stop: define whether to create stop event object or not.
+		:param ready_to_stop: define whether to create ready event object or not
 		:param thread_join_timeout: timeout for joining operation. If it isn't set then default \
-		:attr:`.WThreadTask.__thread_join_timeout__` value will be used.
+		:attr:`.WThreadTask.__thread_join_timeout__` value will be used. This value is used in \
+		:meth:`.WThreadTask.close_thread` method and if thread wasn't stopped for this period of time, then \
+		:class:`.WThreadJoiningTimeoutError` exception will be raised.
 		"""
 		WStoppableTask.__init__(self)
 		WTaskStatus.__init__(self, decorate_start=False, decorate_stop=False)
@@ -94,12 +97,6 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 		self.__thread_name = thread_name if thread_name is not None else self.__class__.__thread_name__
 		self.__stop_event = Event() if join_on_stop is True else None
 		self.__ready_event = Event() if ready_to_stop is True else None
-
-		self.__original_start = self.start
-		self.__original_stop = self.stop
-
-		self._decorate_start()
-		self._decorate_stop()
 
 	def thread(self):
 		""" Return current Thread object (or None if task wasn't started)
@@ -116,15 +113,15 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 		return self.__thread_name
 
 	def stop_event(self):
-		""" Return stop event object. Flag will be set if this object was constructed with join_on_stop=True
+		""" Return stop event object. Event will be available if object was constructed with join_on_stop flag
 
 		:return: Event or None
 		"""
 		return self.__stop_event
 
 	def ready_event(self):
-		""" Return readiness event object. Flag will be set if this object was constructed with
-		ready_to_stop=True
+		""" Return readiness event object. Event will be available if object was constructed with ready_to_stop
+		flag
 
 		:return: Event or None
 		"""
@@ -159,63 +156,46 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 		"""
 		return self.__thread is not None
 
-	def original_start(self):
-		""" Return original (non-decorated) "start" method
-
-		:return: function
+	def start(self):
+		""" :meth:`WStoppableTask.start` implementation that creates new thread
 		"""
-		return self.__original_start
-
-	def original_stop(self):
-		""" Return original (non-decorated) "stop" method
-
-		:return: function
-		"""
-		return self.__original_stop
-
-	def _decorate_start(self):
-		""" Decorate original start method with the thread magic and replace object "start" method
-
-		:return: None
-		"""
-
-		thread_target = self.original_start()
-
-		if self.ready_event() is not None:
-			def foreground_task():
-				self.original_start()()
+		def thread_target():
+			self.thread_started()
+			if self.ready_event() is not None:
 				self.ready_event().set()
 
-			thread_target = foreground_task
+		if self.__thread is None:
+			self.__thread = Thread(target=thread_target, name=self.thread_name())
+			self.__thread.start()
 
-		def start():
-			if self.__thread is None:
-				self.__thread = Thread(target=thread_target, name=self.thread_name())
-				self.__thread.start()
-		self.start = start
-
-	def _decorate_stop(self):
-		""" Decorate and replace original stop method with the thread finalization routine
-		(if appropriate flag was set)
-
-		:return: None
+	def stop(self):
+		""" :meth:`WStoppableTask.stop` implementation that sets stop even (if available), calls
+		:meth:`WStoppableTask.threaded_stopped` and cleans up thread (if configured)
 		"""
-
-		if self.stop_event() is None:
-			self.stop = self.original_stop()
-			return
-
-		def stop():
-			thread = self.thread()
-			if thread is not None:
+		thread = self.thread()
+		if thread is not None:
+			if self.stop_event() is not None:
 				self.stop_event().set()
 
-			self.original_stop()()
+			self.thread_stopped()
 
-			if thread is not None:
+			if self.stop_event() is not None:
 				thread.join(self.join_timeout())
 				self.close_thread()
-		self.stop = stop
+
+	@abstractmethod
+	def thread_started(self):
+		""" Real task that do all the work
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def thread_stopped(self):
+		""" Method is called when task is about to stop (is called before joining process).
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')
 
 
 class WThreadCustomTask(WThreadTask):
@@ -249,14 +229,14 @@ class WThreadCustomTask(WThreadTask):
 		"""
 		return self.__task
 
-	def start(self):
+	def thread_started(self):
 		""" Start original task
 
 		:return: None
 		"""
 		self.task().start()
 
-	def stop(self):
+	def thread_stopped(self):
 		""" If original task is :class:`.WStoppableTask` object, then stop it
 
 		:return: None
@@ -267,8 +247,9 @@ class WThreadCustomTask(WThreadTask):
 
 
 class WPollingThreadTask(WThreadTask, metaclass=ABCMeta):
-	""" Create task, that will be executed in a separate thread, and will wait for stop event and till that
-	will do small piece of work
+	""" Create task, that will be executed in a separate thread, and will wait for stop event or ready event and
+	till that will do small piece of work. This threaded task will be constructed with
+	'join_on_stop' and 'ready_to_stop' flags turned on
 
 	Polling timeout is a timeout after which next call for a small piece of work will be done. Real
 	:meth:`.WPollingThreadTask.__polling_iteration` method implementation must be fast
@@ -276,32 +257,27 @@ class WPollingThreadTask(WThreadTask, metaclass=ABCMeta):
 	because busy thread can be terminated at any time, and so can not be finalized gracefully.
 
 	If one thread spawns other threads it is obvious to stop them from the same thread they are generated.
-	And at this point wrong joining and polling timeouts could break start-stop mechanics. So parent thread
+	And at this point, wrong joining and polling timeouts could break start-stop mechanics. So parent thread
 	should have joining timeout not less then children threads have (it is better to have joining timeout greater
-	then children timeout). And polling timeout should be not greater (as little as possible is better) then
-	children threads have
+	then children timeout). And polling timeout should be not greater (as little as possible) then children
+	threads have
 	"""
 
 	__thread_polling_timeout__ = WThreadTask.__thread_join_timeout__ / 4
 	""" Default polling timeout
 	"""
 
-	@verify_type(thread_name=(str, None), join_on_stop=bool, ready_to_stop=bool)
-	@verify_type(thread_join_timeout=(int, float, None), polling_timeout=(int, float, None))
-	def __init__(
-		self, thread_name=None, join_on_stop=True, ready_to_stop=False, thread_join_timeout=None,
-		polling_timeout=None
-	):
+	@verify_type(thread_name=(str, None), thread_join_timeout=(int, float, None))
+	@verify_type(polling_timeout=(int, float, None))
+	def __init__(self, thread_name=None, thread_join_timeout=None, polling_timeout=None):
 		""" Create new task
 
 		:param thread_name: same as 'thread_name' in :meth:`.WThreadTask.__init__`
-		:param join_on_stop: same as 'join_on_stop' in :meth:`.WThreadTask.__init__`
-		:param ready_to_stop: same as 'ready_to_stop' in :meth:`.WThreadTask.__init__`
 		:param thread_join_timeout: same as 'thread_join_timeout' in :meth:`.WThreadTask.__init__`
 		:param polling_timeout: polling timeout for this task
 		"""
 		WThreadTask.__init__(
-			self, thread_name=thread_name, join_on_stop=join_on_stop, ready_to_stop=ready_to_stop,
+			self, thread_name=thread_name, join_on_stop=True, ready_to_stop=True,
 			thread_join_timeout=thread_join_timeout
 		)
 		self.__polling_timeout = \
@@ -314,13 +290,13 @@ class WPollingThreadTask(WThreadTask, metaclass=ABCMeta):
 		"""
 		return self.__polling_timeout
 
-	def start(self):
-		""" Start polling for a stop event and do small work via :meth:`.WPollingThreadTask.__polling_iteration`
-		method call
+	def thread_started(self):
+		""" Start polling for a stop event or ready event and do small work via
+		:meth:`.WPollingThreadTask._polling_iteration` method call
 
 		:return: None
 		"""
-		while self.stop_event().is_set() is False:
+		while self.stop_event().is_set() is False and self.ready_event().is_set() is False:
 			self._polling_iteration()
 			self.stop_event().wait(self.polling_timeout())
 
@@ -337,26 +313,26 @@ class WThreadedTaskChain(WPollingThreadTask):
 	""" Threaded task, that executes given tasks sequentially
 	"""
 
-	@verify_type(threaded_task_chain=WThreadTask, thread_name=(str, None), join_on_stop=bool, ready_to_stop=bool)
-	@verify_type(thread_join_timeout=(int, float, None))
+	@verify_type(threaded_task_chain=WThreadTask, thread_name=(str, None), thread_join_timeout=(int, float, None))
+	@verify_type(polling_timeout=(int, float, None))
 	def __init__(
-		self, *threaded_task_chain, thread_name=None, join_on_stop=True, ready_to_stop=False,
-		thread_join_timeout=None, polling_timeout=None
+		self, *threaded_task_chain, thread_name=None, thread_join_timeout=None, polling_timeout=None
 	):
 		""" Create threaded tasks
 
 		:param threaded_task_chain: tasks to execute
 		:param thread_name: same as thread_name in :meth:`WPollingThreadTask.__init__`
-		:param join_on_stop: same as join_on_stop in :meth:`WPollingThreadTask.__init__`
-		:param ready_to_stop: same as ready_to_stop in :meth:`WPollingThreadTask.__init__`
 		:param thread_join_timeout: same as thread_join_timeout in :meth:`WPollingThreadTask.__init__`
 		:param polling_timeout: same as polling_timeout in :meth:`WPollingThreadTask.__init__`
 		"""
 		WPollingThreadTask.__init__(
-			self, thread_name=thread_name, join_on_stop=join_on_stop, ready_to_stop=ready_to_stop,
-			thread_join_timeout=thread_join_timeout, polling_timeout=polling_timeout
+			self, thread_name=thread_name, thread_join_timeout=thread_join_timeout,
+			polling_timeout=polling_timeout
 		)
 		self.__task_chain = threaded_task_chain
+		for task in self.__task_chain:
+			if task.ready_event() is None:
+				raise ValueError("Chained task must be constructed with 'ready_to_stop' flag")
 		self.__current_task = None
 
 	def _polling_iteration(self):
@@ -369,16 +345,16 @@ class WThreadedTaskChain(WPollingThreadTask):
 			task = self.__task_chain[self.__current_task]
 			if task.started() is False:
 				task.start()
-			elif task.stop_event().is_set() is True:
+			elif task.ready_event().is_set() is True:
 				task.stop()
 				if self.__current_task < (len(self.__task_chain) - 1):
 					self.__current_task += 1
 				else:
-					self.stop_event().set()
+					self.ready_event().set()
 		else:
-			self.stop_event().set()
+			self.ready_event().set()
 
-	def stop(self):
+	def thread_stopped(self):
 		""" :meth:`.WThreadTask._polling_iteration` implementation
 		"""
 		if self.__current_task is not None:

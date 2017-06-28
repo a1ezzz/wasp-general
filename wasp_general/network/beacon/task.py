@@ -45,3 +45,15 @@ class WNetworkBeaconTask(WNetworkServerBeacon, WThreadTask):
 		"""
 		WNetworkServerBeacon.__init__(self, config=config, config_section=config_section, messenger=messenger)
 		WThreadTask.__init__(self, thread_name=thread_name)
+
+	def start(self):
+		WThreadTask.start(self)
+
+	def stop(self):
+		WThreadTask.stop(self)
+
+	def thread_started(self):
+		WNetworkServerBeacon.start(self)
+
+	def thread_stopped(self):
+		WNetworkServerBeacon.stop(self)

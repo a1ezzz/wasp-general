@@ -69,7 +69,7 @@ class WSchedulerWatchingDog(WPollingThreadTask):
 	def started_at(self):
 		return self.__started_at
 
-	def start(self):
+	def thread_started(self):
 		self.__started_at = utc_datetime()
 		self.__task = self.task_schedule().task()
 		if isinstance(self.__task, WScheduledTask) is False:
@@ -77,14 +77,14 @@ class WSchedulerWatchingDog(WPollingThreadTask):
 			raise RuntimeError('Unable to start unknown type of task: %s' % task_class)
 
 		self.__task.start()
-		WPollingThreadTask.start(self)
+		WPollingThreadTask.thread_started(self)
 
 	def _polling_iteration(self):
 		if self.__task.ready_event().is_set() is True:
 			self.registry().task_finished(self)
 
-	def stop(self):
-		self.task_schedule().task().stop()
+	def thread_stopped(self):
+		self.task_schedule().task().thread_stopped()
 		self.__started_at = None
 		self.__task = None
 
@@ -149,7 +149,7 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 		self.__done_registry.clear()
 		self.cleanup_event().clear()
 
-	def stop(self):
+	def thread_stopped(self):
 		self.cleanup()
 		self.stop_running_tasks()
 
@@ -333,9 +333,9 @@ class WTaskSchedulerService(WTaskSchedulerProto, WPollingThreadTask):
 	def update(self, task_source=None):
 		self.__sources_registry.update(task_source=task_source)
 
-	def start(self):
+	def thread_started(self):
 		self.__running_tasks_registry.start()
-		WPollingThreadTask.start(self)
+		WPollingThreadTask.thread_started(self)
 
 	def _polling_iteration(self):
 		scheduled_tasks = self.__sources_registry.check()
@@ -365,5 +365,5 @@ class WTaskSchedulerService(WTaskSchedulerProto, WPollingThreadTask):
 							self.__running_tasks_registry.exec(task)
 							running_tasks += 1
 
-	def stop(self):
+	def thread_stopped(self):
 		self.__running_tasks_registry.stop()
