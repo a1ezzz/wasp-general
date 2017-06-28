@@ -5,6 +5,7 @@ import time
 
 from wasp_general.task.base import WTaskStatus, WStoppableTask, WTerminatableTask, WTask
 from wasp_general.task.thread import WThreadTask, WThreadCustomTask, WThreadJoiningTimeoutError, WPollingThreadTask
+from wasp_general.task.thread import WThreadedTaskChain
 
 
 class TestWThreadTask:
@@ -222,3 +223,57 @@ class TestWPollingThreadTask:
 		for call in TestWPollingThreadTask.Task.call_stack[:-1]:
 			assert(call == 'Task iteration')
 		assert (TestWPollingThreadTask.Task.call_stack[-1] == 'Task stop')
+
+
+class TestWThreadedTaskChain:
+
+	def test(self):
+		polling_timeout = 0.001
+		chain = WThreadedTaskChain(polling_timeout=polling_timeout)
+		assert(isinstance(chain, WThreadedTaskChain) is True)
+		assert(isinstance(chain, WPollingThreadTask) is True)
+
+		assert (chain.stop_event().is_set() is False)
+		chain.start()
+		time.sleep(polling_timeout * 5)
+		assert(chain.stop_event().is_set() is True)
+		chain.stop()
+
+		class Task(WThreadTask):
+
+			call_trace = []
+
+			def __init__(self, sleep_timeout, call_trace_id):
+				WThreadTask.__init__(self)
+				self.__sleep_timeout = sleep_timeout
+				self.__trace_id = call_trace_id
+
+			def start(self):
+				time.sleep(self.__sleep_timeout)
+				Task.call_trace.append(self.__trace_id)
+				self.stop_event().set()
+
+			def stop(self):
+				pass
+
+		task1_sleep_timeout = 0.1
+		task1 = Task(task1_sleep_timeout, 'task1')
+
+		task2_sleep_timeout = 0.001
+		task2 = Task(task2_sleep_timeout, 'task2')
+
+		assert(Task.call_trace == [])
+		task1.start()
+		task2.start()
+		time.sleep(task1_sleep_timeout * 5)
+		task1.stop()
+		task2.stop()
+		assert (Task.call_trace == ['task2', 'task1'])
+
+		Task.call_trace.clear()
+		chain = WThreadedTaskChain(task1, task2, polling_timeout=polling_timeout)
+		assert (Task.call_trace == [])
+		chain.start()
+		time.sleep(task1_sleep_timeout * 5)
+		assert (Task.call_trace == ['task1', 'task2'])
+		chain.stop()

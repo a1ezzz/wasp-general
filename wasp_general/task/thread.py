@@ -331,3 +331,57 @@ class WPollingThreadTask(WThreadTask, metaclass=ABCMeta):
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
+
+
+class WThreadedTaskChain(WPollingThreadTask):
+	""" Threaded task, that executes given tasks sequentially
+	"""
+
+	@verify_type(threaded_task_chain=WThreadTask, thread_name=(str, None), join_on_stop=bool, ready_to_stop=bool)
+	@verify_type(thread_join_timeout=(int, float, None))
+	def __init__(
+		self, *threaded_task_chain, thread_name=None, join_on_stop=True, ready_to_stop=False,
+		thread_join_timeout=None, polling_timeout=None
+	):
+		""" Create threaded tasks
+
+		:param threaded_task_chain: tasks to execute
+		:param thread_name: same as thread_name in :meth:`WPollingThreadTask.__init__`
+		:param join_on_stop: same as join_on_stop in :meth:`WPollingThreadTask.__init__`
+		:param ready_to_stop: same as ready_to_stop in :meth:`WPollingThreadTask.__init__`
+		:param thread_join_timeout: same as thread_join_timeout in :meth:`WPollingThreadTask.__init__`
+		:param polling_timeout: same as polling_timeout in :meth:`WPollingThreadTask.__init__`
+		"""
+		WPollingThreadTask.__init__(
+			self, thread_name=thread_name, join_on_stop=join_on_stop, ready_to_stop=ready_to_stop,
+			thread_join_timeout=thread_join_timeout, polling_timeout=polling_timeout
+		)
+		self.__task_chain = threaded_task_chain
+		self.__current_task = None
+
+	def _polling_iteration(self):
+		""" :meth:`.WPollingThreadTask._polling_iteration` implementation
+		"""
+		if len(self.__task_chain) > 0:
+			if self.__current_task is None:
+				self.__current_task = 0
+
+			task = self.__task_chain[self.__current_task]
+			if task.started() is False:
+				task.start()
+			elif task.stop_event().is_set() is True:
+				task.stop()
+				if self.__current_task < (len(self.__task_chain) - 1):
+					self.__current_task += 1
+				else:
+					self.stop_event().set()
+		else:
+			self.stop_event().set()
+
+	def stop(self):
+		""" :meth:`.WThreadTask._polling_iteration` implementation
+		"""
+		if self.__current_task is not None:
+			task = self.__task_chain[self.__current_task]
+			task.stop()
+			self.__current_task = None
