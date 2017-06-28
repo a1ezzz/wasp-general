@@ -68,58 +68,16 @@ class WTerminatableTask(WStoppableTask):
 		raise NotImplementedError('This method is abstract')
 
 
-class WTaskStatus(WTask, metaclass=ABCMeta):
-	""" Task with information about task state (whether it was started or stopped). State of the task must be
-	defined manually.
+class WSyncTask(WStoppableTask, metaclass=ABCMeta):
+	""" This class is some kind of declaration, that the following task is executed in foreground.
 	"""
 
-	@verify_type(decorate_start=bool, decorate_stop=bool)
-	def __init__(self, decorate_start=True, decorate_stop=True):
-		""" Construct new class. You can't construct this class because of abstract methods. You must inherit
-		this class and override start method. If decorate_stop is True then you need to override method
-		stop also.
+	def __init__(self):
+		WStoppableTask.__init__(self)
 
-		:param decorate_start: if True - constructor will decorate start method (so after start method \
-		called task will be marked as started)
-		:param decorate_stop: if True - constructor will decorate stop method (so after stop method \
-		called task will be marked as stopped). To use this flag, class must inherit WStoppableTask class
-		"""
-		WTask.__init__(self)
-		self.__started = False
+	def stop(self):
+		""" Stop this task. This implementation does nothing.
 
-		if decorate_start is True:
-			original_start = self.start
-
-			def decorated_start():
-				original_start()
-				self._started(True)
-
-			self.start = decorated_start
-
-		if decorate_stop is True:
-			if isinstance(self, WStoppableTask) is False:
-				raise TypeError('To decorate stop method class must inherit WStoppableTask class')
-			else:
-				original_stop = self.stop
-
-				def decorated_stop():
-					original_stop()
-					self._started(False)
-
-				self.stop = decorated_stop
-
-	@verify_type(value=bool)
-	def _started(self, value):
-		""" Mark this task as started or stopped
-
-		:param value: if True - then this task marks as started, otherwise - stopped.
 		:return: None
 		"""
-		self.__started = value
-
-	def started(self):
-		""" Get task status
-
-		:return: True - if task is started, and False if it is stopped
-		"""
-		return self.__started
+		pass

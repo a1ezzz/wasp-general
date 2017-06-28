@@ -27,7 +27,7 @@ from wasp_general.version import __status__
 from abc import ABCMeta, abstractmethod
 from threading import Thread, Event
 
-from wasp_general.task.base import WTaskStatus, WStoppableTask, WTask
+from wasp_general.task.base import WStoppableTask, WTask
 from wasp_general.verify import verify_type
 
 
@@ -37,7 +37,7 @@ class WThreadJoiningTimeoutError(Exception):
 	pass
 
 
-class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
+class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 	""" Task that runs in a separate thread. Since there is no right way in Python to stop or terminate neighbor
 	thread, so it's highly important for derived classes to be capable to stop correctly.
 
@@ -88,7 +88,6 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 		:class:`.WThreadJoiningTimeoutError` exception will be raised.
 		"""
 		WStoppableTask.__init__(self)
-		WTaskStatus.__init__(self, decorate_start=False, decorate_stop=False)
 
 		self.__thread_join_timeout = self.__class__.__thread_join_timeout__
 		if thread_join_timeout is not None:
@@ -147,14 +146,6 @@ class WThreadTask(WStoppableTask, WTaskStatus, metaclass=ABCMeta):
 
 		if self.__ready_event is not None:
 			self.__ready_event.clear()
-
-	def started(self):
-		""" Get task status. Return True if task was started and wasn't finalized via
-		':meth:`.WThreadTask.close_thread`' method call. Return False otherwise.
-
-		:return: bool
-		"""
-		return self.__thread is not None
 
 	def start(self):
 		""" :meth:`WStoppableTask.start` implementation that creates new thread
@@ -343,7 +334,7 @@ class WThreadedTaskChain(WPollingThreadTask):
 				self.__current_task = 0
 
 			task = self.__task_chain[self.__current_task]
-			if task.started() is False:
+			if task.thread() is None:
 				task.start()
 			elif task.ready_event().is_set() is True:
 				task.stop()

@@ -2,6 +2,7 @@
 
 import pytest
 
+'''
 from wasp_general.task.health import WTaskHealthSensor, WMeasurableTaskHealthSensor, WTaskHealth
 
 
@@ -92,3 +93,4 @@ class TestWTaskHealth:
 
 		s1.severity = lambda: WTaskHealthSensor.WTaskSensorSeverity.critical
 		assert(h2.healthy() == WTaskHealthSensor.WTaskSensorSeverity.critical)
+'''

@@ -2,7 +2,7 @@
 
 import pytest
 
-from wasp_general.task.base import WTask, WStoppableTask, WTerminatableTask, WTaskStatus
+from wasp_general.task.base import WTask, WStoppableTask, WTerminatableTask, WSyncTask
 
 
 def test_abstract_classes():
@@ -15,49 +15,43 @@ def test_abstract_classes():
 	pytest.raises(TypeError, WTerminatableTask)
 	pytest.raises(NotImplementedError, WTerminatableTask.terminate, None)
 
-	pytest.raises(TypeError, WTaskStatus)
 
+class TestWSyncTask:
 
-class TestWTaskStatus:
+	def test_task(self):
 
-	def test_started(self):
+		pytest.raises(TypeError, WSyncTask)
 
-		class TaskA(WTaskStatus):
+		class T1(WSyncTask):
 
-			def __init__(self):
-				WTaskStatus.__init__(self, decorate_start=False, decorate_stop=False)
-
-			def start(self):
-				self._started(True)
-
-			def custom_stop(self):
-				self._started(False)
-
-		class TaskB(WStoppableTask, WTaskStatus):
+			last_call_result = None
 
 			def start(self):
-				pass
+				T1.last_call_result = 'T1.start'
+
+		t1 = T1()
+		assert(isinstance(t1, WTask) is True)
+		assert(isinstance(t1, WStoppableTask) is True)
+
+		assert(T1.last_call_result is None)
+		t1.start()
+		assert(T1.last_call_result == 'T1.start')
+
+		t1.stop()
+		assert(T1.last_call_result == 'T1.start')
+
+		class T2(WSyncTask):
+
+			last_call_result = None
+
+			def start(self):
+				T2.last_call_result = 'T2.start'
 
 			def stop(self):
-				pass
+				T2.last_call_result = 'T2.stop'
 
-		class TaskC(WTaskStatus):
-
-			def start(self):
-				pass
-
-		task_a = TaskA()
-		assert(task_a.started() is False)
-		task_a.start()
-		assert (task_a.started() is True)
-		task_a.custom_stop()
-		assert (task_a.started() is False)
-
-		task_b = TaskB()
-		assert (task_b.started() is False)
-		task_b.start()
-		assert (task_b.started() is True)
-		task_b.stop()
-		assert (task_b.started() is False)
-
-		pytest.raises(TypeError, TaskC)
+		t2 = T2()
+		t2.start()
+		assert(T2.last_call_result == 'T2.start')
+		t2.stop()
+		assert(T2.last_call_result == 'T2.stop')

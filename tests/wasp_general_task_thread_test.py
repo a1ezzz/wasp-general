@@ -3,7 +3,7 @@
 import pytest
 import time
 
-from wasp_general.task.base import WTaskStatus, WStoppableTask, WTerminatableTask, WTask
+from wasp_general.task.base import WStoppableTask, WTerminatableTask, WTask
 from wasp_general.task.thread import WThreadTask, WThreadCustomTask, WThreadJoiningTimeoutError, WPollingThreadTask
 from wasp_general.task.thread import WThreadedTaskChain
 
@@ -11,7 +11,6 @@ from wasp_general.task.thread import WThreadedTaskChain
 class TestWThreadTask:
 
 	def test_init(self):
-		assert(issubclass(WThreadTask, WTaskStatus) is True)
 		assert(issubclass(WThreadTask, WStoppableTask) is True)
 		assert(issubclass(WThreadTask, WTerminatableTask) is False)
 		pytest.raises(TypeError, WThreadTask)
@@ -52,21 +51,18 @@ class TestWThreadTask:
 
 		t = FastTask()
 		assert(t.thread() is None)
-		assert(t.started() is False)
 		assert(t.join_timeout() == FastTask.__thread_join_timeout__)
 		assert(t.stop_event().is_set() is False)
 		assert(t.ready_event() is None)
 
 		t.start()
 		assert(t.thread() is not None)
-		assert(t.started() is True)
 		assert(t.thread().name != 'custom thread name')
 		assert(t.stop_event().is_set() is False)
 		assert(t.ready_event() is None)
 
 		t.stop()
 		assert(t.thread() is None)
-		assert(t.started() is False)
 		assert(t.stop_event().is_set() is False)
 		assert(FastTask.call_stack == ['FastTask.start', 'FastTask.stop'])
 		assert(t.ready_event() is None)
@@ -101,18 +97,14 @@ class TestWThreadTask:
 		FastTask.call_stack = []
 		t = FastTask(join_on_stop=False)
 		assert(t.thread() is None)
-		assert(t.started() is False)
 		t.start()
 		assert(t.thread() is not None)
-		assert(t.started() is True)
 		t.stop()
 		assert(t.thread() is not None)
-		assert(t.started() is True)
 		assert(FastTask.call_stack == ['FastTask.start', 'FastTask.stop'])
 		t.thread().join()
 		t.close_thread()
 		assert(t.thread() is None)
-		assert(t.started() is False)
 
 		slow_task = SlowTask(ready_to_stop=True)
 		assert(slow_task.ready_event().is_set() is False)

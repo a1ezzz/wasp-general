@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO: this idea and implementation require to be more useful. Till that this module should be treated as deprecated
+
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
@@ -27,7 +29,6 @@ from wasp_general.version import __status__
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 
-from wasp_general.task.base import WTaskStatus
 from wasp_general.verify import verify_type, verify_value
 
 
@@ -134,16 +135,16 @@ class WMeasurableTaskHealthSensor(WTaskHealthSensor, metaclass=ABCMeta):
 		raise NotImplementedError("Measurement wasn't defined")
 
 
-class WTaskHealth(WTaskStatus, metaclass=ABCMeta):
+class WTaskHealth(metaclass=ABCMeta):
 	""" This class presents API for task health probe. It can be used to probe if everything that task needs are
 	ready or available (for example: disk space, file existing, socket is opened and so on).
 
 	This is optional for the most tasks.
+
 	"""
 
 	@verify_type(sensors=WTaskHealthSensor)
 	def __init__(self, *sensors, decorate_start=True, decorate_stop=True):
-		WTaskStatus.__init__(self, decorate_start=decorate_start, decorate_stop=decorate_stop)
 
 		self._sensors = {}
 		for sensor in sensors:
