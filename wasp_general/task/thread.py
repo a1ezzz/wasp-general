@@ -26,6 +26,7 @@ from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod
 from threading import Thread, Event
+import traceback
 
 from wasp_general.task.base import WStoppableTask, WTask
 from wasp_general.verify import verify_type
@@ -71,13 +72,17 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		this flag is False, then child class must do all the cleaning itself (like
 		thread joining and :meth:`.WThreadTask.close_thread` method calling).
 
+		There is other event - :meth:`.WThreadTask.exception_event`, which is set when exception is raised
+		inside :meth:`.WThreadTask.thread_started` method. All exceptions, that are raised inside thread
+		function, are passed to the callback :meth:`.WThreadTask.thread_exception`.
+
 		With both flags ('ready_to_stop' and 'join_on_stop') there can be a situation, when ready event
 		wasn't set, but stop event has been set already. This situation shows, that task was terminated
 		before completion.
 
 		:note: With join_on_stop flag enabled, :meth:`.WThreadTask.stop` method can not be called from the same
 		execution thread. It means, that it can not be called from :meth:`.WThreadTask.start` or
-		:meth:`.WThreadTask.thread_start` methods in direct or indirect way.
+		:meth:`.WThreadTask.thread_started` methods in direct or indirect way.
 
 		:param thread_name: name of the thread. It is used in thread constructor as name value only
 		:param join_on_stop: define whether to create stop event object or not.
@@ -96,6 +101,7 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		self.__thread_name = thread_name if thread_name is not None else self.__class__.__thread_name__
 		self.__stop_event = Event() if join_on_stop is True else None
 		self.__ready_event = Event() if ready_to_stop is True else None
+		self.__exception_event = Event()
 
 	def thread(self):
 		""" Return current Thread object (or None if task wasn't started)
@@ -126,6 +132,14 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		"""
 		return self.__ready_event
 
+	def exception_event(self):
+		""" Return readiness event object. Event will be available if object was constructed with ready_to_stop
+		flag
+
+		:return: Event or None
+		"""
+		return self.__exception_event
+
 	def join_timeout(self):
 		""" Return task join timeout
 
@@ -138,7 +152,7 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 
 		:return: None
 		"""
-		if self.__thread.is_alive() is True:
+		if self.__thread is not None and self.__thread.is_alive() is True:
 			raise WThreadJoiningTimeoutError('Thread is still alive. Thread name: %s' % self.__thread.name)
 		self.__thread = None
 		if self.__stop_event is not None:
@@ -147,13 +161,19 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		if self.__ready_event is not None:
 			self.__ready_event.clear()
 
+		self.__exception_event.clear()
+
 	def start(self):
 		""" :meth:`WStoppableTask.start` implementation that creates new thread
 		"""
 		def thread_target():
-			self.thread_started()
-			if self.ready_event() is not None:
-				self.ready_event().set()
+			try:
+				self.thread_started()
+				if self.ready_event() is not None:
+					self.ready_event().set()
+			except Exception as e:
+				self.thread_exception(e)
+				self.exception_event().set()
 
 		if self.__thread is None:
 			self.__thread = Thread(target=thread_target, name=self.thread_name())
@@ -187,6 +207,16 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
+
+	def thread_exception(self, raised_exception):
+		""" Callback for handling exception, that are raised inside :meth:`.WThreadTask.thread_started`
+
+		:param raised_exception: raised exception
+		:return: None
+		"""
+		print('Thread execution was stopped by the exception. Exception: %s' % str(raised_exception))
+		print('Traceback:')
+		print(traceback.format_exc())
 
 
 class WThreadCustomTask(WThreadTask):
@@ -344,6 +374,8 @@ class WThreadedTaskChain(WPollingThreadTask):
 					self.__current_task += 1
 				else:
 					self.ready_event().set()
+			elif task.exception_event().is_set() is True:
+				raise RuntimeError('Child thread failed')
 		else:
 			self.ready_event().set()
 

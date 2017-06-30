@@ -121,6 +121,33 @@ class TestWThreadTask:
 		assert(slow_task.ready_event().is_set() is False)
 		assert(slow_task.stop_event().is_set() is False)
 
+		t = FastTask()
+		raised_exception = []
+
+		def test_exception():
+			raise KeyError('Test exception')
+
+		def handle_exception(exc):
+			raised_exception.append(exc.__class__)
+
+		t.thread_started = test_exception
+		assert (t.exception_event().is_set() is False)
+		t.start()
+		t.exception_event().wait(FastTask.__thread_join_timeout__)
+		time.sleep(0.1)
+		assert(t.exception_event().is_set() is True)
+		t.stop()
+		assert (t.exception_event().is_set() is False)
+
+		assert(raised_exception == [])
+		t.thread_exception = handle_exception
+		t.start()
+		t.exception_event().wait(FastTask.__thread_join_timeout__)
+		time.sleep(0.1)
+		assert(raised_exception == [KeyError])
+		t.stop()
+		assert(raised_exception == [KeyError])
+
 
 class TestWThreadCustomTask:
 
@@ -262,12 +289,46 @@ class TestWThreadedTaskChain:
 		time.sleep(task1_sleep_timeout * 5)
 		task1.stop()
 		task2.stop()
-		assert (Task.call_trace == ['task2', 'task1'])
+		assert(Task.call_trace == ['task2', 'task1'])
 
 		Task.call_trace.clear()
 		chain = WThreadedTaskChain(task1, task2, polling_timeout=polling_timeout)
-		assert (Task.call_trace == [])
+		assert(Task.call_trace == [])
 		chain.start()
 		time.sleep(task1_sleep_timeout * 5)
-		assert (Task.call_trace == ['task1', 'task2'])
+		assert(Task.call_trace == ['task1', 'task2'])
 		chain.stop()
+
+		def test_exception():
+			print('RAISE EXCEPTION!')
+			raise KeyError('Test exception')
+		task2.thread_started = test_exception
+
+		task2_raised_exception = []
+
+		def task2_handle_exception(exc):
+			print('TASK CAUGHT EXC: ' + str(exc))
+			task2_raised_exception.append(exc.__class__)
+
+		task2.thread_exception = task2_handle_exception
+
+		chain_raised_exception = []
+
+		def chain_handle_exception(exc):
+			print('CHAIN CAUGHT EXC: ' + str(exc))
+			chain_raised_exception.append(exc.__class__)
+
+		assert(task2_raised_exception == [])
+		assert(chain_raised_exception == [])
+		chain = WThreadedTaskChain(task1, task2, polling_timeout=polling_timeout)
+		chain.thread_exception = chain_handle_exception
+		chain.start()
+		chain.exception_event().wait(polling_timeout * 5)
+		time.sleep(0.1)
+		assert(task2_raised_exception == [KeyError])
+		assert(chain_raised_exception == [RuntimeError])
+		chain.stop()
+		assert(task2_raised_exception == [KeyError])
+		assert(chain_raised_exception == [RuntimeError])
+
+		assert(Task.call_trace == ['task1', 'task2', 'task1'])
