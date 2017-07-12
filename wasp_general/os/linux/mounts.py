@@ -151,10 +151,10 @@ class WMountPoint:
 
 	@classmethod
 	@verify_type(device=str, mount_directory=str, fs=(str, None), options=(list, tuple, set, None))
-	@verify_type(cmd_timeout=(int, float, None))
+	@verify_type(cmd_timeout=(int, float, None), sudo=bool)
 	@verify_value(device=lambda x: len(x) > 0, mount_directory=lambda x: len(x) > 0)
 	@verify_value(fs=lambda x: x is None or len(x) > 0, cmd_timeout=lambda x: x is None or x > 0)
-	def mount(cls, device, mount_directory, fs=None, options=None, cmd_timeout=None):
+	def mount(cls, device, mount_directory, fs=None, options=None, cmd_timeout=None, sudo=False):
 		""" Mount a device to mount directory
 
 		:param device: device to mount
@@ -164,10 +164,12 @@ class WMountPoint:
 		:param options: specifies mount options (OS/filesystem dependent)
 		:param cmd_timeout: if specified - timeout with which this mount command should be evaluated (if \
 		command isn't complete within the given timeout - an exception will be raised)
+		:param sudo: whether to use sudo to run mount command
 
 		:return: None
 		"""
-		cmd = ['mount', device, os.path.abspath(mount_directory)]
+		cmd = [] if sudo is False else ['sudo']
+		cmd.extend(['mount', device, os.path.abspath(mount_directory)])
 		if fs is not None:
 			cmd.extend(['-t', fs])
 		if options is not None and len(options) > 0:
@@ -177,16 +179,18 @@ class WMountPoint:
 		subprocess.check_output(cmd, timeout=cmd_timeout)
 
 	@classmethod
-	@verify_type(device_or_directory=str, cmd_timeout=(int, float, None))
+	@verify_type(device_or_directory=str, cmd_timeout=(int, float, None), sudo=bool)
 	@verify_value(device_or_directory=lambda x: len(x) > 0, cmd_timeout=lambda x: x is None or x > 0)
-	def umount(cls, device_or_directory, cmd_timeout=None):
+	def umount(cls, device_or_directory, cmd_timeout=None, sudo=False):
 		""" Unmount device (or mount directory)
 
 		:param device_or_directory: device name or mount directory to unmount
 		:param cmd_timeout: if specified - timeout with which this unmount command should be evaluated (if \
 		command isn't complete within the given timeout - an exception will be raised)
+		:param sudo: whether to use sudo to run mount command
 
 		:return: None
 		"""
-		cmd = ['umount', device_or_directory]
+		cmd = [] if sudo is False else ['sudo']
+		cmd.extend(['umount', device_or_directory])
 		subprocess.check_output(cmd, timeout=cmd_timeout)
