@@ -32,6 +32,7 @@ import os
 import math
 
 from wasp_general.verify import verify_type, verify_value
+from wasp_general.os.linux.mounts import WMountPoint
 
 
 class WLVMInfoCommand:
@@ -502,3 +503,19 @@ class WLogicalVolume(WLVMInfo):
 		:return: bool (True if corrupted, False - otherwise)
 		"""
 		return self.snapshot_allocation() > self.__class__.__snapshot_maximum_allocation__
+
+	@classmethod
+	@verify_type('paranoid', file_path=str, sudo=bool)
+	@verify_value('paranoid', file_path=lambda x: len(x) > 0)
+	def logical_volume(cls, file_path, sudo=False):
+		""" Return logical volume that stores the given path
+
+		:param file_path: target path to search
+		:param sudo: same as 'sudo' in :meth:`.WLogicalVolume.__init__`
+		:return: WLogicalVolume or None (if file path is outside current mount points)
+		"""
+		mp = WMountPoint.mount_point(file_path)
+		if mp is not None:
+			name_file = '/sys/block/%s/dm/name' % mp.device_name()
+			lv_path = '/dev/mapper/%s' % open(name_file).read().strip()
+			return WLogicalVolume(lv_path, sudo=sudo)
