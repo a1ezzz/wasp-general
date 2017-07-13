@@ -454,6 +454,17 @@ class WLogicalVolume(WLVMInfo):
 		"""
 		return int(self.lvm_entity()[11]), int(self.lvm_entity()[12])
 
+	def uuid(self):
+		""" Return UUID of logical volume
+
+		:return: str
+		"""
+		uuid_file = '/sys/block/%s/dm/uuid' % os.path.realpath(self.volume_path())
+		lv_uuid = open(uuid_file).read().strip()
+		if lv_uuid.startswith('LVM-') is True:
+			return lv_uuid[4:]
+		return lv_uuid
+
 	@verify_type(snapshot_size=(int, float), snapshot_suffix=str)
 	@verify_value(snapshot_size=lambda x: x > 0, snapshot_suffix=lambda x: len(x) > 0)
 	def create_snapshot(self, snapshot_size, snapshot_suffix):
