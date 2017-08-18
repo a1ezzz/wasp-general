@@ -6,7 +6,7 @@ from wasp_general.command.command import WCommandProto, WCommand, WCommandResult
 from wasp_general.command.command import WCommandSet
 
 from wasp_general.command.context import WContextProto, WContext, WCommandContextAdapter, WCommandContext
-from wasp_general.command.context import WCommandContextResult, WCommandContextSelector, WCommandContextSet
+from wasp_general.command.context import WCommandContextResult, WCommandContextSet
 
 
 def test_abstract():
@@ -132,10 +132,10 @@ class TestWCommandContext:
 		assert(command2.match('hello', 'world', 'yeah') is True)
 		assert(command.match('hello', 'world', 'yeah') is False)
 		request_context = WContext('context', 'hello')
-		assert(command.match_context('world', request_context=request_context) is True)
+		assert(command.match('world', request_context=request_context) is True)
 
 		assert(command2.exec('hello', 'world').output == 'OK')
-		assert(command.exec_context('world', request_context=request_context).output == 'OK')
+		assert(command.exec('world', request_context=request_context).output == 'OK')
 		pytest.raises(RuntimeError, command.exec, 'hello', 'world')
 
 
@@ -153,35 +153,15 @@ class TestWCommandContextResult:
 		assert(command_result.error == 1)
 
 
-class TestWCommandContextSelector:
+class TestWCommandContextSet:
 
 	class Command(WCommand):
 
-		def _exec(self, *command_tokens):
+		def _exec(self, *command_tokens, **command_env):
 			return WCommandResult('simple OK')
 
 	def test(self):
-		selector = WCommandContextSelector()
-		assert(isinstance(selector, WCommandContextSelector) is True)
-		assert(isinstance(selector, WCommandPrioritizedSelector) is True)
-
-		base_command = TestWCommandContext.Command('hello', 'world')
-		adapter = TestWCommandContext.Adapter(WContext.specification('context'))
-		command = WCommandContext(base_command, adapter)
-
-		simple_command = TestWCommandContextSelector.Command('create', 'world')
-
-		selector.add(command)
-		selector.add(simple_command)
-
-		assert(selector.select('create', 'world') == simple_command)
-		assert(selector.select('world', request_context=WContext('context', 'hello')) == command)
-
-
-class TestWCommandContextSet:
-
-	def test(self):
-		selector = WCommandContextSelector()
+		selector = WCommandPrioritizedSelector()
 		command_set = WCommandContextSet(selector)
 		assert(command_set.commands() == selector)
 
@@ -191,24 +171,27 @@ class TestWCommandContextSet:
 		base_command = TestWCommandContext.Command('hello', 'world')
 		adapter = TestWCommandContext.Adapter(WContext.specification('context'))
 		command = WCommandContext(base_command, adapter)
-		simple_command = TestWCommandContextSelector.Command('create', 'world')
+		simple_command = TestWCommandContextSet.Command('create', 'world')
 		command_set.commands().add(command)
 		command_set.commands().add(simple_command)
 
-		set_command = TestWCommandContextSelector.Command('set')
-		set_command._exec = \
-			lambda x: WCommandContextResult(output='context set', context=WContext('context1', 'v1'))
+		set_command = TestWCommandContextSet.Command('set')
+
+		def test_exec(token, **kw):
+			return WCommandContextResult(output='context set', context=WContext('context1', 'v1'))
+		set_command._exec = test_exec
+
 		command_set.commands().add(set_command)
 
-		assert(command_set.exec_context('create world').output == 'simple OK')
-		result = command_set.exec_context('world', request_context=WContext('context', 'hello'))
+		assert(command_set.exec('create world').output == 'simple OK')
+		result = command_set.exec('world', request_context=WContext('context', 'hello'))
 		assert(result.output == 'OK')
 
 		assert(command_set.context() is None)
-		result = command_set.exec_context('set')
+		result = command_set.exec('set')
 		assert(result.output == 'context set')
 		assert(command_set.context() is not None)
 		assert(command_set.context().context_name() == 'context1')
 		assert(command_set.context().context_value() == 'v1')
 
-		pytest.raises(WCommandSet.NoCommandFound, command_set.exec_context, 'foo')
+		pytest.raises(WCommandSet.NoCommandFound, command_set.exec, 'foo')

@@ -30,6 +30,7 @@ from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type
 from wasp_general.command.command import WCommandProto, WCommandResult, WCommandPrioritizedSelector, WCommandSet
+from wasp_general.command.command import WCommandSelector
 
 
 class WContextProto(metaclass=ABCMeta):
@@ -198,11 +199,12 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 		return self.__spec
 
 	@verify_type(request_context=(WContextProto, None))
-	def match(self, request_context=None):
+	def match(self, request_context=None, **command_env):
 		""" Check if context request is compatible with adapters specification. True - if compatible,
 		False - otherwise
 
 		:param request_context: context to check
+		:param command_env: command environment
 		:return: bool
 		"""
 		spec = self.specification()
@@ -214,11 +216,12 @@ class WCommandContextAdapter(metaclass=ABCMeta):
 
 	@abstractmethod
 	@verify_type(command_tokens=str, request_context=(WContextProto, None))
-	def adapt(self, *command_tokens, request_context=None):
+	def adapt(self, *command_tokens, request_context=None, **command_env):
 		""" Adapt the given command tokens with this adapter
 
 		:param command_tokens: command tokens to adapt
 		:param request_context: context
+		:param command_env: command environment
 		:return: list of str
 		"""
 		raise NotImplementedError('This method is abstract')
@@ -253,48 +256,31 @@ class WCommandContext(WCommandProto):
 		"""
 		return self.__adapter
 
-	@verify_type('paranoid', command_tokens=str)
-	def match(self, *command_tokens):
+	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
+	def match(self, *command_tokens, request_context=None, **command_env):
 		""" Match original command like if no context specified
 
 		:param command_tokens: command tokens to check
+		:param request_context: command context
+		:param command_env: command environment
 		:return: bool
 		"""
-		return self.match_context(*command_tokens)
-
-	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
-	def match_context(self, *command_tokens, request_context=None):
-		""" Checks whether this command (modified original one) can be called with the given tokens and
-		the given context. Return True - if match, False - otherwise
-
-		:param command_tokens: tokens to check
-		:param request_context: context for adapter
-		:return: bool
-		"""
-		if self.adapter().match(request_context) is False:
+		if self.adapter().match(request_context, **command_env) is False:
 			return False
 
-		command_tokens = self.adapter().adapt(*command_tokens, request_context=request_context)
-		return self.original_command().match(*command_tokens)
+		command_tokens = self.adapter().adapt(*command_tokens, request_context=request_context, **command_env)
+		return self.original_command().match(*command_tokens, request_context=request_context, **command_env)
 
-	@verify_type('paranoid', command_tokens=str)
-	def exec(self, *command_tokens):
+	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
+	def exec(self, *command_tokens, request_context=None, **command_env):
 		""" Execute original command like if no context specified
 
 		:param command_tokens: command tokens to execute
+		:param request_context: command context
+		:param command_env: command environment
 		:return: WCommandResult
 		"""
-		return self.exec_context(*command_tokens)
-
-	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
-	def exec_context(self, *command_tokens, request_context=None):
-		""" Execute this command (modified original one) and return result
-
-		:param command_tokens: command tokens to execute
-		:param request_context: context for adapter
-		:return: WCommandResult
-		"""
-		if self.adapter().match(request_context) is False:
+		if self.adapter().match(request_context, **command_env) is False:
 			cmd = WCommandProto.join_tokens(*command_tokens)
 			spec = self.adapter().specification()
 			if spec is not None:
@@ -303,8 +289,8 @@ class WCommandContext(WCommandProto):
 				spec = ','.join(spec)
 			raise RuntimeError('Command mismatch: %s (context: %s)' % (cmd, spec))
 
-		command_tokens = self.adapter().adapt(*command_tokens, request_context=request_context)
-		return self.original_command().exec(*command_tokens)
+		command_tokens = self.adapter().adapt(*command_tokens, request_context=request_context, **command_env)
+		return self.original_command().exec(*command_tokens, **command_env)
 
 
 class WCommandContextResult(WCommandResult):
@@ -325,27 +311,6 @@ class WCommandContextResult(WCommandResult):
 		self.context = context.export_context(context) if context is not None else None
 
 
-class WCommandContextSelector(WCommandPrioritizedSelector):
-	""" This is modified version of prioritized selector that can select WCommandContext commands via
-	:meth:`.WCommandContext.match_context` call
-	"""
-
-	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
-	def select(self, *command_tokens, request_context=None):
-		""" Select command from internal storage, that matches the given tokens and the given context
-
-		:param command_tokens: tokens to find
-		:param request_context: context to use
-		:return: WCommandProto or None
-		"""
-		for command_obj in self:
-			if isinstance(command_obj, WCommandContext) is True:
-				if command_obj.match_context(*command_tokens, request_context=request_context) is True:
-					return command_obj
-			elif command_obj.match(*command_tokens):
-				return command_obj
-
-
 class WCommandContextSet(WCommandSet):
 	""" Class that handles normal and context-oriented command execution.
 
@@ -363,14 +328,14 @@ class WCommandContextSet(WCommandSet):
 	- Commands that works with specific context. Common :class:`.WCommandContext` object
 	"""
 
-	@verify_type(command_selector=(WCommandContextSelector, None))
+	@verify_type(command_selector=(WCommandSelector, None))
 	def __init__(self, command_selector=None):
 		""" Create new command set
 
 		:param command_selector: command selector to use
 		"""
 		if command_selector is None:
-			command_selector = WCommandContextSelector()
+			command_selector = WCommandPrioritizedSelector()
 		WCommandSet.__init__(self, command_selector=command_selector)
 		self.__context = None
 
@@ -382,23 +347,21 @@ class WCommandContextSet(WCommandSet):
 		return self.__context
 
 	@verify_type('paranoid', command_str=str, request_context=(WContextProto, None))
-	def exec_context(self, command_str, request_context=None):
+	def exec(self, command_str, request_context=None, **command_env):
 		""" Execute command with context (if specified). If command result will set context, this context will
 		be set to this object for future use
 
 		:param command_str: command to execute
 		:param request_context: context to use
+		:param command_env: command environment
 		:return: WCommandResult
 		"""
 		command_tokens = WCommandProto.split_command(command_str)
-		command_obj = self.commands().select(*command_tokens, request_context=request_context)
+		command_obj = self.commands().select(*command_tokens, request_context=request_context, **command_env)
 		if command_obj is None:
 			raise WCommandSet.NoCommandFound('No suitable command found: "%s"' % command_str)
 
-		if isinstance(command_obj, WCommandContext) is True:
-			result = command_obj.exec_context(*command_tokens, request_context=request_context)
-		else:
-			result = command_obj.exec(*command_tokens)
+		result = command_obj.exec(*command_tokens, request_context=request_context, **command_env)
 
 		if isinstance(result, WCommandContextResult) is True:
 			self.__context = WContext.import_context(result.context)

@@ -50,26 +50,30 @@ class WCommandResult:
 class WCommandProto(metaclass=ABCMeta):
 	""" Prototype for a single command. Command tokens are string, where each token is a part of the command name or
 	is the command parameter. Tokens are generated from a string, each token is separated by space (if space is a
-	part of the token, then it must be quoted).
+	part of the token, then it must be quoted). Any command may require some additional parameters that are
+	generated from environment with which this command will be checked and/or called. This extra parameters
+	calls command environment
 	"""
 
 	@abstractmethod
 	@verify_type(command_tokens=str)
-	def match(self, *command_tokens):
+	def match(self, *command_tokens, **command_env):
 		""" Checks whether this command can be called with the given tokens. Return True - if tokens match this
 		command, False - otherwise
 
 		:param command_tokens: command to check
+		:param command_env: command environment
 		:return: bool
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
 	@verify_type(command_tokens=str)
-	def exec(self, *command_tokens):
+	def exec(self, *command_tokens, **command_env):
 		""" Execute valid command (that represent as tokens)
 
 		:param command_tokens: command to execute
+		:param command_env: command environment
 		:return: WCommandResult
 		"""
 		raise NotImplementedError('This method is abstract')
@@ -116,7 +120,7 @@ class WCommand(WCommandProto):
 		return self.__command
 
 	@verify_type(command_tokens=str)
-	def match(self, *command_tokens):
+	def match(self, *command_tokens, **command_env):
 		""" :meth:`.WCommandProto.match` implementation
 		"""
 		command = self.command()
@@ -126,24 +130,25 @@ class WCommand(WCommandProto):
 
 	@abstractmethod
 	@verify_type('paranoid', command_tokens=str)
-	def _exec(self, *command_tokens):
+	def _exec(self, *command_tokens, **command_env):
 		""" Derived classes must implement this function, in order to do a real command work.
 
 		:param command_tokens: command to execute
+		:param command_env: command environment
 		:return: WCommandResult
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@verify_type(command_tokens=str)
-	def exec(self, *command_tokens):
+	def exec(self, *command_tokens, **command_env):
 		""" :meth:`.WCommandProto.exec` implementation
 
 		(throws RuntimeError if tokens are invalid, and calls :meth:`.WCommand._exec` method)
 		"""
-		if self.match(*command_tokens) is False:
+		if self.match(*command_tokens, **command_env) is False:
 			raise RuntimeError('Command mismatch: %s' % self.join_tokens(*command_tokens))
 
-		return self._exec(*command_tokens)
+		return self._exec(*command_tokens, **command_env)
 
 
 class WCommandSelector:
@@ -165,15 +170,16 @@ class WCommandSelector:
 		self.__commands.append(command_obj)
 
 	@verify_type(command_tokens=str)
-	def select(self, *command_tokens):
+	def select(self, *command_tokens, **command_env):
 		""" Select suitable command, that matches the given tokens. Each new command to check is fetched with
 		this object iterator (:meth:`.WCommandSelector.__iter__`)
 
 		:param command_tokens: command
+		:param command_env: command environment
 		:return: WCommandProto
 		"""
 		for command_obj in self:
-			if command_obj.match(*command_tokens):
+			if command_obj.match(*command_tokens, **command_env):
 				return command_obj
 
 	def __iter__(self):
@@ -271,16 +277,17 @@ class WCommandSet:
 		return self.__commands
 
 	@verify_type('paranoid', command_str=str)
-	def exec(self, command_str):
+	def exec(self, command_str, **command_env):
 		""" Execute the given command (command will be split into tokens, every space that is a part of a token
 		must be quoted)
 
 		:param command_str: command to execute
+		:param command_env: command environment
 		:return: WCommandResult
 		"""
 		command_tokens = WCommandProto.split_command(command_str)
-		command_obj = self.commands().select(*command_tokens)
+		command_obj = self.commands().select(*command_tokens, **command_env)
 		if command_obj is None:
 			raise WCommandSet.NoCommandFound('No suitable command found: "%s"' % command_str)
 
-		return command_obj.exec(*command_tokens)
+		return command_obj.exec(*command_tokens, **command_env)

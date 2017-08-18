@@ -43,11 +43,11 @@ class WExitCommand(WCommand):
 		return self.__console
 
 	@verify_type('paranoid', command_tokens=str)
-	def match(self, *command_tokens):
+	def match(self, *command_tokens, **command_env):
 		return command_tokens == ('exit',) or command_tokens == ('quit',)
 
 	@verify_type('paranoid', command_tokens=str)
-	def _exec(self, *command_tokens):
+	def _exec(self, *command_tokens, **command_env):
 		self.__console.stop()
 		return WCommandResult('Exiting...')
 
@@ -55,9 +55,9 @@ class WExitCommand(WCommand):
 class WEmptyCommand(WCommand):
 
 	@verify_type('paranoid', command_tokens=str)
-	def match(self, *command_tokens):
+	def match(self, *command_tokens, **command_env):
 		return len(command_tokens) == 0
 
 	@verify_type('paranoid', command_tokens=str)
-	def _exec(self, *command_tokens):
+	def _exec(self, *command_tokens, **command_env):
 		return WCommandResult()
