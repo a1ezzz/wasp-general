@@ -3,7 +3,7 @@
 import pytest
 
 from wasp_general.command.command import WCommandResult, WCommandProto, WCommand, WCommandSelector
-from wasp_general.command.command import WCommandPrioritizedSelector, WCommandSet
+from wasp_general.command.command import WCommandPrioritizedSelector, WCommandSet, WReduceCommand
 
 
 def test_abstract():
@@ -125,3 +125,27 @@ class TestWCommandSet:
 		assert(result.output == 'OK')
 
 		pytest.raises(WCommandSet.NoCommandFound, command_set.exec, 'hello world')
+
+
+class TestWReduceCommand:
+
+	def test(self):
+		command_selector = WCommandSelector()
+		pytest.raises(RuntimeError, WReduceCommand, command_selector)
+		reduce_command = WReduceCommand(command_selector, 'section1')
+
+		assert(reduce_command.match('section1', 'hello') is False)
+		assert(reduce_command.match('section1', 'test') is False)
+		assert(reduce_command.match('section2', 'hello') is False)
+		pytest.raises(RuntimeError, reduce_command.exec, 'section1', 'hello')
+		pytest.raises(RuntimeError, reduce_command.exec, 'section1', 'test')
+		pytest.raises(RuntimeError, reduce_command.exec, 'section2', 'hello')
+
+		command_selector.add(TestWCommand.Command('hello'))
+		assert(reduce_command.match('section1', 'hello') is True)
+		assert(reduce_command.match('section1', 'test') is False)
+		assert(reduce_command.match('section2', 'hello') is False)
+
+		result = reduce_command.exec('section1', 'hello')
+		assert(isinstance(result, WCommandResult) is True)
+		assert(result.output == 'OK')

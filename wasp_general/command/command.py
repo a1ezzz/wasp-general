@@ -291,3 +291,61 @@ class WCommandSet:
 			raise WCommandSet.NoCommandFound('No suitable command found: "%s"' % command_str)
 
 		return command_obj.exec(*command_tokens, **command_env)
+
+
+class WReduceCommand(WCommandProto):
+	""" Command that creates subsection from a command selector. The command will be matched to command tokens only
+	if the first token matches to one of reduce tokens (section name/aliases) and the command selector has command
+	for remaining tokens. Command execution works the same way. The command will be executed from the command
+	selector without the first token and only if the first token matches to one of reduce tokens.
+	"""
+
+	@verify_type(selector=WCommandSelector, reduce_tokens=str)
+	def __init__(self, selector, *reduce_tokens):
+		""" Create new command
+
+		:param selector: selector to use
+		:param reduce_tokens: section names (aliases)
+		"""
+		WCommandProto.__init__(self)
+		if len(reduce_tokens) == 0:
+			raise RuntimeError('No reduce tokens are specified')
+		self.__selector = selector
+		self.__reduce_tokens = reduce_tokens
+
+	def selector(self):
+		""" Return original command selector
+
+		:return: WCommandSelector
+		"""
+		return self.__selector
+
+	def reduce_tokens(self):
+		""" Return section names (aliases)
+
+		:return: tuple of str
+		"""
+		return self.__reduce_tokens
+
+	@verify_type(command_tokens=str)
+	def match(self, *command_tokens, **command_env):
+		""" :meth:`.WCommandProto.match` implementation
+		"""
+		if len(command_tokens) > 0:
+			first_token = command_tokens[0]
+			if first_token in self.reduce_tokens():
+				return self.selector().select(*(command_tokens[1:]), **command_env) is not None
+		return False
+
+	@verify_type(command_tokens=str)
+	def exec(self, *command_tokens, **command_env):
+		""" :meth:`.WCommandProto.exec` implementation
+		"""
+		if len(command_tokens) > 0:
+			first_token = command_tokens[0]
+			if first_token in self.reduce_tokens():
+				command = self.selector().select(*(command_tokens[1:]), **command_env)
+				if command is not None:
+					return command.exec(*(command_tokens[1:]), **command_env)
+
+		raise RuntimeError('Command mismatch: %s' % self.join_tokens(*command_tokens))
