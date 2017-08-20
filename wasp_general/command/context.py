@@ -149,7 +149,7 @@ class WContext(WContextProto):
 		return tuple(result)
 
 	@classmethod
-	@verify_type(context=(tuple, None))
+	@verify_type(context=(tuple, list, None))
 	def import_context(cls, context):
 		""" Import context to corresponding WContextProto object (:meth:`WCommandContextResult.export_context`
 		reverse operation)
@@ -258,7 +258,7 @@ class WCommandContext(WCommandProto):
 
 	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
 	def match(self, *command_tokens, request_context=None, **command_env):
-		""" Match original command like if no context specified
+		""" Match command
 
 		:param command_tokens: command tokens to check
 		:param request_context: command context
@@ -273,7 +273,7 @@ class WCommandContext(WCommandProto):
 
 	@verify_type('paranoid', command_tokens=str, request_context=(WContextProto, None))
 	def exec(self, *command_tokens, request_context=None, **command_env):
-		""" Execute original command like if no context specified
+		""" Execute command
 
 		:param command_tokens: command tokens to execute
 		:param request_context: command context
@@ -308,24 +308,13 @@ class WCommandContextResult(WCommandResult):
 		:param context: context to set
 		"""
 		WCommandResult.__init__(self, output, error)
-		self.context = context.export_context(context) if context is not None else None
+		self.context = context
 
 
 class WCommandContextSet(WCommandSet):
-	""" Class that handles normal and context-oriented command execution.
-
-	All the command can be separated by the answer - "how does they work with context?". And so there are:
-	- Commands that work in any context. Ordinary command (like :class:`.WCommand`) that behave the same
-	way everywhere. For example: 'quit', 'exit' and 'help' (if help message is the same all the time)
-	- Commands that work in specific context. It can be commands that can be executed in a single context only,
-	or commands, that behaves differently in the different context like 'list' or 'help' (if help message is
-	different in different context)
-
-	Depends on adapters specification commands can also be:
-	- Commands that works only if no context specified. This is :class:`.WCommandContext` object, but with adapter
-	that has empty list specification. These are commands, which can be executed at top-level and can't be executed
-	inside any context.
-	- Commands that works with specific context. Common :class:`.WCommandContext` object
+	""" Class that is able to handle context-oriented command execution. Whenever command is searching or
+	is executing - current context is passed as 'request_context' variable. If a command returns
+	:class:`.WCommandContextResult` object, then current context is replaced with the new one.
 	"""
 
 	@verify_type(command_selector=(WCommandSelector, None))
@@ -346,24 +335,23 @@ class WCommandContextSet(WCommandSet):
 		"""
 		return self.__context
 
-	@verify_type('paranoid', command_str=str, request_context=(WContextProto, None))
-	def exec(self, command_str, request_context=None, **command_env):
-		""" Execute command with context (if specified). If command result will set context, this context will
-		be set to this object for future use
+	@verify_type('paranoid', command_str=str)
+	def exec(self, command_str, **command_env):
+		""" Execute command. If command result returns with context (:class:`.WCommandContextResult` object),
+		this context will be set to this object for future use
 
 		:param command_str: command to execute
-		:param request_context: context to use
 		:param command_env: command environment
 		:return: WCommandResult
 		"""
 		command_tokens = WCommandProto.split_command(command_str)
-		command_obj = self.commands().select(*command_tokens, request_context=request_context, **command_env)
+		command_obj = self.commands().select(*command_tokens, request_context=self.context(), **command_env)
 		if command_obj is None:
 			raise WCommandSet.NoCommandFound('No suitable command found: "%s"' % command_str)
 
-		result = command_obj.exec(*command_tokens, request_context=request_context, **command_env)
+		result = command_obj.exec(*command_tokens, request_context=self.context(), **command_env)
 
 		if isinstance(result, WCommandContextResult) is True:
-			self.__context = WContext.import_context(result.context)
+			self.__context = result.context
 
 		return result

@@ -148,7 +148,8 @@ class TestWCommandContextResult:
 
 		assert(isinstance(command_result, WCommandContextResult) is True)
 		assert(isinstance(command_result, WCommandResult) is True)
-		assert(command_result.context == (('hello', None), ('world', 'context-value')))
+		assert (isinstance(command_result.context, WContext) is True)
+		assert(WContext.export_context(command_result.context) == (('hello', None), ('world', 'context-value')))
 		assert(command_result.output == 'output')
 		assert(command_result.error == 1)
 
@@ -177,21 +178,22 @@ class TestWCommandContextSet:
 
 		set_command = TestWCommandContextSet.Command('set')
 
-		def test_exec(token, **kw):
-			return WCommandContextResult(output='context set', context=WContext('context1', 'v1'))
-		set_command._exec = test_exec
+		def test_exec1(token, **kw):
+			return WCommandContextResult(output='context set', context=WContext('context', 'hello'))
+		set_command._exec = test_exec1
 
 		command_set.commands().add(set_command)
 
 		assert(command_set.exec('create world').output == 'simple OK')
-		result = command_set.exec('world', request_context=WContext('context', 'hello'))
-		assert(result.output == 'OK')
 
 		assert(command_set.context() is None)
 		result = command_set.exec('set')
 		assert(result.output == 'context set')
 		assert(command_set.context() is not None)
-		assert(command_set.context().context_name() == 'context1')
-		assert(command_set.context().context_value() == 'v1')
+		assert(command_set.context().context_name() == 'context')
+		assert(command_set.context().context_value() == 'hello')
+
+		result = command_set.exec('world')
+		assert(result.output == 'OK')
 
 		pytest.raises(WCommandSet.NoCommandFound, command_set.exec, 'foo')
