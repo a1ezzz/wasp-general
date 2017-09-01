@@ -84,6 +84,7 @@ class WCommandArgumentDescriptor:
 					if error_message is None:
 						error_message = 'Attribute has invalid value'
 					raise WCommandArgumentParsingError(error_message)
+			return value
 
 	class StringArgumentCastingHelper(ArgumentCastingHelper):
 
@@ -297,8 +298,12 @@ class WCommandArgumentParser:
 				result[descriptor.argument_name()] = descriptor.cast(descriptor.default_value())
 
 		for descriptor in self.descriptors():
-			if descriptor.argument_name() not in result.keys():
-				raise WCommandArgumentParsingError("Required argument wasn't found")
+			if descriptor.required() is True:
+				argument_name = descriptor.argument_name()
+				if argument_name not in result.keys():
+					raise WCommandArgumentParsingError(
+						"Required argument wasn't found: %s" % argument_name
+					)
 
 		return result
 
