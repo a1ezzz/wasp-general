@@ -290,7 +290,7 @@ class WCommandContext(WCommandProto):
 			raise RuntimeError('Command mismatch: %s (context: %s)' % (cmd, spec))
 
 		command_tokens = self.adapter().adapt(*command_tokens, request_context=request_context, **command_env)
-		return self.original_command().exec(*command_tokens, **command_env)
+		return self.original_command().exec(*command_tokens, request_context=request_context, **command_env)
 
 
 class WCommandContextResult(WCommandResult):

@@ -105,7 +105,7 @@ class TestWCommandContext:
 
 	class Command(WCommand):
 
-		def _exec(self, *command_tokens):
+		def _exec(self, *command_tokens, **kwargs):
 			return WCommandResult('OK')
 
 	class Adapter(WCommandContextAdapter):
