@@ -375,17 +375,6 @@ class WCommandArgumentParser:
 				description += (' (%s)' % ', '.join(meta))
 
 			result.append((argument_name, description))
-
-			'''
-			required = False, multiple_values = False,
-			default_value = None
-			'''
-
-
-			'''
-			argument_name, required = False, flag_mode = False, multiple_values = False, help_info = None,
-			meta_var = None, default_value = None, casting_helper = None
-			'''
 		return tuple(result)
 
 
