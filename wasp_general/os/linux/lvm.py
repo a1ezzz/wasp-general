@@ -528,5 +528,6 @@ class WLogicalVolume(WLVMInfo):
 		mp = WMountPoint.mount_point(file_path)
 		if mp is not None:
 			name_file = '/sys/block/%s/dm/name' % mp.device_name()
-			lv_path = '/dev/mapper/%s' % open(name_file).read().strip()
-			return WLogicalVolume(lv_path, sudo=sudo)
+			if os.path.exists(name_file):
+				lv_path = '/dev/mapper/%s' % open(name_file).read().strip()
+				return WLogicalVolume(lv_path, sudo=sudo)
