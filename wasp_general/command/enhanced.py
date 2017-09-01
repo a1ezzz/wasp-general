@@ -28,6 +28,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 from abc import abstractmethod
+from enum import Enum
 
 from wasp_general.verify import verify_type, verify_value
 from wasp_general.command.command import WCommandProto, WCommandResult
@@ -193,14 +194,76 @@ class WCommandArgumentDescriptor:
 		return self.__meta_var
 
 
+class WCommandArgumentRelationship:
+
+	class Relationship(Enum):
+		conflict = 1
+		requirement = 2
+
+	@verify_type(argument_names=str)
+	def __init__(self, relationship, *argument_names):
+		if isinstance(relationship, WCommandArgumentRelationship.Relationship) is False:
+			raise TypeError('Invalid relationship type')
+		self.__relationship = relationship
+		if len(argument_names) < 2:
+			raise ValueError('Relationship can be made with 2 arguments and more')
+		self.__arguments = argument_names
+
+	def relationship(self):
+		return self.__relationship
+
+	def arguments(self):
+		return self.__arguments
+
+
 class WCommandArgumentParser:
 
-	@verify_type(argument_descriptors=WCommandArgumentDescriptor)
-	def __init__(self, *argument_descriptors):
+	@verify_type(argument_descriptors=WCommandArgumentDescriptor, relationships=(list, tuple, set, None))
+	def __init__(self, *argument_descriptors, relationships=None):
 		self.__descriptors = argument_descriptors
+		self.__relationships = relationships
+		if self.__relationships is not None:
+			for relation in self.__relationships:
+				if isinstance(relation, WCommandArgumentRelationship) is False:
+					raise TypeError('Invalid relationship type')
+				for argument_name in relation.arguments():
+					argument_found = False
+					for descriptor in self.__descriptors:
+						if argument_name == descriptor.argument_name():
+							argument_found = True
+							break
+					if argument_found is False:
+						raise ValueError('Relationship with unknown argument was specified')
 
 	def descriptors(self):
 		return self.__descriptors
+
+	def relationships(self):
+		return self.__relationships
+
+	def __check_conflict_relation(self, relation, parsed_result):
+		argument_found = None
+		arguments = relation.arguments()
+		for argument_name in arguments:
+			if argument_name in parsed_result.keys():
+				if argument_found is None:
+					argument_found = argument_name
+				else:
+					raise WCommandArgumentParsingError(
+						"Conflict arguments was found: %s" % (', '.join(arguments))
+					)
+
+	def __check_requirements_relation(self, relation, parsed_result):
+		arguments = relation.arguments()
+		arguments_found = 0
+		for argument_name in arguments:
+			if argument_name in parsed_result.keys():
+				arguments_found += 1
+
+		if arguments_found > 0 and len(arguments) != arguments_found:
+			raise WCommandArgumentParsingError(
+				"Required arguments wasn't found. The next arguments have mutual requirements: %s" % (', '.join(arguments))
+			)
 
 	@verify_type(command_tokens=str)
 	def parse(self, *command_tokens):
@@ -215,6 +278,17 @@ class WCommandArgumentParser:
 
 			command_tokens = reduced_command_tokens
 			result = next_result
+
+		relationships = self.relationships()
+		if relationships is not None:
+			for relation in relationships:
+				relation_type = relation.relationship()
+				if relation_type == WCommandArgumentRelationship.Relationship.conflict:
+					self.__check_conflict_relation(relation, result)
+				elif relation_type == WCommandArgumentRelationship.Relationship.requirement:
+					self.__check_requirements_relation(relation, result)
+				else:
+					raise RuntimeError('Unknown relationship was specified')
 
 		for descriptor in descriptors:
 			if descriptor.flag_mode() is True:
@@ -272,16 +346,58 @@ class WCommandArgumentParser:
 
 		return command_tokens, argument_descriptors, result
 
+	def arguments_help(self):
+		result = []
+		for argument in self.descriptors():
+			argument_name = argument.argument_name()
+			if argument.flag_mode() is not True:
+				value_name = argument.meta_var()
+				if value_name is None:
+					value_name = 'value'
+				argument_name = '%s [%s]' % (argument_name, value_name)
+
+			description = argument.help_info()
+			if description is None:
+				description = 'argument description unavailable'
+
+			meta = []
+			if argument.required() is True:
+				meta.append('required')
+
+			if argument.multiple_values() is True:
+				meta.append('may have multiple values')
+
+			default_value = argument.default_value()
+			if default_value is not None:
+				meta.append('default value: %s' % default_value)
+
+			if len(meta) > 0:
+				description += (' (%s)' % ', '.join(meta))
+
+			result.append((argument_name, description))
+
+			'''
+			required = False, multiple_values = False,
+			default_value = None
+			'''
+
+
+			'''
+			argument_name, required = False, flag_mode = False, multiple_values = False, help_info = None,
+			meta_var = None, default_value = None, casting_helper = None
+			'''
+		return tuple(result)
+
 
 class WEnhancedCommand(WCommandProto):
 
-	@verify_type('paranoid', argument_descriptors=WCommandArgumentDescriptor)
+	@verify_type('paranoid', argument_descriptors=WCommandArgumentDescriptor, relationships=(list, tuple, set, None))
 	@verify_type(command=str)
 	@verify_value(command=lambda x: len(x) > 0)
-	def __init__(self, command, *argument_descriptors):
+	def __init__(self, command, *argument_descriptors, relationships=None):
 		WCommandProto.__init__(self)
 		self.__command = command
-		self.__parser = WCommandArgumentParser(*argument_descriptors)
+		self.__parser = WCommandArgumentParser(*argument_descriptors, relationships=relationships)
 
 	def command(self):
 		return self.__command
@@ -310,3 +426,6 @@ class WEnhancedCommand(WCommandProto):
 	@verify_type(command_arguments=dict)
 	def _exec(self, command_arguments):
 		raise NotImplementedError('This method is abstract')
+
+	def arguments_help(self):
+		return self.parser().arguments_help()
