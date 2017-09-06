@@ -29,13 +29,29 @@ from Crypto.Hash import SHA as SHA1, SHA224, SHA256, SHA384, SHA512
 from wasp_general.verify import verify_type, verify_value
 
 
+__sha_functions__ = {
+	'SHA1': SHA1,
+	'SHA224': SHA224,
+	'SHA256': SHA256,
+	'SHA384': SHA384,
+	'SHA512': SHA512
+}
+""" Hashing functions map 'SHA hash function name' - 'PyCrypto hash class'
+"""
+
+
 class WSHA:
 	""" PyCrypto SHA-hashing wrapper
 	"""
 
-	__hash_functions__ = {x.digest_size: x for x in [SHA1, SHA224, SHA256, SHA384, SHA512]}
+	__hash_functions__ = {x.digest_size: x for x in __sha_functions__.values()}
 	""" Hashing functions map 'digest size in bytes' - 'PyCrypto hash class'
 	"""
+
+	__digest_size_by_name__ = {x: y.digest_size for x, y in __sha_functions__.items()}
+	""" Hashing functions map 'SHA hash function name' - 'digest size in bytes'
+	"""
+
 	__default_digest_size__ = SHA512.digest_size
 	""" Default hash digest size
 	"""
@@ -51,15 +67,36 @@ class WSHA:
 		return tuple(digests)
 
 	@staticmethod
+	def available_names():
+		""" Return names of SHA-generators
+
+		:return: tuple of str
+		"""
+		return tuple(WSHA.__digest_size_by_name__.keys())
+
+	@staticmethod
 	@verify_type(digest_size=int)
 	@verify_value(digest_size=lambda x: x in WSHA.__hash_functions__.keys())
-	def digest_size(digest_size=__default_digest_size__):
+	def validate_digest_size(digest_size=__default_digest_size__):
 		""" Validate digest size or return default value. If digest size is ok then same value is returned.
 
 		:param digest_size: digest size in bytes to check
 		:return: int
 		"""
 		return digest_size
+
+	@staticmethod
+	@verify_type(fn_name=str)
+	@verify_value(fn_name=lambda x: x in WSHA.__digest_size_by_name__.keys())
+	def digest_size(fn_name):
+		""" Return digest size for the given name of generator
+
+		:param fn_name: generator name
+
+		:return: int
+		"""
+		fn_name = fn_name.upper()
+		return WSHA.__digest_size_by_name__[fn_name]
 
 	@staticmethod
 	@verify_type(digest_size=int)
