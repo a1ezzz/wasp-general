@@ -30,7 +30,6 @@ from Crypto.Util import Counter
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.config import WConfig
 
 from wasp_general.crypto.random import random_int
 
@@ -185,11 +184,15 @@ class WPKCS7Padding(WBlockPadding):
 
 
 class WAESMode:
-	""" This class specifies modes of AES encryption. It describes key size, block cipher mode of operation,
-	padding object (:class:`.WBlockPadding` instance). Note, padding is required if source data or secret key
-	isn't aligned on block size.
+	""" This class specifies modes of AES encryption. It describes secret key (size and value), block cipher mode
+	of operation, padding object (:class:`.WBlockPadding` instance), required initialization values. Note,
+	padding is required if source data isn't aligned to block size.
 
-	Currently, there are implemented only two cipher mode of operation: 'CBC' and 'CTR'
+	For byte-sequence generation (that is used as secret key and initialization values) it is possible to use
+	:class:`wasp_general.crypto.kdf.WPBKDF2`. :class:`wasp_general.crypto.kdf.WPBKDF2` is a wrapper for PBKDF2
+	function (KDF function that safely generates byte-sequence from the given password and salt)
+
+	Currently, only two cipher mode of operation are implemented: 'CBC' and 'CTR'
 
 	see also: https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
 	"""
@@ -200,15 +203,14 @@ class WAESMode:
 	__init_vector_length__ = pyAES.block_size
 	""" Initialization vector length (in bytes)
 	"""
-	__init_counter_size__ = pyAES.block_size * 8
-	""" Initialization counter size (in bits)
+	__counter_size__ = pyAES.block_size
+	""" Initialization counter size (in bytes)
 	"""
 
 	__modes_descriptor__ = {
 		'AES-CBC': {
 			'mode_code': pyAES.MODE_CBC,
 			'requirements': {
-				'padding': True,
 				'initialization_vector': True,
 				'counter': False
 			}
@@ -216,7 +218,6 @@ class WAESMode:
 		'AES-CTR': {
 			'mode_code': pyAES.MODE_CTR,
 			'requirements': {
-				'padding': False,
 				'initialization_vector': False,
 				'counter': True
 			}
@@ -225,49 +226,133 @@ class WAESMode:
 	""" Describes block cipher modes of operation and theirs requirements
 	"""
 
-	@verify_type(key_size=int, block_cipher_mode=str, padding=(None, WBlockPadding))
-	@verify_type(init_vector=(None, bytes), init_counter_value=(None, int))
+	class SequenceChopper:
+		""" Helper, that chops the given byte-sequence into several separate objects (like secret key,
+		initialization vector or initialization counter values). The exact values depend on AES key size and
+		block cipher mode of operation.
+
+		If length of the given byte-sequence is greater then it is required, then extra bytes discard and
+		this extra-bytes don't take part in any calculation
+		"""
+
+		@verify_type('paranoid', block_cipher_mode=str, key_size=int)
+		@verify_type(sequence=bytes)
+		@verify_value('paranoid', block_cipher_mode=lambda x: x in WAESMode.__modes_descriptor__.keys())
+		def __init__(self, key_size, block_cipher_mode, sequence):
+			""" Create new chopper
+
+			:param key_size: AES secret length
+			:param block_cipher_mode: name of block cipher mode of operation
+			:param sequence: byte-sequence to chop
+			"""
+			required_length = self.required_sequence_length(key_size, block_cipher_mode)
+			self.__key_size = key_size
+			self.__mode = block_cipher_mode
+			self.__sequence = sequence
+
+			if required_length > 0:
+				if len(self.__sequence) < required_length:
+					raise ValueError(
+						'Initialization byte-sequence too short. '
+						'Must be at least %i bytes long' % required_length
+					)
+
+		def secret(self):
+			""" Return AES secret generated from the initial byte-sequence
+
+			:return: bytes
+			"""
+			return self.__sequence[:self.__key_size]
+
+		def initialization_vector(self):
+			""" Return initialization vector generated from the initial byte-sequence if it is required
+			by the current block cipher mode of operation. If it doesn't require - then None is returned
+
+			:return: bytes or None
+			"""
+			req = self.__requirements()
+			if req['initialization_vector'] is not True:
+				return None
+			start_position = self.__key_size
+			end_position = start_position + WAESMode.__init_vector_length__
+			return self.__sequence[start_position:end_position]
+
+		def initialization_counter_value(self):
+			""" Return initialization counter value generated from the initial byte-sequence if it is
+			required by the current block cipher mode of operation. If it doesn't require - then None
+			is returned
+
+			:return: int or None
+			"""
+			req = self.__requirements()
+			if req['counter'] is not True:
+				return None
+
+			start_position = self.__key_size
+			if req['initialization_vector'] is True:
+				start_position += WAESMode.__init_vector_length__
+			end_position = start_position + WAESMode.__counter_size__
+			seq = self.__sequence[start_position:end_position]
+			return int.from_bytes(seq, byteorder='big')
+
+		def __requirements(self):
+			""" Return requirements specification (just shortcut to access specific mode requirements from
+			WAESMode.__modes_descriptor__)
+
+			:return: dict
+			"""
+			return WAESMode.__modes_descriptor__[self.__mode]['requirements']
+
+		@classmethod
+		@verify_type(key_size=int, block_cipher_mode=str)
+		@verify_value(key_size=lambda x: x in (16, 24, 32))
+		@verify_value(block_cipher_mode=lambda x: x in WAESMode.__modes_descriptor__.keys())
+		def required_sequence_length(cls, key_size, block_cipher_mode):
+			""" Calculate required byte-sequence length
+
+			:param key_size: AES secret length
+			:param block_cipher_mode: name of block cipher mode of operation to calculate for
+
+			:return: int
+			"""
+			req = WAESMode.__modes_descriptor__[block_cipher_mode]['requirements']
+			result = key_size
+			if req['initialization_vector'] is True:
+				result += WAESMode.__init_vector_length__
+			if req['counter'] is True:
+				result += WAESMode.__counter_size__
+			return result
+
+	@verify_type(key_size=int, block_cipher_mode=str, padding=(None, WBlockPadding), init_sequence=bytes)
 	@verify_value(key_size=lambda x: x in (16, 24, 32))
-	@verify_value(block_cipher_mode=lambda x: x is None or x in WAESMode.__modes_descriptor__.keys())
-	@verify_value(init_vector=lambda x: x is None or len(x) == WAESMode.__init_vector_length__)
-	@verify_value(init_counter_value=lambda x: x is None or x >= 0 and x < (2 ** WAESMode.__init_counter_size__))
+	@verify_value(block_cipher_mode=lambda x: x in WAESMode.__modes_descriptor__.keys())
 	def __init__(
-		self, key_size, block_cipher_mode, padding=None, init_vector=None, init_counter_value=None
+		self, key_size, block_cipher_mode, init_sequence, padding=None
 	):
 		""" Create new AES-mode.
 
 		:param key_size: secret length
-		:param block_cipher_mode: block cipher mode of operation
-		:param padding: padding object
-		:param init_vector: initialization vector
-		:param init_counter_value: initialization counter value
+		:param block_cipher_mode: name of block cipher mode of operation
+		:param padding: padding object (if required)
+		:param init_sequence: AES secret with initialization vector or counter value
 		"""
 		self.__key_size = key_size
-		self.__cipher_args = ()
-		self.__cipher_kwargs = {}
-		self.__padding = padding
 		self.__mode = block_cipher_mode
+		self.__padding = padding
+		self.__sequence_chopper = WAESMode.SequenceChopper(key_size, block_cipher_mode, init_sequence)
+		self.__cipher_args = (self.__sequence_chopper.secret(),)
+		self.__cipher_kwargs = {}
 
 		cipher_descriptor = WAESMode.__modes_descriptor__[block_cipher_mode]
 		self.__cipher_kwargs['mode'] = cipher_descriptor['mode_code']
 
-		cipher_requirement = cipher_descriptor['requirements']
-		if cipher_requirement['padding'] is True:
-			if padding is None:
-				raise ValueError('Padding must be set for "%s" cipher' % block_cipher_mode)
-		if cipher_requirement['initialization_vector'] is True:
-			if init_vector is None:
-				raise ValueError(
-					'Initialization vector must be set for "%s" cipher' % block_cipher_mode
-				)
-			self.__cipher_kwargs['IV'] = init_vector
-		if cipher_requirement['counter'] is True:
-			if init_counter_value is None:
-				raise ValueError(
-					'Initialization counter value must be set for "%s" cipher' % block_cipher_mode
-				)
+		iv = self.__sequence_chopper.initialization_vector()
+		if iv is not None:
+			self.__cipher_kwargs['IV'] = iv
+		counter = self.__sequence_chopper.initialization_counter_value()
+		if counter is not None:
 			self.__cipher_kwargs['counter'] = Counter.new(
-				WAESMode.__init_counter_size__, initial_value=init_counter_value
+				WAESMode.__counter_size__ * 8, initial_value=counter
 			)
 
 	def key_size(self):
@@ -291,6 +376,20 @@ class WAESMode:
 		"""
 		return self.__padding
 
+	def initialization_vector(self):
+		""" Return currently used initialization vector or None if vector is not used
+
+		:return: bytes or None
+		"""
+		return self.__sequence_chopper.initialization_vector()
+
+	def initialization_counter_value(self):
+		""" Return currently used initialization counter value or None if counter is not used
+
+		:return: int or None
+		"""
+		return self.__sequence_chopper.initialization_counter_value()
+
 	def pyaes_args(self):
 		""" Generate and return position-dependent arguments, that are used in :meth:`.AES.new` method
 
@@ -305,48 +404,9 @@ class WAESMode:
 		"""
 		return self.__cipher_kwargs
 
-	@classmethod
-	@verify_type(key_size=int, block_cipher_mode=(None, str), padding=(None, WBlockPadding))
-	@verify_type(init_vector=(None, bytes), init_counter_value=(None, int))
-	@verify_value(key_size=lambda x: x in (16, 24, 32))
-	@verify_value(block_cipher_mode=lambda x: x is None or x in WAESMode.__modes_descriptor__.keys())
-	def defaults(cls, key_size=32, block_cipher_mode=None, padding=None, init_vector=None, init_counter_value=None):
-		""" Generate mode, where every parameter is optional. Defaults are:
-		Key (secret) size - 32
-		Block cipher mode of operation - 'CBC'
-		Padding (if required) - :class:`.WPKCS7Padding`
-		Initialization vector (if required) - b'\x00\x00\x00'...'\x00\x00'
-		Initialization counter value (if required) - 0
 
-		:param key_size: same as key_size in :meth:`WAESMode.__init__` method
-		:param block_cipher_mode: same as block_cipher_mode in :meth:`WAESMode.__init__` method
-		:param padding: same as padding in :meth:`WAESMode.__init__` method
-		:param init_vector: same as init_vector in :meth:`WAESMode.__init__` method
-		:param init_counter_value: same as init_counter_value in :meth:`WAESMode.__init__` method
-		:return: WAESMode
-		"""
-		if block_cipher_mode is None:
-			block_cipher_mode = 'AES-CBC'
-
-		cipher_requirements = WAESMode.__modes_descriptor__[block_cipher_mode]['requirements']
-
-		if cipher_requirements['padding'] is True and padding is None:
-			padding = WPKCS7Padding()
-
-		if cipher_requirements['initialization_vector'] is True and init_vector is None:
-			init_vector = b'\x00' * WAESMode.__init_vector_length__
-
-		if cipher_requirements['counter'] is True and init_counter_value is None:
-			init_counter_value = 0
-
-		return WAESMode(
-			key_size=key_size, block_cipher_mode=block_cipher_mode, padding=padding,
-			init_vector=init_vector, init_counter_value=init_counter_value
-		)
-
-
-class WAES(metaclass=ABCMeta):
-	""" PyCrypto AES-encryption wrapper. Derived classes must override AES.secret method
+class WAES:
+	""" PyCrypto AES-encryption wrapper
 	"""
 
 	@verify_type(mode=WAESMode)
@@ -370,27 +430,12 @@ class WAES(metaclass=ABCMeta):
 
 		:return: Crypto.Cipher.AES.AESCipher
 		"""
-
-		secret = self.secret()
-		if isinstance(secret, bytes) is False:
-			raise TypeError('Invalid secret type')
-		if len(secret) != self.mode().key_size():
-			raise ValueError('Invalid secret length')
-
-		cipher = pyAES.new(secret, *self.mode().pyaes_args(), **self.mode().pyaes_kwargs())
+		cipher = pyAES.new(*self.mode().pyaes_args(), **self.mode().pyaes_kwargs())
 		return cipher
-
-	@abstractmethod
-	def secret(self):
-		""" Abstract method. Return cipher key. This method is called from AES.cipher for AES-cipher creation
-
-		:return: bytes
-		"""
-		raise NotImplementedError("This method is abstract")
 
 	@verify_type(data=(str, bytes))
 	def encrypt(self, data):
-		""" Encrypt given data with cipher that is got from AES.cipher call.
+		""" Encrypt the given data with cipher that is got from AES.cipher call.
 
 		:param data: data to encrypt
 		:return: bytes
@@ -403,7 +448,7 @@ class WAES(metaclass=ABCMeta):
 
 	@verify_type(data=bytes, decode=bool)
 	def decrypt(self, data, decode=True):
-		""" Decrypt given data with cipher that is got from AES.cipher call.
+		""" Decrypt the given data with cipher that is got from AES.cipher call.
 
 		:param data: data to decrypt
 		:param decode: whether to decode bytes to str or not
@@ -417,81 +462,3 @@ class WAES(metaclass=ABCMeta):
 			result = padding.reverse_pad(result, WAESMode.__data_padding_length__)
 
 		return result.decode() if decode else result
-
-
-class WFixedSecretAES(WAES):
-	""" AES implementation with fixed static secret key
-	"""
-
-	@verify_type('paranoid', mode=WAESMode)
-	@verify_type(secret=(str, bytes))
-	def __init__(self, secret, mode):
-		""" Create new cipher
-
-		:param secret: fixed cipher key. If key isn't aligned to cipher key size, then padding object from \
-		AES mode is used (if there is no padding object ValueError is raised).
-		:param mode: AES mode
-		"""
-		WAES.__init__(self, mode)
-
-		secret = secret if isinstance(secret, bytes) else secret.encode()
-
-		key_size = self.mode().key_size()
-		padding = self.mode().padding()
-		if len(secret) >= key_size:
-			secret = secret[:key_size]
-		elif padding is not None:
-			secret = padding.pad(secret, key_size)
-		else:
-			raise ValueError('Invalid secret length (or there is no padding)')
-
-		self.__secret_string = secret
-
-	def secret(self):
-		""" :meth:`.WAES.secret` method implementation. Returns secret key given in constructor
-
-		:return: str or bytes (depends on original secret key)
-		"""
-		return self.__secret_string
-
-
-class WConfigSecretAES(WAES):
-	""" AES implementation with secret key specified in given configuration. (Secret key is always str object)
-	"""
-
-	@verify_type('paranoid', mode=WAESMode)
-	@verify_type(config=WConfig, section=str, option=str)
-	def __init__(self, config, section, option, mode):
-		""" Construct new AES cipher
-
-		:param config: configuration with secret key
-		:param section: section name with secret key
-		:param option: option name where secret key is
-		:param mode: AES mode
-		"""
-
-		WAES.__init__(self, mode)
-		self.__config = config
-		self.__config_section = section
-		self.__config_option = option
-
-	def secret(self):
-		""" :meth:`.WAES.secret` method implementation. Returns secret key from configuration If key isn't
-		aligned to cipher key size, then padding object from AES mode is used (if there is no padding
-		object ValueError is raised).
-
-		:return: str
-		"""
-
-		secret = self.__config[self.__config_section][self.__config_option].strip().encode()
-
-		key_size = self.mode().key_size()
-		padding = self.mode().padding()
-		if len(secret) >= key_size:
-			secret = secret[:key_size]
-		elif padding is not None:
-			secret = padding.pad(secret, key_size)
-		else:
-			raise ValueError('Invalid secret length (or there is no padding)')
-
-		return secret
