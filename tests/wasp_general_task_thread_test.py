@@ -324,7 +324,7 @@ class TestWThreadedTaskChain:
 		chain.thread_exception = chain_handle_exception
 		chain.start()
 		chain.exception_event().wait(polling_timeout * 5)
-		time.sleep(0.1)
+		time.sleep(0.5)
 		assert(task2_raised_exception == [KeyError])
 		assert(chain_raised_exception == [RuntimeError])
 		chain.stop()
