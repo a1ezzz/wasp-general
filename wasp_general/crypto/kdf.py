@@ -19,16 +19,20 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.backends import default_backend
+# noinspection PyUnresolvedReferences
+from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
+# noinspection PyUnresolvedReferences
+from wasp_general.version import __status__
+
+from Crypto.Protocol.KDF import PBKDF2
 
 from wasp_general.verify import verify_type, verify_value
+from wasp_general.crypto.hmac import WHMAC
 from wasp_general.crypto.random import random_bytes
 
 
 class WPBKDF2:
-	""" Wrapper for Cryptography io PBKDF2 implementation with NIST recommendation and HMAC is used as pseudorandom
+	""" Wrapper for PyCrypto PBKDF2 implementation with NIST recommendation and HMAC is used as pseudorandom
 	function
 
 	NIST recommendation can be read here:
@@ -65,42 +69,31 @@ class WPBKDF2:
 	"""
 
 	@verify_type(key=(str, bytes), salt=(bytes, None), derived_key_length=(int, None))
-	@verify_type(iterations_count=(int, None), hash_fn_name=(str, None))
+	@verify_type(iterations_count=(int, None), hmac=(WHMAC, None))
 	@verify_value(key=lambda x: x is None or len(x) >= WPBKDF2.__minimum_key_length__)
 	@verify_value(salt=lambda x: x is None or len(x) >= WPBKDF2.__minimum_salt_length__)
 	@verify_value(iterations_count=lambda x: x is None or x >= WPBKDF2.__minimum_iterations_count__)
-	@verify_value(hash_fn_name=lambda x: x is None or hasattr(hashes, x))
-	def __init__(self, key, salt=None, derived_key_length=None, iterations_count=None, hash_fn_name=None):
+	def __init__(self, key, salt=None, derived_key_length=None, iterations_count=None, hmac=None):
 		""" Generate new key (derived key) with PBKDF2 algorithm
 
 		:param key: password
 		:param salt: salt to use (if no salt was specified, then it will be generated automatically)
 		:param derived_key_length: length of byte-sequence to generate
 		:param iterations_count: iteration count
-		:param hash_fn_name: name of hash function to be used with HMAC
+		:param hmac: WHMAC object to use with PBKDF2
 		"""
 		self.__salt = salt if salt is not None else self.generate_salt()
 		if derived_key_length is None:
 			derived_key_length = self.__default_derived_key_length__
 		if iterations_count is None:
 			iterations_count = self.__default_iterations_count__
-		if hash_fn_name is None:
-			hash_fn_name = self.__class__.__default_digest_generator_name__
+		if hmac is None:
+			hmac = WHMAC(self.__default_digest_generator_name__)
 
-		hash_cls = getattr(hashes, hash_fn_name)
-
-		salt = self.__salt if isinstance(self.__salt, str) is False else self.__salt.encode()
-
-		pbkdf2_obj = PBKDF2HMAC(
-			algorithm=hash_cls(), length=derived_key_length, salt=salt, iterations=iterations_count,
-			backend=default_backend()
+		self.__derived_key = PBKDF2(
+			key, self.__salt, dkLen=derived_key_length, count=iterations_count,
+			prf=hmac.hash
 		)
-
-		if isinstance(key, str) is True:
-			key = key.encode()
-
-		self.__derived_key = pbkdf2_obj.derive(key)
-
 
 	def salt(self):
 		""" Return salt value (that was given in constructor or created automatically)
