@@ -2,7 +2,7 @@
 
 import pytest
 
-from wasp_general.crypto.aes import WFixedSecretAES, WAESMode
+from wasp_general.crypto.aes import WAES, WAESMode, WPKCS7Padding
 from wasp_general.crypto.rsa import WRSA
 
 from wasp_general.network.messenger.envelope import WMessengerTextEnvelope, WMessengerBytesEnvelope
@@ -145,18 +145,21 @@ class TestWMessengerAESLayer:
 		session = WMessengerOnionSession(onion, sf)
 		layer = WMessengerAESLayer()
 
-		aes_mode = WAESMode.defaults()
-		aes_cipher = WFixedSecretAES('password', aes_mode)
+		secret = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
+		iv = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
+
+		aes_mode = WAESMode(16, 'AES-CBC', secret + iv, padding=WPKCS7Padding())
+		aes_cipher = WAES(aes_mode)
 
 		assert(isinstance(layer, WMessengerAESLayer) is True)
 		assert(isinstance(layer, WMessengerOnionCoderLayerProto) is True)
 
 		result = layer.encode(WMessengerBytesEnvelope(b'msg1'), session, aes_cipher=aes_cipher)
 		assert(isinstance(result, WMessengerBytesEnvelope) is True)
-		assert(result.message() == b'w^2\x1f\xbcPV\xa7\xe2#\xa9\xa3\xeb_\xd7Y')
+		assert(result.message() == b'\x14\\O\x1b9e\x853\xfbxx\xfd\xb2\xb4A\xc2')
 
 		result = layer.decode(
-			WMessengerBytesEnvelope(b'g\x1a\x9ed\x83\x83\x18\xca\xeaW\xc9\xc5ae\xa0\xe8'),
+			WMessengerBytesEnvelope(b'\x87\xee\xd3^B\x0c\xd1\xc8\xf3va\\`\xbaT\xc9'),
 			session, aes_cipher=aes_cipher
 		)
 		assert(isinstance(result, WMessengerBytesEnvelope) is True)
