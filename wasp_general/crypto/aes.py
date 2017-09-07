@@ -24,6 +24,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
+import io
 import re
 from Crypto.Cipher import AES as pyAES
 from Crypto.Util import Counter
@@ -509,3 +510,51 @@ class WAES:
 			result = padding.reverse_pad(result, WAESMode.__data_padding_length__)
 
 		return result.decode() if decode else result
+
+
+class WAESWriter(io.BufferedWriter):
+	""" File-like writer with transparent encryption
+	"""
+
+	@verify_type(cipher=WAES)
+	def __init__(self, cipher, raw):
+		""" Create new encryption writer
+
+		:param cipher: cipher to use. As written data size may differ - cipher must be constructed with
+		padding object
+		:param raw: target file-like object to write to
+		"""
+		io.BufferedWriter.__init__(self, raw)
+
+		self.__cipher_padding = cipher.mode().padding()
+		if self.__cipher_padding is None:
+			raise ValueError('AES cipher must be created with "padding" option')
+
+		self.__cipher = cipher.cipher()
+		self.__cipher_block_size = cipher.mode().key_size()
+		self.__buffer = b''
+
+	@verify_type(b=bytes)
+	def write(self, b):
+		""" Encrypt and write data
+
+		:param b: data to encrypt and write
+
+		:return: None
+		"""
+		self.__buffer += b
+		while len(self.__buffer) >= self.__cipher_block_size:
+			io.BufferedWriter.write(self, self.__cipher.encrypt(self.__buffer[:self.__cipher_block_size]))
+			self.__buffer = self.__buffer[self.__cipher_block_size:]
+
+	def close(self):
+		""" Flush buffers and close
+
+		:return: None
+		"""
+		if len(self.__buffer) > 0:
+			data = self.__cipher_padding.pad(self.__buffer, self.__cipher_block_size)
+			encrypted_data = self.__cipher.encrypt(data)
+			io.BufferedWriter.write(self, encrypted_data)
+		self.__buffer = b''
+		io.BufferedWriter.close(self)
