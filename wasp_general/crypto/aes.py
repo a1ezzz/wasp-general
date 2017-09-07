@@ -24,7 +24,6 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-
 from Crypto.Cipher import AES as pyAES
 from Crypto.Util import Counter
 from abc import ABCMeta, abstractmethod
@@ -39,7 +38,7 @@ class WBlockPadding(metaclass=ABCMeta):
 	"""
 
 	@abstractmethod
-	@verify_type(data=(str, bytes), block_size=int)
+	@verify_type(data=bytes, block_size=int)
 	@verify_value(block_size=lambda x: x > 0)
 	def pad(self, data, block_size):
 		""" Pad given data to given size
@@ -74,26 +73,23 @@ class WSimplePadding(WBlockPadding):
 
 		:param padding: integer code of ASCII character
 		"""
-		self.__padding_symbol = chr(0) if padding is None else chr(padding)
+		if padding is None:
+			padding = 0
+		self.__padding_symbol = bytes([padding])
 
-	@verify_type(byte=bool)
-	def padding_symbol(self, byte=False):
+	def padding_symbol(self):
 		""" Return character with witch data is padded
 
-		:param byte: whether to return character as str or bytes object
-		:return: str or bytes (depends on byte value)
+		:return: bytes
 		"""
-		return self.__padding_symbol if byte is False else self.__padding_symbol.encode('ascii')
+		return self.__padding_symbol
 
-	@verify_type(data=(str, bytes), block_size=int)
+	@verify_type(data=bytes, block_size=int)
 	@verify_value(block_size=lambda x: x > 0)
 	def pad(self, data, block_size):
 		""" :meth:`.WBlockPadding.pad` method implementation
 		"""
-		if isinstance(data, str):
-			data = data.encode()
-
-		padding_symbol = self.padding_symbol(isinstance(data, bytes))
+		padding_symbol = self.padding_symbol()
 
 		blocks_count = (len(data) // block_size)
 		if (len(data) % block_size) != 0:
@@ -107,9 +103,9 @@ class WSimplePadding(WBlockPadding):
 	def reverse_pad(self, data, block_size):
 		""" :meth:`.WBlockPadding.reverse_pad` method implementation
 		"""
-		return data.rstrip(self.padding_symbol(True))
+		return data.rstrip(self.padding_symbol())
 
-	@verify_type(data=(str, bytes), total_length=int, padding_symbol=(str, bytes))
+	@verify_type(data=bytes, total_length=int, padding_symbol=bytes)
 	@verify_value(total_length=lambda x: x > 0, padding_symbol=lambda x: len(x) == 1)
 	def _fill(self, data, total_length, padding_symbol):
 		""" Append padding symbol to the end of data till specified length is reached
@@ -117,16 +113,28 @@ class WSimplePadding(WBlockPadding):
 		:param data: data to append to
 		:param total_length: target length
 		:param padding_symbol: symbol to pad
-		:return: str or bytes (same as source data type)
+		:return: bytes
 		"""
 		return data.ljust(total_length, padding_symbol)
+
+
+class WZeroPadding(WSimplePadding):
+	""" Zero padding implementation (just alias for WSimplePadding() object)
+
+	see also: https://en.wikipedia.org/wiki/Padding_(cryptography)#Zero_padding
+	"""
+
+	def __init__(self):
+		""" Create new padding object
+		"""
+		WSimplePadding.__init__(self)
 
 
 class WShiftPadding(WSimplePadding):
 	""" Same as :class:`.WSimplePadding` class, but also randomly shifts original data.
 	"""
 
-	@verify_type(data=(str, bytes), total_length=int, padding_symbol=(str, bytes))
+	@verify_type(data=bytes, total_length=int, padding_symbol=bytes)
 	@verify_value(total_length=lambda x: x > 0, padding_symbol=lambda x: len(x) == 1)
 	def _fill(self, data, total_length, padding_symbol):
 		""" Overridden :meth:`.WSimplePadding._fill` method. This methods adds padding symbol at the beginning
@@ -135,7 +143,7 @@ class WShiftPadding(WSimplePadding):
 		:param data: data to append to
 		:param total_length: target length
 		:param padding_symbol: symbol to pad
-		:return: str or bytes (same as source data type)
+		:return: bytes
 		"""
 
 		delta = total_length - len(data)
@@ -146,7 +154,7 @@ class WShiftPadding(WSimplePadding):
 	def reverse_pad(self, data, block_size):
 		""" :meth:`.WBlockPadding.reverse_pad` method implementation
 		"""
-		padding_symbol = self.padding_symbol(True)
+		padding_symbol = self.padding_symbol()
 		return data.lstrip(padding_symbol).rstrip(padding_symbol)
 
 
@@ -156,14 +164,11 @@ class WPKCS7Padding(WBlockPadding):
 	see also: https://en.wikipedia.org/wiki/Padding_(cryptography)#PKCS7
 	"""
 
-	@verify_type(data=(str, bytes), block_size=int)
+	@verify_type(data=bytes, block_size=int)
 	@verify_value(block_size=lambda x: x > 0)
 	def pad(self, data, block_size):
 		""" :meth:`.WBlockPadding.pad` method implementation
 		"""
-		if isinstance(data, str):
-			data = data.encode()
-
 		pad_byte = block_size - (len(data) % block_size)
 		return data + bytes([pad_byte] * pad_byte)
 
@@ -206,6 +211,8 @@ class WAESMode:
 	__counter_size__ = pyAES.block_size
 	""" Initialization counter size (in bytes)
 	"""
+
+	__valid_key_sizes__ = (16, 24, 32)
 
 	__modes_descriptor__ = {
 		'AES-CBC': {
@@ -305,7 +312,7 @@ class WAESMode:
 
 		@classmethod
 		@verify_type(key_size=int, block_cipher_mode=str)
-		@verify_value(key_size=lambda x: x in (16, 24, 32))
+		@verify_value(key_size=lambda x: x in WAESMode.__valid_key_sizes__)
 		@verify_value(block_cipher_mode=lambda x: x in WAESMode.__modes_descriptor__.keys())
 		def required_sequence_length(cls, key_size, block_cipher_mode):
 			""" Calculate required byte-sequence length
@@ -324,7 +331,7 @@ class WAESMode:
 			return result
 
 	@verify_type(key_size=int, block_cipher_mode=str, padding=(None, WBlockPadding), init_sequence=bytes)
-	@verify_value(key_size=lambda x: x in (16, 24, 32))
+	@verify_value(key_size=lambda x: x in WAESMode.__valid_key_sizes__)
 	@verify_value(block_cipher_mode=lambda x: x in WAESMode.__modes_descriptor__.keys())
 	def __init__(
 		self, key_size, block_cipher_mode, init_sequence, padding=None
@@ -447,7 +454,7 @@ class WAES:
 		return self.cipher().encrypt(data)
 
 	@verify_type(data=bytes, decode=bool)
-	def decrypt(self, data, decode=True):
+	def decrypt(self, data, decode=False):
 		""" Decrypt the given data with cipher that is got from AES.cipher call.
 
 		:param data: data to decrypt

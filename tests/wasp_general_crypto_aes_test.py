@@ -2,7 +2,8 @@
 
 import pytest
 
-from wasp_general.crypto.aes import WBlockPadding, WSimplePadding, WShiftPadding, WPKCS7Padding, WAESMode, WAES
+from wasp_general.crypto.aes import WBlockPadding, WSimplePadding, WZeroPadding, WShiftPadding, WPKCS7Padding, WAESMode
+from wasp_general.crypto.aes import WAES
 
 
 def test_abstract_classes():
@@ -15,14 +16,22 @@ class TestWSimplePadding:
 
 	def test_padding(self):
 		assert(issubclass(WSimplePadding, WBlockPadding) is True)
-		assert(WSimplePadding().padding_symbol() == chr(0))
-		assert(WSimplePadding(23).padding_symbol() == chr(23))
+		assert(WSimplePadding().padding_symbol() == b'\x00')
+		assert(WSimplePadding(23).padding_symbol() == b'\x17')
 
 		padding = WSimplePadding(23)
-		assert(padding.pad('123', 3) == (b'123'))
-		assert(padding.pad(b'123', 3) == (b'123'))
-		assert(padding.pad('123', 7) == (b'123' + (chr(23) * 4).encode()))
+		assert(padding.pad(b'123', 3) == b'123')
+		assert(padding.pad(b'123', 7) == b'123\x17\x17\x17\x17')
 		assert(padding.reverse_pad((b'123' + (chr(23) * 4).encode()), 7) == b'123')
+
+
+class TestWZeroPadding:
+
+	def test(self):
+		padding = WZeroPadding()
+		assert(isinstance(padding, WZeroPadding) is True)
+		assert(isinstance(padding, WSimplePadding) is True)
+		assert(padding.padding_symbol() == b'\x00')
 
 
 class TestWShiftPadding:
@@ -42,7 +51,6 @@ class TestWPKCS7Padding:
 		assert(issubclass(WPKCS7Padding, WBlockPadding) is True)
 
 		padding = WPKCS7Padding()
-		assert(padding.pad('123', 5) == b'123\x02\x02')
 		assert(padding.pad(b'123', 6) == b'123\x03\x03\x03')
 
 		assert(padding.reverse_pad(b'123\x02\x02', 5) == b'123')
@@ -136,10 +144,11 @@ class TestWAES:
 		c2 = a2.cipher()
 		assert(c2.decrypt(c1.encrypt(text_block)) != text_block.encode())
 
-		text_block = 'qwerty'
+		text_block = b'qwerty'
 		assert(a1.encrypt(text_block) == a1.encrypt(text_block))
 		assert(a1.encrypt(text_block) != text_block)
 		assert(a1.decrypt(a1.encrypt(text_block)) == text_block)
+		assert(a1.decrypt(a1.encrypt(text_block), decode=True) == text_block.decode())
 
 	@pytest.mark.usefixtures('fake_aes_mode')
 	def test_fake_mode(self):
