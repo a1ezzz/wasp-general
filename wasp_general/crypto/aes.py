@@ -24,6 +24,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
+import re
 from Crypto.Cipher import AES as pyAES
 from Crypto.Util import Counter
 from abc import ABCMeta, abstractmethod
@@ -212,7 +213,13 @@ class WAESMode:
 	""" Initialization counter size (in bytes)
 	"""
 
+	__mode_re__ = re.compile('AES(\-|_)(\\d+)(\-|_)(\\w+)')
+	""" Regular expression for parsing cipher name
+	"""
+
 	__valid_key_sizes__ = (16, 24, 32)
+	""" Supported AES key sizes (in bytes)
+	"""
 
 	__modes_descriptor__ = {
 		'AES-CBC': {
@@ -410,6 +417,39 @@ class WAESMode:
 		:return: dict
 		"""
 		return self.__cipher_kwargs
+
+	@classmethod
+	def init_sequence_length(cls, key_size, block_cipher_mode):
+		""" Return required byte-sequence length
+
+		:param key_size: secret size
+		:param block_cipher_mode: name of block cipher mode of operation
+
+		:return: int
+		"""
+		return WAESMode.SequenceChopper.required_sequence_length(key_size, block_cipher_mode)
+
+	@classmethod
+	@verify_type(name=str)
+	def parse_cipher_name(cls, name):
+		""" Parse cipher name (name like 'aes_256_cbc' or 'AES-128-CTR'). Also this method validates If the
+		cipher is supported by this class. If no - exception is raised
+
+		:param name: name to parse
+
+		:return: tuple where the first element is a key size in bytes (int) and the second element - block cipher mode
+		of operation (str) (for example: (16, 'AES-CTR') or (24, 'AES-CBC'))
+		"""
+		r = cls.__mode_re__.match(name.upper())
+		if r is None:
+			raise ValueError('Unable to find suitable cipher for: "%s"' % name)
+		key_size = int(int(r.group(2)) / 8)
+		block_mode = 'AES-%s' % r.group(4)
+		if key_size not in cls.__valid_key_sizes__:
+			raise ValueError('Unsupported secret length: "%i"' % key_size)
+		if block_mode not in cls.__modes_descriptor__.keys():
+			raise ValueError('Unsupported block cipher mode of operation: "%s"' % block_mode)
+		return key_size, block_mode
 
 
 class WAES:

@@ -66,6 +66,15 @@ class TestWAESMode:
 
 		pytest.raises(ValueError, WAESMode, 16, 'AES-CBC', b'', padding=WPKCS7Padding())
 
+		assert(WAESMode.init_sequence_length(16, 'AES-CBC') == 32)
+		assert(WAESMode.init_sequence_length(24, 'AES-CTR') == 40)
+
+		assert(WAESMode.parse_cipher_name('aes-256-cbc') == (32, 'AES-CBC'))
+		assert(WAESMode.parse_cipher_name('AES_128_CTR') == (16, 'AES-CTR'))
+		pytest.raises(ValueError, WAESMode.parse_cipher_name, '????')
+		pytest.raises(ValueError, WAESMode.parse_cipher_name, 'AES-32-cbc')
+		pytest.raises(ValueError, WAESMode.parse_cipher_name, 'AES-128-cbc2')
+
 		init_seq_key = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
 		init_seq_iv = b'\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f'
 		padding = WPKCS7Padding()
