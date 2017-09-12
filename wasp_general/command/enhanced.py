@@ -43,14 +43,17 @@ class WCommandArgumentDescriptor:
 	class ArgumentCastingHelperProto:
 
 		@abstractmethod
-		def cast(self, value):
+		@verify_type(argument_name=str)
+		@verify_value(argument_name=lambda x: len(x) > 0)
+		def cast(self, argument_name, argument_value):
 			raise NotImplementedError('This method is abstract')
 
 	class FlagArgumentCastingHelper(ArgumentCastingHelperProto):
 
-		@verify_type(value=bool)
-		def cast(self, value):
-			return value
+		@verify_type(argument_name=str, argument_value=bool)
+		@verify_value(argument_name=lambda x: len(x) > 0)
+		def cast(self, argument_name, argument_value):
+			return argument_value
 
 	class ArgumentCastingHelper(ArgumentCastingHelperProto):
 
@@ -72,19 +75,22 @@ class WCommandArgumentDescriptor:
 		def error_message(self):
 			return self.__error_message
 
-		@verify_type(value=str)
-		def cast(self, value):
+		@verify_type(argument_name=str, argument_value=str)
+		@verify_value(argument_name=lambda x: len(x) > 0)
+		def cast(self, argument_name, argument_value):
 			casting_fn = self.casting_function()
 			if casting_fn is not None:
-				value = casting_fn(value)
+				argument_value = casting_fn(argument_value)
 			validate_fn = self.validate_function()
 			if validate_fn is not None:
-				if validate_fn(value) is not True:
+				if validate_fn(argument_value) is not True:
 					error_message = self.error_message()
 					if error_message is None:
-						error_message = 'Attribute has invalid value'
+						error_message = 'Attribute "%s" has invalid value: "%s"' % (
+							argument_name, argument_value
+						)
 					raise WCommandArgumentParsingError(error_message)
-			return value
+			return argument_value
 
 	class StringArgumentCastingHelper(ArgumentCastingHelper):
 
@@ -185,8 +191,10 @@ class WCommandArgumentDescriptor:
 	def casting_helper(self):
 		return self.__casting_helper
 
-	def cast(self, value):
-		return self.casting_helper().cast(value)
+	@verify_type(argument_name=str)
+	@verify_value(argument_name=lambda x: len(x) > 0)
+	def cast(self, argument_name, argument_value):
+		return self.casting_helper().cast(argument_name, argument_value)
 
 	def help_info(self):
 		return self.__help_info
@@ -292,10 +300,11 @@ class WCommandArgumentParser:
 					raise RuntimeError('Unknown relationship was specified')
 
 		for descriptor in descriptors:
+			argument_name = descriptor.argument_name()
 			if descriptor.flag_mode() is True:
-				result[descriptor.argument_name()] = descriptor.cast(False)
+				result[argument_name] = descriptor.cast(argument_name, False)
 			if descriptor.default_value() is not None:
-				result[descriptor.argument_name()] = descriptor.cast(descriptor.default_value())
+				result[argument_name] = descriptor.cast(argument_name, descriptor.default_value())
 
 		for descriptor in self.descriptors():
 			if descriptor.required() is True:
@@ -330,11 +339,11 @@ class WCommandArgumentParser:
 
 		result = previous_result.copy() if previous_result is not None else {}
 		if descriptor.flag_mode() is True:
-			result[argument_name] = descriptor.cast(True)
+			result[argument_name] = descriptor.cast(argument_name, True)
 		else:
 			if len(command_tokens) == 0:
 				raise WCommandArgumentParsingError("Argument requires value. Value wasn't found")
-			argument_value = descriptor.cast(command_tokens.pop(0))
+			argument_value = descriptor.cast(argument_name, command_tokens.pop(0))
 
 			if descriptor.multiple_values() is True:
 				if argument_name not in result.keys():
