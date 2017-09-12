@@ -73,7 +73,8 @@ class WHMAC:
 
 		:return: bytes
 		"""
-		return HMAC(key, msg=message, digestmod=self.digest_generator()).digest()
+		generator = self.digest_generator()
+		return HMAC(key, msg=message, digestmod=generator().pycrypto()).digest()
 
 	@classmethod
 	@verify_type(name=str)

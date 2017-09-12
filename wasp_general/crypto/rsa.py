@@ -28,7 +28,7 @@ from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA as pyRSA
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.crypto.sha import WSHA
+from wasp_general.crypto.hash import WHash
 
 
 class WRSA:
@@ -89,7 +89,7 @@ class WRSA:
 
 	@staticmethod
 	@verify_type(binary_chain=bytes, key=wrapped_class, sha_digest_size=int)
-	@verify_value(sha_digest_size=lambda x: x in WSHA.available_digests())
+	@verify_value(sha_digest_size=lambda x: x in WHash.available_digests(family='SHA'))
 	def encrypt(binary_chain, key, sha_digest_size=32):
 		""" Encrypt data with key and PKCS1 OAEP protocol
 
@@ -99,12 +99,13 @@ class WRSA:
 		:return: bytes
 		"""
 
-		cipher = PKCS1_OAEP.new(key, hashAlgo=WSHA.hash_generator(sha_digest_size))
+		hash_generator = WHash.generator_by_digest('SHA', sha_digest_size).new()
+		cipher = PKCS1_OAEP.new(key, hashAlgo=hash_generator)
 		return cipher.encrypt(binary_chain)
 
 	@staticmethod
 	@verify_type(binary_chain=bytes, key=wrapped_class, sha_digest_size=int)
-	@verify_value(sha_digest_size=lambda x: x in WSHA.available_digests())
+	@verify_value(sha_digest_size=lambda x: x in WHash.available_digests(family='SHA'))
 	def decrypt(binary_chain, private_key, sha_digest_size=32):
 		""" Decrypt data with key and PKCS1 OAEP protocol
 
@@ -114,12 +115,13 @@ class WRSA:
 		:return: bytes
 		"""
 
-		cipher = PKCS1_OAEP.new(private_key, hashAlgo=WSHA.hash_generator(sha_digest_size))
+		hash_generator = WHash.generator_by_digest('SHA', sha_digest_size).new()
+		cipher = PKCS1_OAEP.new(private_key, hashAlgo=hash_generator)
 		return cipher.decrypt(binary_chain)
 
 	@staticmethod
 	@verify_type(text=str, key=wrapped_class, sha_digest_size=int)
-	@verify_value(sha_digest_size=lambda x: x in WSHA.available_digests())
+	@verify_value(sha_digest_size=lambda x: x in WHash.available_digests(family='SHA'))
 	def string_encrypt(text, key, sha_digest_size=32):
 		""" Encrypt text with given public key and PKCS1 OAEP protocol
 
@@ -133,7 +135,7 @@ class WRSA:
 
 	@staticmethod
 	@verify_type(binary_data=bytes, key=wrapped_class, text_encoding=(str, None), sha_digest_size=int)
-	@verify_value(sha_digest_size=lambda x: x in WSHA.available_digests())
+	@verify_value(sha_digest_size=lambda x: x in WHash.available_digests(family='SHA'))
 	def string_decrypt(binary_data, private_key, text_encoding=None, sha_digest_size=32):
 		""" Decrypt binary data with given private key and PKCS1 OAEP protocol
 
