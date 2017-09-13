@@ -124,7 +124,7 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 
 	@WCriticalResource.critical_section()
 	def running_tasks(self):
-		return [x.running_task() for x in self.__running_registry]
+		return tuple([x.running_task() for x in self.__running_registry])
 
 	@WCriticalResource.critical_section()
 	def __len__(self):

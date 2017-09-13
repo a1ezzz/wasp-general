@@ -394,7 +394,7 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 			result = [self.__next_task]
 			self.__next_task.complete()
 			self.__update()
-			return result
+			return tuple(result)
 
 	@WCriticalResource.critical_section()
 	def next_start(self):
