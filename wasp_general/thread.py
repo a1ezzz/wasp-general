@@ -37,10 +37,10 @@ class WCriticalSectionError(Exception):
 	pass
 
 
-@verify_value(lock=lambda x: hasattr(x, '__call__'))
 @verify_type(blocking=bool, timeout=(int, float, None), raise_exception=bool)
+@verify_value(lock_fn=lambda x: callable(x))
 @verify_value(timeout=lambda x: x is None or x > 0)
-def critical_section_dynamic_lock(lock_fn=None, blocking=True, timeout=None, raise_exception=False):
+def critical_section_dynamic_lock(lock_fn=None, blocking=True, timeout=None, raise_exception=True):
 
 	if blocking is False or timeout is None:
 		timeout = -1
@@ -48,14 +48,14 @@ def critical_section_dynamic_lock(lock_fn=None, blocking=True, timeout=None, rai
 	def first_level_decorator(decorated_function):
 		def second_level_decorator(original_function, *args, **kwargs):
 			lock = lock_fn(*args, **kwargs)
-			try:
-				if lock.acquire(blocking=blocking, timeout=timeout) is True:
+			if lock.acquire(blocking=blocking, timeout=timeout) is True:
+				try:
 					result = original_function(*args, **kwargs)
 					return result
-				elif raise_exception is True:
-					WCriticalSectionError('Unable to lock critical section')
-			finally:
-				lock.release()
+				finally:
+					lock.release()
+			elif raise_exception is True:
+				WCriticalSectionError('Unable to lock critical section\n')
 
 		return decorator(second_level_decorator)(decorated_function)
 	return first_level_decorator
@@ -64,7 +64,7 @@ def critical_section_dynamic_lock(lock_fn=None, blocking=True, timeout=None, rai
 @verify_type('paranoid', lock=Lock().__class__, blocking=bool, timeout=(int, float, None), raise_exception=bool)
 @verify_value('paranoid', timeout=lambda x: x is None or x > 0)
 @verify_type(lock=Lock().__class__)
-def critical_section_lock(lock=None, blocking=True, timeout=None, raise_exception=False):
+def critical_section_lock(lock=None, blocking=True, timeout=None, raise_exception=True):
 
 	def lock_getter(*args, **kwargs):
 		return lock
@@ -85,7 +85,7 @@ class WCriticalResource:
 	@staticmethod
 	@verify_type('paranoid', blocking=bool, timeout=(int, float, None), raise_exception=bool)
 	@verify_value('paranoid', timeout=lambda x: x is None or x > 0)
-	def critical_section(blocking=True, timeout=None, raise_exception=False):
+	def critical_section(blocking=True, timeout=None, raise_exception=True):
 
 		def lock_getter(self, *args, **kwargs):
 			if isinstance(self, WCriticalResource) is False:
