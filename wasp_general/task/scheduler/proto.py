@@ -75,6 +75,10 @@ class WTaskSchedule:
 	at the specified moment. This policy is a recommendation for a scheduler and a scheduler can omit it if
 	(for example) a scheduler queue is full. In any case, if this task is dropped (skipped) from being running
 	"on_drop" callback is called (it invokes via :meth:`.WTaskSchedule.task_dropped` method)
+
+	note: It is important that tasks with the same id (task_id) have the same postpone policy. If they do not have
+	the same policy, then exception may be raised. No pre-checks are made to resolve this, because of unpredictable
+	logic of different tasks from different sources
 	"""
 	# TODO: add policy that resolves concurrency of running tasks (like skipping tasks, that is already running)
 
