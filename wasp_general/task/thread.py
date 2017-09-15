@@ -72,9 +72,11 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		this flag is False, then child class must do all the cleaning itself (like
 		thread joining and :meth:`.WThreadTask.close_thread` method calling).
 
-		There is other event - :meth:`.WThreadTask.exception_event`, which is set when exception is raised
-		inside :meth:`.WThreadTask.thread_started` method. All exceptions, that are raised inside thread
-		function, are passed to the callback :meth:`.WThreadTask.thread_exception`.
+		There are two other events - :meth:`.WThreadTask.start_event` and :meth:`.WThreadTask.exception_event`.
+		The first one shows that thread function was started (it means that new thread was already created).
+		The second one is set when exception is raised inside :meth:`.WThreadTask.thread_started` method.
+		All exceptions, that are raised inside thread function, are passed to the
+		callback :meth:`.WThreadTask.thread_exception`.
 
 		With both flags ('ready_to_stop' and 'join_on_stop') there can be a situation, when ready event
 		wasn't set, but stop event has been set already. This situation shows, that task was terminated
@@ -82,7 +84,8 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 
 		:note: With join_on_stop flag enabled, :meth:`.WThreadTask.stop` method can not be called from the same
 		execution thread. It means, that it can not be called from :meth:`.WThreadTask.start` or
-		:meth:`.WThreadTask.thread_started` methods in direct or indirect way.
+		:meth:`.WThreadTask.thread_started` methods in direct or indirect way. In that case it is better to use
+		'ready_to_stop' event polling.
 
 		:param thread_name: name of the thread. It is used in thread constructor as name value only
 		:param join_on_stop: define whether to create stop event object or not.
@@ -91,6 +94,11 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		:attr:`.WThreadTask.__thread_join_timeout__` value will be used. This value is used in \
 		:meth:`.WThreadTask.close_thread` method and if thread wasn't stopped for this period of time, then \
 		:class:`.WThreadJoiningTimeoutError` exception will be raised.
+
+		note: Most event objects are cleared at :meth:`.WThreadTask.start` method (such as 'ready_event',
+		'stop_event', 'exception_event'). But only 'start_event' is cleared at stopping process. It is made
+		this way because there may be concurrency if multiple threads that will wait for this thread to
+		stop and one of those threads will clear the flag/event before other threads will do their job.
 		"""
 		WStoppableTask.__init__(self)
 
@@ -99,6 +107,7 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 			self.__thread_join_timeout = thread_join_timeout
 		self.__thread = None
 		self.__thread_name = thread_name if thread_name is not None else self.__class__.__thread_name__
+		self.__start_event = Event()
 		self.__stop_event = Event() if join_on_stop is True else None
 		self.__ready_event = Event() if ready_to_stop is True else None
 		self.__exception_event = Event()
@@ -117,6 +126,14 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		"""
 		return self.__thread_name
 
+	def start_event(self):
+		""" Return event which is set after the thread creation. Shows that a separate thread has been created
+		already
+
+		:return: Event
+		"""
+		return self.__start_event
+
 	def stop_event(self):
 		""" Return stop event object. Event will be available if object was constructed with join_on_stop flag
 
@@ -133,10 +150,9 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		return self.__ready_event
 
 	def exception_event(self):
-		""" Return readiness event object. Event will be available if object was constructed with ready_to_stop
-		flag
+		""" Return event which is set if exception is raised inside thread function
 
-		:return: Event or None
+		:return: Event
 		"""
 		return self.__exception_event
 
@@ -154,28 +170,36 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		"""
 		if self.__thread is not None and self.__thread.is_alive() is True:
 			raise WThreadJoiningTimeoutError('Thread is still alive. Thread name: %s' % self.__thread.name)
+		self.start_event().clear()
 		self.__thread = None
-		if self.__stop_event is not None:
-			self.__stop_event.clear()
-
-		if self.__ready_event is not None:
-			self.__ready_event.clear()
-
-		self.__exception_event.clear()
 
 	def start(self):
 		""" :meth:`WStoppableTask.start` implementation that creates new thread
 		"""
+
+		start_event = self.start_event()
+		stop_event = self.stop_event()
+		ready_event = self.ready_event()
+
 		def thread_target():
 			try:
+				start_event.set()
 				self.thread_started()
-				if self.ready_event() is not None:
-					self.ready_event().set()
+				if ready_event is not None:
+					ready_event.set()
 			except Exception as e:
 				self.thread_exception(e)
 				self.exception_event().set()
 
 		if self.__thread is None:
+			if stop_event is not None:
+				stop_event.clear()
+
+			if ready_event is not None:
+				ready_event.clear()
+
+			self.exception_event().clear()
+
 			self.__thread = Thread(target=thread_target, name=self.thread_name())
 			self.__thread.start()
 
@@ -217,6 +241,19 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		print('Thread execution was stopped by the exception. Exception: %s' % str(raised_exception))
 		print('Traceback:')
 		print(traceback.format_exc())
+
+	def check_events(self):
+		""" Check "stopping"-events ('ready_event', 'stop_event', 'exception_event') if one of them is set.
+		Usually True value means that thread is meant to be stopped, means that it is finished its job or
+		some error has happened or this thread was asked to stop
+
+		:return: bool
+		"""
+		return (
+			self.ready_event().is_set() is True or
+			self.stop_event().is_set() is True or
+			self.exception_event().is_set() is True
+		)
 
 
 class WThreadCustomTask(WThreadTask):
@@ -318,7 +355,7 @@ class WPollingThreadTask(WThreadTask, metaclass=ABCMeta):
 
 		:return: None
 		"""
-		while self.stop_event().is_set() is False and self.ready_event().is_set() is False:
+		while self.check_events() is False:
 			self._polling_iteration()
 			self.stop_event().wait(self.polling_timeout())
 

@@ -52,18 +52,21 @@ class TestWThreadTask:
 		t = FastTask()
 		assert(t.thread() is None)
 		assert(t.join_timeout() == FastTask.__thread_join_timeout__)
+		assert(t.start_event().is_set() is False)
 		assert(t.stop_event().is_set() is False)
 		assert(t.ready_event() is None)
 
 		t.start()
 		assert(t.thread() is not None)
 		assert(t.thread().name != 'custom thread name')
+		assert(t.start_event().is_set() is True)
 		assert(t.stop_event().is_set() is False)
 		assert(t.ready_event() is None)
 
 		t.stop()
 		assert(t.thread() is None)
-		assert(t.stop_event().is_set() is False)
+		assert(t.start_event().is_set() is False)
+		assert(t.stop_event().is_set() is True)
 		assert(FastTask.call_stack == ['FastTask.start', 'FastTask.stop'])
 		assert(t.ready_event() is None)
 
@@ -92,7 +95,7 @@ class TestWThreadTask:
 		t.thread().join(SlowTask.sleep_time)
 		t.close_thread()
 		assert(t.thread() is None)
-		assert(t.stop_event().is_set() is False)
+		assert(t.stop_event().is_set() is True)
 
 		FastTask.call_stack = []
 		t = FastTask(join_on_stop=False)
@@ -118,8 +121,8 @@ class TestWThreadTask:
 		assert(slow_task.stop_event().is_set() is False)
 
 		slow_task.stop()
-		assert(slow_task.ready_event().is_set() is False)
-		assert(slow_task.stop_event().is_set() is False)
+		assert(slow_task.ready_event().is_set() is True)
+		assert(slow_task.stop_event().is_set() is True)
 
 		t = FastTask()
 		raised_exception = []
@@ -137,7 +140,7 @@ class TestWThreadTask:
 		time.sleep(0.1)
 		assert(t.exception_event().is_set() is True)
 		t.stop()
-		assert (t.exception_event().is_set() is False)
+		assert (t.exception_event().is_set() is True)
 
 		assert(raised_exception == [])
 		t.thread_exception = handle_exception
