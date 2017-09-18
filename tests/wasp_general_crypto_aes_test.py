@@ -186,7 +186,7 @@ class TestWAESWriter:
 		aes = WAES(aes_mode)
 
 		wr = WAESWriter(aes, bytes_io)
-		wr.write(b'bla-bla-bla long-long-long data very long data \x11\x11\x11\x11!!!')
+		assert(wr.write(b'bla-bla-bla long-long-long data very long data \x11\x11\x11\x11!!!') == 48)
 		wr.close()
 		bytes_io.seek(0)
 		result = b'[C\xf0-\x9c\x98\x07-q\xc2?\xd8\xdeXLsn\x9cz\x00;\xa6b\x9b&_,\xfd\x91\xbe'
@@ -198,7 +198,7 @@ class TestWAESWriter:
 		bytes_io = io.BytesIO()
 		bytes_io.close = lambda: None  # do not really close the buffer
 		wr = WAESWriter(aes, bytes_io)
-		wr.write(b'bla-bla-bla')
+		assert(wr.write(b'bla-bla-bla') == 0)
 		wr.close()
 
 		bytes_io.seek(0)

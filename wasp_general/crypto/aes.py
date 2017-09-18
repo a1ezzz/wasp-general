@@ -534,7 +534,7 @@ class WAESWriter(io.BufferedWriter):
 		self.__cipher_block_size = cipher.mode().key_size()
 		self.__buffer = b''
 
-	@verify_type(b=bytes)
+	@verify_type(b=(bytes, memoryview))
 	def write(self, b):
 		""" Encrypt and write data
 
@@ -542,19 +542,18 @@ class WAESWriter(io.BufferedWriter):
 
 		:return: None
 		"""
-		self.__buffer += b
+		self.__buffer += bytes(b)
+		bytes_written = 0
 		while len(self.__buffer) >= self.__cipher_block_size:
 			io.BufferedWriter.write(self, self.__cipher.encrypt(self.__buffer[:self.__cipher_block_size]))
 			self.__buffer = self.__buffer[self.__cipher_block_size:]
+			bytes_written += self.__cipher_block_size
+		return bytes_written
 
-	def close(self):
-		""" Flush buffers and close
-
-		:return: None
-		"""
+	def flush(self, *args, **kwargs):
 		if len(self.__buffer) > 0:
 			data = self.__cipher_padding.pad(self.__buffer, self.__cipher_block_size)
 			encrypted_data = self.__cipher.encrypt(data)
 			io.BufferedWriter.write(self, encrypted_data)
 		self.__buffer = b''
-		io.BufferedWriter.close(self)
+		io.BufferedWriter.flush(self)
