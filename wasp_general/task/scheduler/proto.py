@@ -68,8 +68,8 @@ class WScheduledTask(WThreadTask):
 
 
 class WTaskSchedule:
-	""" This class specifies when and how :class:`.WScheduledTask` should run. It should be treated
-	as scheduler record.
+	""" This class specifies how :class:`.WScheduledTask` should run. It should be treated as scheduler record
+	without execution time.
 
 	:class:`.WTaskSchedule` has a policy, that describes what scheduler should do if it can not run this task
 	at the specified moment. This policy is a recommendation for a scheduler and a scheduler can omit it if
