@@ -364,10 +364,12 @@ class TestWTaskSourceRegistry:
 	def test(self):
 		registry = WTaskSourceRegistry()
 		assert(registry.check() is None)
+		assert(registry.task_sources() == tuple())
 
 		task_source1 = TestWTaskSourceRegistry.TaskSource()
 		registry.add_source(task_source1)
 		assert(registry.check() is None)
+		assert(registry.task_sources() == (task_source1, ))
 
 		task1 = WTaskSchedule(TestWSchedulerWatchdog.DummyTask())
 		task_source1.tasks.append(task1)
@@ -378,6 +380,8 @@ class TestWTaskSourceRegistry:
 		task_source2 = TestWTaskSourceRegistry.TaskSource()
 		registry.add_source(task_source2)
 		assert(registry.check() is None)
+		result = registry.task_sources()
+		assert(result == (task_source1, task_source2) or result == (task_source2, task_source1))
 
 		task_source1.tasks.append(task1)
 		task2 = WTaskSchedule(TestWSchedulerWatchdog.DummyTask())
@@ -474,6 +478,7 @@ class TestWTaskSchedulerService:
 		assert(service.maximum_running_tasks() > 0)
 		assert(service.maximum_running_tasks() == WTaskSchedulerService.__default_maximum_running_tasks__)
 		assert(service.maximum_postponed_tasks() is None)
+		assert(service.task_sources() == tuple())
 
 		service = WTaskSchedulerService(maximum_postponed_tasks=2, maximum_running_tasks=1)
 		assert(service.maximum_running_tasks() == 1)
@@ -492,6 +497,7 @@ class TestWTaskSchedulerService:
 
 		task_source1 = TestWTaskSourceRegistry.TaskSource()
 		service.add_task_source(task_source1)
+		assert(service.task_sources() == (task_source1, ))
 
 		service.start()
 		service.start_event().wait()
@@ -510,6 +516,8 @@ class TestWTaskSchedulerService:
 
 		task_source2 = TestWTaskSourceRegistry.TaskSource()
 		service.add_task_source(task_source2)
+		result = service.task_sources()
+		assert(result == (task_source1, task_source2) or result == (task_source2, task_source1))
 
 		long_run_task = TestWTaskSchedulerService.DummyTask(Event())
 
@@ -534,6 +542,11 @@ class TestWTaskSchedulerService:
 		service.update()
 
 		TestWTaskSchedulerService.wait_for_events(group1_task1.start_event(), group1_task2.start_event())
+		running_tasks = service.running_tasks()
+		for task in running_tasks:
+			assert(isinstance(task, WRunningScheduledTask) is True)
+			task = task.task_schedule().task()
+			assert(task in (group1_task1, group1_task2, long_run_task))
 
 		TestWTaskSchedulerService.wait_for_tasks(group1_task1, group1_task2)
 		group1_task1_stop_event.set()

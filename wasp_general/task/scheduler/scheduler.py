@@ -523,6 +523,13 @@ class WTaskSourceRegistry:
 				if len(result) > 0:
 					return tuple(result)
 
+	def task_sources(self):
+		""" Return task sources that was added to this registry
+
+		:return: tuple of WTaskSourceProto
+		"""
+		return tuple(self.__sources.keys())
+
 
 class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThreadTask):
 	""" Main scheduler service. This class unites different registries to present entire scheduler
@@ -602,6 +609,14 @@ class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThre
 		:return: None
 		"""
 		self.__sources_registry.add_source(task_source)
+
+	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
+	def task_sources(self):
+		""" Return task sources that was added to this scheduler
+
+		:return: tuple of WTaskSourceProto
+		"""
+		return self.__sources_registry.task_sources()
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	@verify_type('paranoid', task_source=(WTaskSourceProto, None))
