@@ -25,8 +25,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod, abstractclassmethod
-from Crypto.Hash import SHA as SHA1, SHA224, SHA256, SHA384, SHA512
-from Crypto.Hash.MD5 import MD5Hash
+from Crypto.Hash import SHA as SHA1, SHA224, SHA256, SHA384, SHA512, MD5
 
 from wasp_general.verify import verify_type
 
@@ -234,7 +233,7 @@ class WSHA512(WSHAFamily):
 class WMD5(WPyCryptoHashAdapter):
 	""" MD5 hash-generator
 	"""
-	__pycrypto_cls__ = MD5Hash
+	__pycrypto_cls__ = MD5
 	__generator_name__ = 'MD5'
 
 
