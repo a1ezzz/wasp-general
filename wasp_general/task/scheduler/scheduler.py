@@ -372,6 +372,7 @@ class WPostponedTaskRegistry:
 					if previous_scheduled_task.policy() != task_policy:
 						raise RuntimeError('Invalid tasks policies')
 					schedule_found = previous_scheduled_task
+					break
 
 				if schedule_found is not None:
 					task_schedule.task_dropped()
@@ -387,6 +388,7 @@ class WPostponedTaskRegistry:
 					if previous_scheduled_task.policy() != task_policy:
 						raise RuntimeError('Invalid tasks policies')
 					schedule_found = task_index
+					break
 
 				if schedule_found is not None:
 					self.__tasks.pop(schedule_found).task_dropped()
