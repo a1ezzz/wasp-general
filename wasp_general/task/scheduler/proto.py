@@ -45,7 +45,7 @@ class WScheduledTask(WThreadTask):
 	methods in order to be instantiable
 	"""
 
-	__thread_name_prefix__ = 'ScheduledTask-%s'
+	__thread_name_prefix__ = 'ScheduledTask-'
 	""" Thread name prefix
 	"""
 
