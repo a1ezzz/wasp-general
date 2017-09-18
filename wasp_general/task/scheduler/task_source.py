@@ -283,6 +283,30 @@ class WCronSchedule:
 				yield ((hour, minute))
 				hour += 1
 
+	@classmethod
+	@verify_type(scheduled=str)
+	def from_string(cls, scheduled):
+		return cls.from_string_tokens(*filter(lambda x: len(x) > 0, scheduled.strip().split(' ')))
+
+	@classmethod
+	@verify_type(tokens=str)
+	def from_string_tokens(cls, *tokens):
+		if len(tokens) != 5:
+			raise ValueError('Malformed cron-schedule')
+
+		tokens = [int(x) if x != '*' else None for x in tokens]
+
+		if len(tokens) != 5:
+			raise ValueError('Malformed cron-schedule')
+		return cls(
+			cls.now(), minute=tokens[0], hour=tokens[1], day_of_month=tokens[2], day_of_week=tokens[3],
+			month=tokens[4]
+		)
+
+
+class WCronLocalTZSchedule(WCronSchedule):
+	pass
+
 
 class WCronUTCSchedule(WCronSchedule):
 
@@ -318,24 +342,13 @@ class WCronUTCSchedule(WCronSchedule):
 	def now(cls):
 		return utc_datetime()
 
-	@staticmethod
-	@verify_type(scheduled=str)
-	def from_string(scheduled):
-		tokens = filter(lambda x: len(x) > 0, scheduled.strip().split(' '))
-		tokens = [int(x) if x != '*' else None for x in tokens]
-		if len(tokens) != 5:
-			raise ValueError('Malformed cron-schedule')
-		return WCronUTCSchedule(
-			utc_datetime(), minute=tokens[0], hour=tokens[1], day_of_month=tokens[2], day_of_week=tokens[3],
-			month=tokens[4]
-		)
-
 
 class WCronTaskSchedule(WTaskSchedule):
 
 	@verify_type('paranoid', task=WScheduledTask, task_id=(str, None))
 	@verify_value('paranoid', on_drop=lambda x: x is None or callable(x))
-	@verify_type(schedule=WCronUTCSchedule, omit_skipped=bool)
+	@verify_type(schedule=WCronSchedule, omit_skipped=bool)
+	@verify_value(schedule=lambda x: isinstance(x, WCronLocalTZSchedule) or isinstance(x, WCronUTCSchedule))
 	def __init__(self, cron_schedule, task, policy=None, task_id=None, on_drop=None, omit_skipped=True):
 		WTaskSchedule.__init__(self, task, policy=policy, task_id=task_id, on_drop=on_drop)
 		self.__schedule = cron_schedule
@@ -343,6 +356,15 @@ class WCronTaskSchedule(WTaskSchedule):
 
 	def cron_schedule(self):
 		return self.__schedule
+
+	def next_start(self):
+		cron = self.cron_schedule()
+		next_start = cron.next_start()
+		if isinstance(cron, WCronLocalTZSchedule):
+			return utc_datetime(dt=next_start)
+		elif isinstance(cron, WCronUTCSchedule):
+			return next_start
+		raise RuntimeError('Corrupted object!')
 
 	def complete(self):
 		self.cron_schedule().complete(omit_skipped=self.__omit_skipped)
@@ -376,21 +398,25 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 	@verify_type('paranoid', task=(WCronTaskSchedule, None))
 	def __update(self, task=None):
 		if task is not None:
-			next_start = task.cron_schedule().next_start()
-			if self.__next_task is None or next_start < self.__next_task.cron_schedule().next_start():
+			next_start = task.next_start()
+			if self.__next_task is None or next_start < self.__next_task.next_start():
 				self.__next_task = task
 		elif len(self.__tasks) > 0:
 			next_task = self.__tasks[0]
 			for task in self.__tasks[1:]:
-				if task.cron_schedule().next_start() < next_task.cron_schedule().next_start():
+				if task.next_start() < next_task.next_start():
 					next_task = task
 			self.__next_task = next_task
 		else:
 			self.__next_task = None
 
 	@WCriticalResource.critical_section()
+	def tasks_planned(self):
+		return len(self.__tasks)
+
+	@WCriticalResource.critical_section()
 	def has_tasks(self):
-		if self.__next_task is not None and self.__next_task.cron_schedule().next_start() <= utc_datetime():
+		if self.__next_task is not None and self.__next_task.next_start() <= utc_datetime():
 			result = [self.__next_task]
 			self.__next_task.complete()
 			self.__update()
@@ -399,4 +425,4 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 	@WCriticalResource.critical_section()
 	def next_start(self):
 		if self.__next_task is not None:
-			return self.__next_task.cron_schedule().next_start()
+			return self.__next_task.next_start()
