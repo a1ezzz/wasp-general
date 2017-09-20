@@ -2,17 +2,18 @@
 import os
 from setuptools import setup, find_packages
 
-from wasp_general.version import __version__, __author__, __email__, __license__
+from wasp_general.version import __numeric_version__, __author__, __email__, __license__
 
 
 class SetupPySpec:
 
 	name = "wasp-general"
+	version = __numeric_version__
 	description = "Collection of unrelated functions and classes widely used in different wasp-projects"
 	keywords = ["wasp", "cli", "network", "lvm", "threads", "validation"]
 	url = "https://github.com/a1ezzz/wasp-general"
 	classifiers= [
-		"Development Status:: 2 - Pre-Alpha",
+		"Development Status :: 2 - Pre-Alpha",
 		"Intended Audience :: Developers",
 		"License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 		"Operating System :: OS Independent",
@@ -40,7 +41,7 @@ class SetupPySpec:
 if __name__ == "__main__":
 	setup(
 		name = SetupPySpec.name,
-		version = __version__,
+		version = SetupPySpec.version,
 		author = __author__,
 		author_email = __email__,
 		maintainer = __author__,
