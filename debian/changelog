@@ -1,0 +1,5 @@
+wasp-general (0.0.1.3) UNRELEASED; urgency=low
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- Ildar Gafurov <dev@binblob.com>  Thu, 21 Sep 2017 15:10:29 +0300
