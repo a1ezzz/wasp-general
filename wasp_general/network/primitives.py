@@ -531,14 +531,14 @@ class WIPV4SocketInfo:
 	def address(self):
 		""" Return associated IP address or None if not available
 
-		:return: WIPV4Address or WFQDN
+		:return: WIPV4Address or WFQDN or None
 		"""
 		return self.__address
 
 	def port(self):
 		""" Return associated IP port or None if not available
 
-		:return: WIPPort
+		:return: WIPPort or None
 		"""
 		return self.__port
 
@@ -577,3 +577,21 @@ class WIPV4SocketInfo:
 			pass
 
 		raise ValueError('Unable to parse address string. It must be an IP address or FQDN')
+
+	@classmethod
+	@verify_type(info=str)
+	@verify_value(info=lambda x: len(x) > 0)
+	def parse_socket_info(cls, info):
+		""" Parse string that is formed like '[address]<:port>' and return corresponding
+		:class:`.WIPV4ScketInfo` object
+
+		:param info: string to parse
+
+		:return: WIPV4ScketInfo
+		"""
+		info = info.split(':')
+		if len(info) > 2:
+			raise ValueError('Incorrect socket info specified')
+		address = info[0].strip()
+		port = int(info[1].strip()) if len(info) == 2 else None
+		return WIPV4SocketInfo(address=address, port=port)

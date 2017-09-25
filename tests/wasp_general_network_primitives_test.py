@@ -201,3 +201,15 @@ class TestWIPV4SocketInfo:
 
 		assert(WIPV4SocketInfo('').address() is None)
 		assert(WIPV4SocketInfo('').pair() == ('', 0))
+
+		result = WIPV4SocketInfo.parse_socket_info('127.1.2.3:1020')
+		assert(isinstance(result, WIPV4SocketInfo) is True)
+		assert(str(result.address()) == '127.1.2.3')
+		assert(int(result.port()) == 1020)
+
+		result = WIPV4SocketInfo.parse_socket_info('127.1.2.5')
+		assert(isinstance(result, WIPV4SocketInfo) is True)
+		assert(str(result.address()) == '127.1.2.5')
+		assert(result.port() is None)
+
+		pytest.raises(ValueError, WIPV4SocketInfo.parse_socket_info, '127.1.2.5:11:')
