@@ -360,6 +360,9 @@ class TestWTaskSourceRegistry:
 			if len(self.tasks) > 0:
 				return utc_datetime()
 
+		def tasks_planned(self):
+			return len(self.tasks)
+
 	@repeat_fn(__test_repeat_count__)
 	def test(self):
 		registry = WTaskSourceRegistry()

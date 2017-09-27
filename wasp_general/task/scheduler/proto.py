@@ -195,6 +195,14 @@ class WTaskSourceProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@abstractmethod
+	def tasks_planned(self):
+		""" Return number of tasks that are planned to run
+
+		:return: int
+		"""
+		raise NotImplementedError('This method is abstract')
+
 
 class WRunningTaskRegistryProto(metaclass=ABCMeta):
 	""" This class describes a registry of running tasks. It executes a scheduler record (:class:`.WTaskSchedule`),

@@ -14,6 +14,7 @@ def test_abstract():
 	pytest.raises(TypeError, WTaskSourceProto)
 	pytest.raises(NotImplementedError, WTaskSourceProto.has_tasks, None)
 	pytest.raises(NotImplementedError, WTaskSourceProto.next_start, None)
+	pytest.raises(NotImplementedError, WTaskSourceProto.tasks_planned, None)
 	pytest.raises(TypeError, WRunningTaskRegistryProto)
 
 	schedule = WTaskSchedule(TestWScheduledTask.DummyTask())
