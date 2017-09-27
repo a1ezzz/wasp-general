@@ -44,7 +44,7 @@ class WLVMInfoCommand:
 	raised
 	"""
 
-	__lvm_cmd_default_timeout__ = 0.5
+	__lvm_cmd_default_timeout__ = 3
 	""" Default timeout for command to process
 	"""
 
@@ -124,7 +124,7 @@ class WLVMInfo:
 	which may be called on an object creation (it depends on constructor parameters)
 	"""
 
-	__lvm_info_cmd_timeout__ = 0.5
+	__lvm_info_cmd_timeout__ = 3
 	""" Timeout for a program to complete
 	"""
 
@@ -372,19 +372,19 @@ class WLogicalVolume(WLVMInfo):
 	""" Class represent a logical volume
 	"""
 
-	__lvm_snapshot_create_cmd_timeout__ = 0.5
+	__lvm_snapshot_create_cmd_timeout__ = 3
 	""" Timeout for snapshot creation command to complete
 	"""
 
-	__lvm_snapshot_remove_cmd_timeout__ = 0.5
+	__lvm_snapshot_remove_cmd_timeout__ = 3
 	""" Timeout for snapshot removing command to complete
 	"""
 
-	__lvm_snapshot_check_cmd_timeout__ = 0.5
+	__lvm_snapshot_check_cmd_timeout__ = 3
 	""" Timeout for snapshot checking (getting parameters) command to complete
 	"""
 
-	__snapshot_maximum_allocation__ = 99
+	__snapshot_maximum_allocation__ = 99.9
 	""" Maximum space usage for snapshot, till that value snapshot is treated as valid
 	"""
 
@@ -431,7 +431,7 @@ class WLogicalVolume(WLVMInfo):
 
 		:return: WVolumeGroup
 		"""
-		return WVolumeGroup(self.volume_group_name())
+		return WVolumeGroup(self.volume_group_name(), sudo=self.lvm_command().sudo())
 
 	def sectors_count(self):
 		""" Return logical volume size in sectors
@@ -459,7 +459,7 @@ class WLogicalVolume(WLVMInfo):
 
 		:return: str
 		"""
-		uuid_file = '/sys/block/%s/dm/uuid' % os.path.realpath(self.volume_path())
+		uuid_file = '/sys/block/%s/dm/uuid' % os.path.basename(os.path.realpath(self.volume_path()))
 		lv_uuid = open(uuid_file).read().strip()
 		if lv_uuid.startswith('LVM-') is True:
 			return lv_uuid[4:]
@@ -481,18 +481,21 @@ class WLogicalVolume(WLVMInfo):
 		size_kb = self.volume_group().extent_size() * size_extent
 		snapshot_name = self.volume_name() + snapshot_suffix
 
-		lvcreate_cmd = [
+		lvcreate_cmd = ['sudo'] if self.lvm_command().sudo() is True else []
+
+		lvcreate_cmd.extend([
 			'lvcreate', '-L', '%iK' % size_kb, '-s', '-n', snapshot_name, '-p', 'r', self.volume_path()
-		]
+		])
 		subprocess.check_output(lvcreate_cmd, timeout=self.__class__.__lvm_snapshot_create_cmd_timeout__)
-		return WLogicalVolume(self.volume_path() + snapshot_suffix)
+		return WLogicalVolume(self.volume_path() + snapshot_suffix, sudo=self.lvm_command().sudo())
 
 	def remove_volume(self):
 		""" Remove this volume
 
 		:return: None
 		"""
-		lvremove_cmd = ['lvremove', '-f', self.volume_path()]
+		lvremove_cmd = ['sudo'] if self.lvm_command().sudo() is True else []
+		lvremove_cmd.extend(['lvremove', '-f', self.volume_path()])
 		subprocess.check_output(lvremove_cmd, timeout=self.__class__.__lvm_snapshot_remove_cmd_timeout__)
 
 	def snapshot_allocation(self):
