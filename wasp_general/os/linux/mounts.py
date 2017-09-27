@@ -52,7 +52,8 @@ class WMountPoint:
 		if len(parsed_record) != 6:
 			raise RuntimeError('Unable to parse mount record: %s' % mount_record)
 
-		self.__device = os.path.realpath(parsed_record[0])
+		device = parsed_record[0]
+		self.__device = os.path.realpath(device) if os.path.isabs(device) else device
 		self.__device_name = os.path.basename(self.__device)
 		self.__path = parsed_record[1]
 		self.__fs = parsed_record[2]
