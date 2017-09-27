@@ -371,7 +371,6 @@ class WCronTaskSchedule(WTaskSchedule):
 
 
 class WCronTaskSource(WTaskSourceProto, WCriticalResource):
-	# TODO: fix next_start() can return None
 
 	@verify_type(scheduler=WTaskSchedulerProto)
 	def __init__(self, scheduler):
@@ -404,8 +403,11 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 		elif len(self.__tasks) > 0:
 			next_task = self.__tasks[0]
 			for task in self.__tasks[1:]:
-				if task.next_start() < next_task.next_start():
+				if next_task.next_start() is None:
 					next_task = task
+				elif task.next_start() is not None and task.next_start() < next_task.next_start():
+					next_task = task
+
 			self.__next_task = next_task
 		else:
 			self.__next_task = None
@@ -416,13 +418,48 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 
 	@WCriticalResource.critical_section()
 	def has_tasks(self):
-		if self.__next_task is not None and self.__next_task.next_start() <= utc_datetime():
-			result = [self.__next_task]
-			self.__next_task.complete()
-			self.__update()
-			return tuple(result)
+		if self.__next_task is not None:
+			next_start = self.__next_task.next_start()
+			if next_start is not None and next_start <= utc_datetime():
+				result = [self.__next_task]
+				self.__next_task.complete()
+				self.__update()
+				return tuple(result)
 
 	@WCriticalResource.critical_section()
 	def next_start(self):
 		if self.__next_task is not None:
 			return self.__next_task.next_start()
+
+
+class WInstantTaskSource(WTaskSourceProto, WCriticalResource):
+
+	@verify_type(scheduler=WTaskSchedulerProto)
+	@verify_value(on_drop_callback=lambda x: x is None or callable(x))
+	def __init__(self, scheduler, on_drop_callback=None):
+		WTaskSourceProto.__init__(self)
+		WCriticalResource.__init__(self)
+		self.__scheduler = scheduler
+		self.__tasks = []
+		self.__on_drop = on_drop_callback
+
+	@WCriticalResource.critical_section()
+	@verify_type(task=WScheduledTask)
+	def add_task(self, task):
+		self.__tasks.append(task)
+
+	@WCriticalResource.critical_section()
+	def has_tasks(self):
+		if len(self.__tasks) > 0:
+			result = [WTaskSchedule(x, on_drop=self.__on_drop) for x in self.__tasks]
+			self.__tasks = []
+			return tuple(result)
+
+	@WCriticalResource.critical_section()
+	def next_start(self):
+		if len(self.__tasks) > 0:
+			return utc_datetime()
+
+	@WCriticalResource.critical_section()
+	def tasks_planned(self):
+		return len(self.__tasks)
