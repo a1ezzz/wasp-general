@@ -12,6 +12,7 @@ def test_abstract_classes():
 	pytest.raises(NotImplementedError, WTaskRegistryBase.remove, None, None)
 	pytest.raises(NotImplementedError, WTaskRegistryBase.clear, None)
 	pytest.raises(NotImplementedError, WTaskRegistryBase.tasks, None, None)
+	pytest.raises(NotImplementedError, WTaskRegistryBase.tasks_by_tag, None, None)
 	pytest.raises(NotImplementedError, WTaskRegistryBase.tags, None)
 	pytest.raises(NotImplementedError, WTaskRegistryBase.count, None)
 
@@ -60,7 +61,7 @@ class TestWRegisteredTask:
 
 class TestWTaskRegistryStorage:
 
-	def test_add_remove_clear_count_tasks(self):
+	def test(self):
 
 		registry_storage = WTaskRegistryStorage()
 
@@ -91,8 +92,11 @@ class TestWTaskRegistryStorage:
 		registry_storage.add(T2)
 		assert(registry_storage.count() == 3)
 
-		assert(len(list(filter(lambda x: x == T1, registry_storage.tasks(None)))) == 2)
-		assert(len(list(filter(lambda x: x == T2, registry_storage.tasks(None)))) == 1)
+		assert(len(list(filter(lambda x: x == T1, registry_storage.tasks_by_tag(None)))) == 2)
+		assert(len(list(filter(lambda x: x == T2, registry_storage.tasks_by_tag(None)))) == 1)
+
+		assert(len(registry_storage.tasks()) == 3)
+		assert(len(registry_storage.tasks(task_cls=T2)) == 1)
 
 		registry_storage.clear()
 		assert(registry_storage.count() == 0)
@@ -117,14 +121,14 @@ class TestWTaskRegistryStorage:
 		assert(registry_storage.tags() == (1, None))
 
 		assert(registry_storage.count() == 2)
-		assert(registry_storage.tasks(1) == T3)
-		assert(registry_storage.tasks(None) == T1)
+		assert(registry_storage.tasks_by_tag(1) == T3)
+		assert(registry_storage.tasks_by_tag(None) == T1)
 		registry_storage.remove(T3)
 		assert(registry_storage.count() == 1)
-		assert(registry_storage.tasks(None) == T1)
-		assert(registry_storage.tasks(1) is None)
+		assert(registry_storage.tasks_by_tag(None) == T1)
+		assert(registry_storage.tasks_by_tag(1) is None)
 
-		assert(registry_storage.tasks(2) is None)
+		assert(registry_storage.tasks_by_tag(2) is None)
 
 
 class TestWTaskRegistry:

@@ -107,11 +107,21 @@ class WTaskRegistryBase(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	def tasks(self, registry_tag):
+	def tasks_by_tag(self, registry_tag):
 		""" Get tasks from registry by its tag
 
 		:param registry_tag: any hash-able object
 		:return: Return task or list of tasks
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def tasks(self, task_cls=None):
+		"""
+
+		:param task_cls:
+
+		:return: tuple of WRegisteredTask
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -187,7 +197,7 @@ class WTaskRegistryStorage(WTaskRegistryBase):
 		"""
 		self.__registry.clear()
 
-	def tasks(self, registry_tag):
+	def tasks_by_tag(self, registry_tag):
 		""" Get tasks from registry by its tag
 
 		:param registry_tag: any hash-able object
@@ -198,6 +208,16 @@ class WTaskRegistryStorage(WTaskRegistryBase):
 			return None
 		tasks = self.__registry[registry_tag]
 		return tasks if self.__multiple_tasks_per_tag__ is True else tasks[0]
+
+	@verify_type(task_cls=(WRegisteredTask, None))
+	def tasks(self, task_cls=None):
+		result = []
+		for tasks in self.__registry.values():
+			result.extend(tasks)
+
+		if task_cls is not None:
+			result = filter(lambda x: issubclass(x, task_cls), result)
+		return tuple(result)
 
 	def tags(self):
 		""" :meth:`.WTaskRegistryBase.tags` implementation
