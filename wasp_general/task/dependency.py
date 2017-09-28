@@ -138,7 +138,7 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 			dependencies.append(check_task_cls.__registry_tag__)
 
 			for dependency in check_task_cls.__dependency__:
-				dependent_task = self.tasks(dependency)
+				dependent_task = self.tasks_by_tag(dependency)
 				if dependent_task is None and skip_unresolved is False:
 					raise RuntimeError(
 						"Task '%s' dependency unresolved (%s)" %
@@ -150,17 +150,32 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 
 		check(task_cls, [])
 
-	@verify_type(task_tag=str)
-	def started_task(self, task_tag):
-		""" Get started task instance from registry by its tag
+	def started_tasks(self, task_registry_id=None, task_cls=None):
+		""" Return tasks that was started. Result way be filtered by the given arguments.
 
-		:param task_tag: task tag
-		:return: started task instance (WTask)
+		:param task_registry_id: if it is specified, then try to return single task which id is the same as \
+		this value.
+		:param task_cls: if it is specified then result will be consists of this subclass only
+
+		:return: None or WTask or tuple of WTask
 		"""
 
-		for task in self.__started:
-			if task.__registry_tag__ == task_tag:
-				return task
+		if task_registry_id is not None:
+			task = None
+			for registered_task in self.__started:
+				if registered_task.__registry_tag__ == task_registry_id:
+					task = registered_task
+
+			if task_cls is not None and task is not None:
+				if isinstance(task, task_cls) is True:
+					return task
+				return None
+			return task
+
+		result = filter(lambda x: x is not None, self.__started)
+		if task_cls is not None:
+			result = filter(lambda x: isinstance(x, task_cls), result)
+		return tuple(result)
 
 	@verify_type(task_tag=str, skip_unresolved=bool)
 	def start_task(self, task_tag, skip_unresolved=False):
@@ -175,10 +190,10 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 
 		:return: None
 		"""
-		if self.started_task(task_tag) is not None:
+		if self.started_tasks(task_registry_id=task_tag) is not None:
 			return
 
-		task_cls = self.tasks(task_tag)
+		task_cls = self.tasks_by_tag(task_tag)
 		if task_cls is None:
 			raise RuntimeError("Task '%s' wasn't found" % task_tag)
 
@@ -187,10 +202,10 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 		def start_dependency(start_task_cls):
 			for dependency in start_task_cls.__dependency__:
 
-				if self.started_task(dependency) is not None:
+				if self.started_tasks(task_registry_id=dependency) is not None:
 					continue
 
-				dependent_task = self.tasks(dependency)
+				dependent_task = self.tasks_by_tag(dependency)
 
 				if dependent_task is not None:
 					start_dependency(dependent_task)
@@ -218,7 +233,7 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 					task_to_stop.stop()
 				self.__started.remove(task_to_stop)
 
-		task = self.started_task(task_tag)
+		task = self.started_tasks(task_registry_id=task_tag)
 
 		if task is None:
 			return
