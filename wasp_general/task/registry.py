@@ -117,9 +117,10 @@ class WTaskRegistryBase(metaclass=ABCMeta):
 
 	@abstractmethod
 	def tasks(self, task_cls=None):
-		"""
+		""" Return tasks that was added to this registry
 
-		:param task_cls:
+		:param task_cls: if it is not None, then result will be consist of this subclass only (useful fo
+		filtering tasks)
 
 		:return: tuple of WRegisteredTask
 		"""
@@ -211,6 +212,8 @@ class WTaskRegistryStorage(WTaskRegistryBase):
 
 	@verify_type(task_cls=(WRegisteredTask, None))
 	def tasks(self, task_cls=None):
+		""" :meth:`.WTaskRegistryBase.tasks` implementation
+		"""
 		result = []
 		for tasks in self.__registry.values():
 			result.extend(tasks)
