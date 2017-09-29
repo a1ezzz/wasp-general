@@ -15,6 +15,7 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WTaskSourceProto.has_records, None)
 	pytest.raises(NotImplementedError, WTaskSourceProto.next_start, None)
 	pytest.raises(NotImplementedError, WTaskSourceProto.tasks_planned, None)
+	pytest.raises(NotImplementedError, WTaskSourceProto.scheduler_service, None)
 	pytest.raises(TypeError, WRunningRecordRegistryProto)
 
 	schedule = WScheduleRecord(TestWScheduleTask.DummyTask())
@@ -53,7 +54,7 @@ class TestWScheduleRecord:
 		schedule = WScheduleRecord(task)
 		assert(schedule.task() == task)
 		assert(schedule.policy() == WScheduleRecord.PostponePolicy.wait)
-		assert(schedule.task_id() is None)
+		assert(schedule.task_group_id() is None)
 
 		callback_result = []
 
@@ -76,7 +77,8 @@ class TestWRunningScheduleRecord:
 		assert(ValueError, WRunningScheduleRecord, record, started_at)
 
 		started_at = utc_datetime()
-		running_task = WRunningScheduleRecord(record, started_at, 1)
+		running_task = WRunningScheduleRecord(record, started_at)
+		assert(running_task.task() == task)
+		assert(running_task.task_uid() == task.uid())
 		assert(running_task.record() == record)
 		assert(running_task.started_at() == started_at)
-		assert(running_task.task_uid() == 1)

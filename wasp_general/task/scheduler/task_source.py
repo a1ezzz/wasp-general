@@ -356,12 +356,12 @@ class WCronUTCSchedule(WCronSchedule):
 
 class WCronScheduleRecord(WScheduleRecord):
 
-	@verify_type('paranoid', task=WScheduleTask, task_id=(str, None))
+	@verify_type('paranoid', task=WScheduleTask, task_group_id=(str, None))
 	@verify_value('paranoid', on_drop=lambda x: x is None or callable(x))
 	@verify_type(schedule=WCronSchedule, omit_skipped=bool)
 	@verify_value(schedule=lambda x: isinstance(x, WCronLocalTZSchedule) or isinstance(x, WCronUTCSchedule))
-	def __init__(self, cron_schedule, task, policy=None, task_id=None, on_drop=None, omit_skipped=True):
-		WScheduleRecord.__init__(self, task, policy=policy, task_id=task_id, on_drop=on_drop)
+	def __init__(self, cron_schedule, task, policy=None, task_group_id=None, on_drop=None, omit_skipped=True):
+		WScheduleRecord.__init__(self, task, policy=policy, task_group_id=task_group_id, on_drop=on_drop)
 		self.__schedule = cron_schedule
 		self.__omit_skipped = omit_skipped
 

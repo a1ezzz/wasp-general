@@ -24,7 +24,6 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-import uuid
 from datetime import timezone
 from threading import Event
 
@@ -55,6 +54,8 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 	"""
 
 	__thread_name_prefix__ = 'TaskScheduler-Watchdog-'
+	""" Prefix for the thread name (real thread name is made by concatenation of this prefix and schedule task uid)
+	"""
 
 	@classmethod
 	@verify_type('paranoid', record=WScheduleRecord)
@@ -67,28 +68,26 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		scheduled task stopping
 		:return:
 		"""
-		return cls(record, registry, cls.generate_uid())
+		return cls(record, registry)
 
 	@verify_type(record=WScheduleRecord)
-	def __init__(self, record, registry, uid):
+	def __init__(self, record, registry):
 		""" Create new watch dog.
 
 		:param record: schedule record that is ready to be executed
 		:param registry: registry that is created this watch dog and registry that must be notified of \
 		scheduled task stopping
-		:param uid: unique (i hope so) task identifier
 
 		note: :class:`.WRunningRecordRegistry` is using :meth:`.WSchedulerWatchdog.create` method for watch
 		dog creation
 		"""
 		WCriticalResource.__init__(self)
-		WPollingThreadTask.__init__(self, thread_name=self.__thread_name_prefix__ + str(uid))
+		WPollingThreadTask.__init__(self, thread_name=self.__thread_name_prefix__ + str(record.task_uid()))
 		if isinstance(registry, WRunningRecordRegistry) is False:
 			raise TypeError('Invalid registry type')
 
 		self.__record = record
 		self.__registry = registry
-		self.__uid = uid
 		self.__started_at = None
 		self.__task = None
 
@@ -128,13 +127,6 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		"""
 		self.__thread_started()
 		WPollingThreadTask.thread_started(self)
-
-	def uid(self):
-		""" Return task unique (at most time) identifier
-
-		:return: UUID
-		"""
-		return self.__uid
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def __dog_started(self):
@@ -195,15 +187,7 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		started_at = self.started_at()
 		if started_at is None:
 			return
-		return WRunningScheduleRecord(self.record(), started_at, self.uid())
-
-	@classmethod
-	def generate_uid(cls):
-		""" Generate unique (at most time) identifier
-
-		:return: UUID
-		"""
-		return uuid.uuid4()
+		return WRunningScheduleRecord(self.record(), started_at)
 
 
 class WRunningRecordRegistry(WCriticalResource, WRunningRecordRegistryProto, WPollingThreadTask):
@@ -224,15 +208,25 @@ class WRunningRecordRegistry(WCriticalResource, WRunningRecordRegistryProto, WPo
 	""" Timeout with which critical section lock must be acquired
 	"""
 
+	__thread_name__ = 'SchedulerRegistry'
+	""" Thread name (if thread_name_suffix was specified in constructor then suffix value is concatenated to
+	this name)
+	"""
+
 	@verify_subclass(watchdog_cls=(WSchedulerWatchdog, None))
-	def __init__(self, watchdog_cls=None):
+	@verify_type(thread_name_suffix=(str, None))
+	def __init__(self, watchdog_cls=None, thread_name_suffix=None):
 		""" Create new registry
 
 		:param watchdog_cls: watchdog that should be used (:class:`.WSchedulerWatchdog` by default)
+		:param thread_name_suffix: suffix to thread name
 		"""
 		WCriticalResource.__init__(self)
 		WRunningRecordRegistryProto.__init__(self)
-		WPollingThreadTask.__init__(self, thread_name='SchedulerRegistry')
+		thread_name = self.__thread_name__
+		if thread_name_suffix is not None:
+			thread_name += thread_name_suffix
+		WPollingThreadTask.__init__(self, thread_name=thread_name)
 		self.__running_registry = []
 		self.__done_registry = []
 		self.__cleanup_event = Event()
@@ -370,7 +364,7 @@ class WPostponedRecordRegistry:
 			return
 
 		task_policy = record.policy()
-		task_id = record.task_id()
+		task_group_id = record.task_group_id()
 
 		if task_policy == WScheduleRecord.PostponePolicy.wait:
 			self.__records.append(record)
@@ -379,11 +373,11 @@ class WPostponedRecordRegistry:
 			record.task_dropped()
 
 		elif task_policy == WScheduleRecord.PostponePolicy.postpone_first:
-			if task_id is None:
+			if task_group_id is None:
 				self.__records.append(record)
 			else:
 				record_found = None
-				for previous_scheduled_record, task_index in self.__search_record(task_id):
+				for previous_scheduled_record, task_index in self.__search_record(task_group_id):
 					if previous_scheduled_record.policy() != task_policy:
 						raise RuntimeError('Invalid tasks policies')
 					record_found = previous_scheduled_record
@@ -395,11 +389,11 @@ class WPostponedRecordRegistry:
 					self.__records.append(record)
 
 		elif task_policy == WScheduleRecord.PostponePolicy.postpone_last:
-			if task_id is None:
+			if task_group_id is None:
 				self.__records.append(record)
 			else:
 				record_found = None
-				for previous_scheduled_record, task_index in self.__search_record(task_id):
+				for previous_scheduled_record, task_index in self.__search_record(task_group_id):
 					if previous_scheduled_record.policy() != task_policy:
 						raise RuntimeError('Invalid tasks policies')
 					record_found = task_index
@@ -412,17 +406,17 @@ class WPostponedRecordRegistry:
 		else:
 			raise RuntimeError('Invalid policy spotted')
 
-	@verify_type(task_id=str)
-	def __search_record(self, task_id):
+	@verify_type(task_group_id=str)
+	def __search_record(self, task_group_id):
 		""" Search (iterate over) for tasks with the given task id
 
-		:param task_id: target id
+		:param task_group_id: target id
 
 		:return: None
 		"""
 		for i in range(len(self.__records)):
 			record = self.__records[i]
-			if record.task_id() == task_id:
+			if record.task_group_id() == task_group_id:
 				yield record, i
 
 	def has_records(self):
@@ -563,14 +557,20 @@ class WSchedulerServiceService(WCriticalResource, WSchedulerServiceProto, WPolli
 	""" Number of records that are able to run simultaneously. This value is used by default
 	"""
 
+	__thread_name_prefix__ = 'TaskScheduler'
+	""" Thread name (if thread_name_suffix was specified in constructor then suffix value is concatenated to
+	this name)
+	"""
+
 	@verify_type('paranoid', maximum_postponed_records=(int, None))
 	@verify_value('paranoid', maximum_postponed_records=lambda x: x is None or x > 0)
 	@verify_type(maximum_running_records=(int, None), running_record_registry=(WRunningRecordRegistry, None))
 	@verify_type(postponed_record_registry=(WPostponedRecordRegistry, None))
+	@verify_type(thread_name_suffix=(str, None))
 	@verify_value(maximum_running_records=lambda x: x is None or x > 0)
 	def __init__(
 		self, maximum_running_records=None, running_record_registry=None, maximum_postponed_records=None,
-		postponed_record_registry=None
+		postponed_record_registry=None, thread_name_suffix=None
 	):
 		""" Create new scheduler
 
@@ -579,10 +579,14 @@ class WSchedulerServiceService(WCriticalResource, WSchedulerServiceProto, WPolli
 		:param running_record_registry: registry for running records
 		:param maximum_postponed_records: number of records that are able to be postponed (no limit by default)
 		:param postponed_record_registry: registry for postponed records
+		:param thread_name_suffix: suffix to thread name
 		"""
 		WCriticalResource.__init__(self)
 		WSchedulerServiceProto.__init__(self)
-		WPollingThreadTask.__init__(self, thread_name='TaskScheduler')
+		thread_name = self.__thread_name_prefix__
+		if thread_name_suffix is not None:
+			thread_name += thread_name_suffix
+		WPollingThreadTask.__init__(self, thread_name=thread_name)
 
 		if maximum_postponed_records is not None and postponed_record_registry is not None:
 			raise ValueError(

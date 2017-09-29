@@ -60,8 +60,6 @@ class TestWSchedulerWatchdog:
 
 		pytest.raises(TypeError, WSchedulerWatchdog.create, schedule, 1)
 
-		assert(WSchedulerWatchdog.generate_uid() != WSchedulerWatchdog.generate_uid())
-
 		dog = WSchedulerWatchdog.create(schedule, registry)
 		assert(isinstance(dog, WSchedulerWatchdog) is True)
 		assert(isinstance(dog, WThreadTask) is True)
@@ -69,8 +67,6 @@ class TestWSchedulerWatchdog:
 		assert(dog.registry() == registry)
 		assert(dog.started_at() is None)
 		assert(dog.running_task() is None)
-		assert(dog.uid() is not None)
-		assert(dog.uid() != WSchedulerWatchdog.generate_uid())
 
 		stop_event = Event()
 		task = TestWSchedulerWatchdog.DummyTask(stop_event)
@@ -94,11 +90,12 @@ class TestWSchedulerWatchdog:
 		pytest.raises(RuntimeError, dog.thread_started)
 
 		buggy_schedule = WScheduleRecord(task)
-		buggy_schedule.task = lambda: None
-		dog = WSchedulerWatchdog.create(buggy_schedule, registry)
-		pytest.raises(RuntimeError, dog.start)
 
-		buggy_schedule.task = lambda: 1
+		class A:
+			def uid(self):
+				return 1
+
+		buggy_schedule.task = lambda: A()
 		dog = WSchedulerWatchdog.create(buggy_schedule, registry)
 		pytest.raises(RuntimeError, dog.start)
 
@@ -110,7 +107,7 @@ class TestWRunningRecordRegistry:
 
 	@repeat_fn(__test_repeat_count__)
 	def test(self):
-		registry = WRunningRecordRegistry()
+		registry = WRunningRecordRegistry(thread_name_suffix='!')
 		assert(isinstance(registry, WRunningRecordRegistry) is True)
 		assert(isinstance(registry, WRunningRecordRegistryProto) is True)
 		assert (isinstance(registry, WThreadTask) is True)
@@ -236,15 +233,15 @@ class TestWPostponedRecordRegistry:
 
 		drop_count.clear()
 		postpone_first_group_1_schedule1 = WScheduleRecord(
-			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_id='group1', on_drop=on_drop
+			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_group_id='group1', on_drop=on_drop
 		)
 
 		postpone_first_group_1_schedule2 = WScheduleRecord(
-			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_id='group1', on_drop=on_drop
+			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_group_id='group1', on_drop=on_drop
 		)
 
 		postpone_first_group_2_schedule = WScheduleRecord(
-			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_id='group2', on_drop=on_drop
+			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_group_id='group2', on_drop=on_drop
 		)
 
 		postpone_first_schedule1 = WScheduleRecord(
@@ -283,7 +280,7 @@ class TestWPostponedRecordRegistry:
 		assert(postpone_first_schedule2 in tasks)
 
 		wait_group_1 = WScheduleRecord(
-			task, policy=WScheduleRecord.PostponePolicy.wait, task_id='group1', on_drop=on_drop
+			task, policy=WScheduleRecord.PostponePolicy.wait, task_group_id='group1', on_drop=on_drop
 		)
 		registry.postpone(wait_group_1)
 		pytest.raises(RuntimeError, registry.postpone, postpone_first_group_1_schedule1)
@@ -291,15 +288,15 @@ class TestWPostponedRecordRegistry:
 
 		drop_count.clear()
 		postpone_last_group_1_schedule1 = WScheduleRecord(
-			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_id='group1', on_drop=on_drop
+			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_group_id='group1', on_drop=on_drop
 		)
 
 		postpone_last_group_1_schedule2 = WScheduleRecord(
-			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_id='group1', on_drop=on_drop
+			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_group_id='group1', on_drop=on_drop
 		)
 
 		postpone_last_group_2_schedule = WScheduleRecord(
-			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_id='group2', on_drop=on_drop
+			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_group_id='group2', on_drop=on_drop
 		)
 
 		postpone_last_schedule1 = WScheduleRecord(
@@ -337,7 +334,7 @@ class TestWPostponedRecordRegistry:
 		assert(postpone_last_schedule2 in tasks)
 
 		wait_group_1 = WScheduleRecord(
-			task, policy=WScheduleRecord.PostponePolicy.wait, task_id='group1', on_drop=on_drop
+			task, policy=WScheduleRecord.PostponePolicy.wait, task_group_id='group1', on_drop=on_drop
 		)
 		registry.postpone(wait_group_1)
 		pytest.raises(RuntimeError, registry.postpone, postpone_last_group_1_schedule1)
@@ -481,7 +478,7 @@ class TestWSchedulerService:
 		TestWSchedulerService.DummyTask.__result__ = 0
 		TestWSchedulerService.DummyTask.__dropped__ = 0
 
-		service = WSchedulerServiceService()
+		service = WSchedulerServiceService(thread_name_suffix='!')
 		assert(isinstance(service, WSchedulerServiceService) is True)
 		assert(isinstance(service, WSchedulerServiceProto) is True)
 		assert(isinstance(service, WThreadTask) is True)
@@ -539,13 +536,13 @@ class TestWSchedulerService:
 		task_source1.tasks.append(WScheduleRecord(long_run_task, on_drop=long_run_task.on_drop))
 		task_source1.tasks.append(
 			WScheduleRecord(
-				group1_task1, on_drop=group1_task1.on_drop, task_id='group1',
+				group1_task1, on_drop=group1_task1.on_drop, task_group_id='group1',
 				policy=WScheduleRecord.PostponePolicy.drop
 			)
 		)
 		task_source2.tasks.append(
 			WScheduleRecord(
-				group1_task2, on_drop=group1_task2.on_drop, task_id='group1',
+				group1_task2, on_drop=group1_task2.on_drop, task_group_id='group1',
 				policy=WScheduleRecord.PostponePolicy.drop
 			)
 		)
@@ -577,13 +574,13 @@ class TestWSchedulerService:
 
 		task_source1.tasks.append(
 			WScheduleRecord(
-				group1_task1, on_drop=group1_task1.on_drop, task_id='group1',
+				group1_task1, on_drop=group1_task1.on_drop, task_group_id='group1',
 				policy=WScheduleRecord.PostponePolicy.wait
 			)
 		)
 		task_source2.tasks.append(
 			WScheduleRecord(
-				group1_task2, on_drop=group1_task2.on_drop, task_id='group1',
+				group1_task2, on_drop=group1_task2.on_drop, task_group_id='group1',
 				policy=WScheduleRecord.PostponePolicy.wait
 			)
 		)

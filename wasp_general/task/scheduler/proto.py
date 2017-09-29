@@ -44,28 +44,34 @@ class WScheduleTask(WThreadTask):
 
 	note: derived classes must implement :meth:`.WThreadTask.thread_started` and :meth:`.WThreadTask.thread_stopped`
 	methods in order to be instantiable
+
+	Each task instance has "unique" identifier
 	"""
 
 	__thread_name_prefix__ = 'ScheduledTask-'
 	""" Thread name prefix
 	"""
 
-	@verify_type(thread_name_suffix=(str, None))
 	@verify_type('paranoid', thread_join_timeout=(int, float, None))
-	def __init__(self, thread_name_suffix=None, thread_join_timeout=None):
+	def __init__(self, thread_join_timeout=None):
 		""" Create new task
 
-		:param thread_name_suffix: suffix that applies to thread name (if is not specified - uuid4 is used)
 		:param thread_join_timeout: same as thread_join_timeout in :meth:`.WThreadTask.__init__` method
 		"""
 
-		if thread_name_suffix is None:
-			thread_name_suffix = str(uuid.uuid4())
+		self.__uid = uuid.uuid4()
 
 		WThreadTask.__init__(
-			self, thread_name=(self.__thread_name_prefix__ + thread_name_suffix), join_on_stop=True,
+			self, thread_name=(self.__thread_name_prefix__ + str(self.__uid)), join_on_stop=True,
 			ready_to_stop=True, thread_join_timeout=thread_join_timeout
 		)
+
+	def uid(self):
+		""" Return "random" "unique" identifier
+
+		:return: UUID
+		"""
+		return self.__uid
 
 
 class WScheduleRecord:
@@ -77,7 +83,7 @@ class WScheduleRecord:
 	(for example) a scheduler queue is full. In any case, if this task is dropped (skipped) from being running
 	"on_drop" callback is called (it invokes via :meth:`.WScheduleRecord.task_dropped` method)
 
-	note: It is important that tasks with the same id (task_id) have the same postpone policy. If they do not have
+	note: It is important that tasks with the same id (task_group_id) have the same postpone policy. If they do not have
 	the same policy, then exception may be raised. No pre-checks are made to resolve this, because of unpredictable
 	logic of different tasks from different sources
 	"""
@@ -92,14 +98,14 @@ class WScheduleRecord:
 		postpone_first = 3  # stack the first task and drop all the following tasks with the same task ID
 		postpone_last = 4  # stack the last task and drop all the previous tasks with the same task ID
 
-	@verify_type(task=WScheduleTask, task_id=(str, None))
+	@verify_type(task=WScheduleTask, task_group_id=(str, None))
 	@verify_value(on_drop=lambda x: x is None or callable(x))
-	def __init__(self, task, policy=None, task_id=None, on_drop=None):
+	def __init__(self, task, policy=None, task_group_id=None, on_drop=None):
 		""" Create new schedule record
 
 		:param task: task to run
 		:param policy: postpone policy
-		:param task_id: identifier that groups different scheduler records and single postpone policy
+		:param task_group_id: identifier that groups different scheduler records and single postpone policy
 		:param on_drop: callback, that must be called if this task is skipped
 		"""
 
@@ -108,7 +114,7 @@ class WScheduleRecord:
 
 		self.__task = task
 		self.__policy = policy if policy is not None else WScheduleRecord.PostponePolicy.wait
-		self.__task_id = task_id
+		self.__task_group_id = task_group_id
 		self.__on_drop = on_drop
 
 	def task(self):
@@ -118,6 +124,11 @@ class WScheduleRecord:
 		"""
 		return self.__task
 
+	def task_uid(self):
+		""" Shortcut for self.task().uid()
+		"""
+		return self.task().uid()
+
 	def policy(self):
 		""" Return postpone policy
 
@@ -125,14 +136,14 @@ class WScheduleRecord:
 		"""
 		return self.__policy
 
-	def task_id(self):
+	def task_group_id(self):
 		""" Return task id
 
 		:return: str or None
 
 		see :meth:`.WScheduleRecord.__init__`
 		"""
-		return self.__task_id
+		return self.__task_group_id
 
 	def task_dropped(self):
 		""" Call a "on_drop" callback. This method is executed by a scheduler when it skip this task
@@ -144,24 +155,19 @@ class WScheduleRecord:
 
 
 class WRunningScheduleRecord:
-	""" This is a descriptor for running scheduler records (:class:`.WScheduleRecord`). As a prototype, this
-	class supports any kind of types for uid (except None). But in a real case it may be limited to a specific
-	type
+	""" This is a descriptor for running scheduler records (:class:`.WScheduleRecord`).
 	"""
 
 	@verify_type(record=WScheduleRecord, started_at=datetime)
 	@verify_value(starting_datetime=lambda x: x.tzinfo is not None and x.tzinfo == timezone.utc)
-	@verify_value(uid=lambda x: x is not None)
-	def __init__(self, record, started_at, uid):
+	def __init__(self, record, started_at):
 		""" Create new descriptor
 
 		:param record: started schedule record
 		:param started_at: datetime when the specified task was started (it must be specified in UTC timezone)
-		:param uid: unique (at most time) identifier of running task
 		"""
 		self.__record = record
 		self.__started_at = started_at
-		self.__uid = uid
 
 	def record(self):
 		""" Return started schedule record
@@ -177,12 +183,18 @@ class WRunningScheduleRecord:
 		"""
 		return self.__started_at
 
-	def task_uid(self):
-		""" Return uid of running task
+	def task(self):
+		""" Return running task
 
-		:return: anything but None
+		:return: WScheduleTask
 		"""
-		return self.__uid
+		return self.record().task()
+
+	def task_uid(self):
+		""" Shortcut for self.record().task_uid() which is shortcut for self.task().uid(). So this is
+		shortcut for self.record().task().uid()
+		"""
+		return self.record().task_uid()
 
 
 class WTaskSourceProto(metaclass=ABCMeta):
@@ -260,6 +272,8 @@ class WSchedulerServiceProto(metaclass=ABCMeta):
 	def update(self, task_source=None):
 		""" Update task sources information about next start. Update information for the specified source
 		or for all of them
+
+		:param task_source: if it is specified - then update information for this source only
 
 		This method implementation must be thread-safe as different threads (different task source, different
 		registries) may modify scheduler internal state.
