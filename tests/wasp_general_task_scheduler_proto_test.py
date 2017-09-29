@@ -6,27 +6,27 @@ from datetime import datetime
 from wasp_general.task.thread import WThreadTask
 from wasp_general.datetime import utc_datetime
 
-from wasp_general.task.scheduler.proto import WScheduledTask, WTaskSchedule, WRunningScheduledTask, WTaskSourceProto
-from wasp_general.task.scheduler.proto import WRunningTaskRegistryProto, WTaskSchedulerProto
+from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord, WRunningScheduleRecord, WTaskSourceProto
+from wasp_general.task.scheduler.proto import WRunningRecordRegistryProto, WSchedulerServiceProto
 
 
 def test_abstract():
 	pytest.raises(TypeError, WTaskSourceProto)
-	pytest.raises(NotImplementedError, WTaskSourceProto.has_tasks, None)
+	pytest.raises(NotImplementedError, WTaskSourceProto.has_records, None)
 	pytest.raises(NotImplementedError, WTaskSourceProto.next_start, None)
 	pytest.raises(NotImplementedError, WTaskSourceProto.tasks_planned, None)
-	pytest.raises(TypeError, WRunningTaskRegistryProto)
+	pytest.raises(TypeError, WRunningRecordRegistryProto)
 
-	schedule = WTaskSchedule(TestWScheduledTask.DummyTask())
-	pytest.raises(NotImplementedError, WRunningTaskRegistryProto.exec, None, schedule)
-	pytest.raises(NotImplementedError, WRunningTaskRegistryProto.running_tasks, None)
-	pytest.raises(TypeError, WTaskSchedulerProto)
-	pytest.raises(NotImplementedError, WTaskSchedulerProto.update, None)
+	schedule = WScheduleRecord(TestWScheduleTask.DummyTask())
+	pytest.raises(NotImplementedError, WRunningRecordRegistryProto.exec, None, schedule)
+	pytest.raises(NotImplementedError, WRunningRecordRegistryProto.running_records, None)
+	pytest.raises(TypeError, WSchedulerServiceProto)
+	pytest.raises(NotImplementedError, WSchedulerServiceProto.update, None)
 
 
-class TestWScheduledTask:
+class TestWScheduleTask:
 
-	class DummyTask(WScheduledTask):
+	class DummyTask(WScheduleTask):
 
 		def thread_started(self):
 			pass
@@ -35,24 +35,24 @@ class TestWScheduledTask:
 			pass
 
 	def test(self):
-		task = TestWScheduledTask.DummyTask()
-		assert(isinstance(task, WScheduledTask) is True)
+		task = TestWScheduleTask.DummyTask()
+		assert(isinstance(task, WScheduleTask) is True)
 		assert(isinstance(task, WThreadTask) is True)
 
 		assert(task.stop_event() is not None)
 		assert(task.ready_event() is not None)
 
 
-class TestWTaskSchedule:
+class TestWScheduleRecord:
 
 	def test(self):
-		task = TestWScheduledTask.DummyTask()
+		task = TestWScheduleTask.DummyTask()
 
-		pytest.raises(TypeError, WTaskSchedule, task, policy=1)
+		pytest.raises(TypeError, WScheduleRecord, task, policy=1)
 
-		schedule = WTaskSchedule(task)
+		schedule = WScheduleRecord(task)
 		assert(schedule.task() == task)
-		assert(schedule.policy() == WTaskSchedule.PostponePolicy.wait)
+		assert(schedule.policy() == WScheduleRecord.PostponePolicy.wait)
 		assert(schedule.task_id() is None)
 
 		callback_result = []
@@ -60,23 +60,23 @@ class TestWTaskSchedule:
 		def drop_callback():
 			callback_result.append(1)
 
-		schedule = WTaskSchedule(task, on_drop=drop_callback)
+		schedule = WScheduleRecord(task, on_drop=drop_callback)
 		assert(callback_result == [])
 		schedule.task_dropped()
 		assert(callback_result == [1])
 
 
-class TestWRunningScheduledTask:
+class TestWRunningScheduleRecord:
 
 	def test(self):
-		task = TestWScheduledTask.DummyTask()
-		schedule = WTaskSchedule(task)
+		task = TestWScheduleTask.DummyTask()
+		record = WScheduleRecord(task)
 		started_at = datetime.now()
 
-		assert(ValueError, WRunningScheduledTask, schedule, started_at)
+		assert(ValueError, WRunningScheduleRecord, record, started_at)
 
 		started_at = utc_datetime()
-		running_task = WRunningScheduledTask(schedule, started_at, 1)
-		assert(running_task.task_schedule() == schedule)
+		running_task = WRunningScheduleRecord(record, started_at, 1)
+		assert(running_task.record() == record)
 		assert(running_task.started_at() == started_at)
 		assert(running_task.task_uid() == 1)

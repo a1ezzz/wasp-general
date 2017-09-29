@@ -7,11 +7,11 @@ from threading import Event
 
 from wasp_general.datetime import utc_datetime
 from wasp_general.task.thread import WThreadTask
-from wasp_general.task.scheduler.proto import WScheduledTask, WTaskSchedule, WRunningScheduledTask
-from wasp_general.task.scheduler.proto import WRunningTaskRegistryProto, WTaskSourceProto, WTaskSchedulerProto
+from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord, WRunningScheduleRecord
+from wasp_general.task.scheduler.proto import WRunningRecordRegistryProto, WTaskSourceProto, WSchedulerServiceProto
 
-from wasp_general.task.scheduler.scheduler import WSchedulerWatchdog, WRunningTaskRegistry, WPostponedTaskRegistry
-from wasp_general.task.scheduler.scheduler import WTaskSourceRegistry, WTaskSchedulerService
+from wasp_general.task.scheduler.scheduler import WSchedulerWatchdog, WRunningRecordRegistry, WPostponedRecordRegistry
+from wasp_general.task.scheduler.scheduler import WTaskSourceRegistry, WSchedulerServiceService
 
 
 def repeat_fn(count):
@@ -31,12 +31,12 @@ class TestWSchedulerWatchdog:
 	class HFWatchdog(WSchedulerWatchdog):
 		__thread_polling_timeout__ = 0.01
 
-	class DummyTask(WScheduledTask):
+	class DummyTask(WScheduleTask):
 
 		__thread_polling_timeout__ = 0.01
 
 		def __init__(self, wait_for=None):
-			WScheduledTask.__init__(self)
+			WScheduleTask.__init__(self)
 			self.started = Event()
 			self.wait_for = wait_for
 
@@ -54,9 +54,9 @@ class TestWSchedulerWatchdog:
 	@repeat_fn(__test_repeat_count__)
 	def test(self):
 		task = TestWSchedulerWatchdog.DummyTask()
-		schedule = WTaskSchedule(task)
+		schedule = WScheduleRecord(task)
 
-		registry = WRunningTaskRegistry()
+		registry = WRunningRecordRegistry()
 
 		pytest.raises(TypeError, WSchedulerWatchdog.create, schedule, 1)
 
@@ -65,7 +65,7 @@ class TestWSchedulerWatchdog:
 		dog = WSchedulerWatchdog.create(schedule, registry)
 		assert(isinstance(dog, WSchedulerWatchdog) is True)
 		assert(isinstance(dog, WThreadTask) is True)
-		assert(dog.task_schedule() == schedule)
+		assert(dog.record() == schedule)
 		assert(dog.registry() == registry)
 		assert(dog.started_at() is None)
 		assert(dog.running_task() is None)
@@ -74,7 +74,7 @@ class TestWSchedulerWatchdog:
 
 		stop_event = Event()
 		task = TestWSchedulerWatchdog.DummyTask(stop_event)
-		schedule = WTaskSchedule(task)
+		schedule = WScheduleRecord(task)
 		dog = TestWSchedulerWatchdog.HFWatchdog.create(schedule, registry)
 		dog.start()
 		dog.start_event().wait()
@@ -82,18 +82,18 @@ class TestWSchedulerWatchdog:
 		utc_dt = utc_datetime()
 		assert((utc_dt - timedelta(seconds=10)) < dog.started_at() < utc_dt)
 		running_task = dog.running_task()
-		assert(isinstance(running_task, WRunningScheduledTask) is True)
+		assert(isinstance(running_task, WRunningScheduleRecord) is True)
 		assert((utc_dt - timedelta(seconds=10)) < running_task.started_at() < utc_dt)
-		assert(running_task.task_schedule() == schedule)
+		assert(running_task.record() == schedule)
 		pytest.raises(RuntimeError, dog.start)
 		stop_event.set()
 		dog.stop()
 
-		buggy_schedule = WTaskSchedule(task)
+		buggy_schedule = WScheduleRecord(task)
 		dog = WSchedulerWatchdog.create(buggy_schedule, registry)
 		pytest.raises(RuntimeError, dog.thread_started)
 
-		buggy_schedule = WTaskSchedule(task)
+		buggy_schedule = WScheduleRecord(task)
 		buggy_schedule.task = lambda: None
 		dog = WSchedulerWatchdog.create(buggy_schedule, registry)
 		pytest.raises(RuntimeError, dog.start)
@@ -103,50 +103,50 @@ class TestWSchedulerWatchdog:
 		pytest.raises(RuntimeError, dog.start)
 
 
-class TestWRunningTaskRegistry:
+class TestWRunningRecordRegistry:
 
-	class HFRunningTaskRegistry(WRunningTaskRegistry):
+	class HFRunningTaskRegistry(WRunningRecordRegistry):
 		__thread_polling_timeout__ = TestWSchedulerWatchdog.HFWatchdog.__thread_polling_timeout__ / 2
 
 	@repeat_fn(__test_repeat_count__)
 	def test(self):
-		registry = WRunningTaskRegistry()
-		assert(isinstance(registry, WRunningTaskRegistry) is True)
-		assert(isinstance(registry, WRunningTaskRegistryProto) is True)
+		registry = WRunningRecordRegistry()
+		assert(isinstance(registry, WRunningRecordRegistry) is True)
+		assert(isinstance(registry, WRunningRecordRegistryProto) is True)
 		assert (isinstance(registry, WThreadTask) is True)
 		assert(registry.watchdog_class() == WSchedulerWatchdog)
 
-		registry = WRunningTaskRegistry(watchdog_cls=TestWSchedulerWatchdog.HFWatchdog)
+		registry = WRunningRecordRegistry(watchdog_cls=TestWSchedulerWatchdog.HFWatchdog)
 		assert(registry.watchdog_class() == TestWSchedulerWatchdog.HFWatchdog)
 
-		registry = TestWRunningTaskRegistry.HFRunningTaskRegistry()
+		registry = TestWRunningRecordRegistry.HFRunningTaskRegistry()
 		registry.start()
 		registry.start_event().wait()
 		assert(len(registry) == 0)
-		assert(registry.running_tasks() == tuple())
+		assert(registry.running_records() == tuple())
 
 		task1_stop_event = Event()
 		task = TestWSchedulerWatchdog.DummyTask(task1_stop_event)
-		schedule = WTaskSchedule(task)
+		schedule = WScheduleRecord(task)
 		registry.exec(schedule)
 		task.started.wait()
 		assert(len(registry) == 1)
-		running_task = registry.running_tasks()
+		running_task = registry.running_records()
 		assert(isinstance(running_task, tuple) is True)
 		assert(len(running_task) == 1)
 
 		running_task = running_task[0]
 		utc_dt = utc_datetime()
-		assert(isinstance(running_task, WRunningScheduledTask) is True)
+		assert(isinstance(running_task, WRunningScheduleRecord) is True)
 		assert((utc_dt - timedelta(seconds=10)) < running_task.started_at() < utc_dt)
-		assert(running_task.task_schedule() == schedule)
+		assert(running_task.record() == schedule)
 
 		task1_stop_event.set()
 		task.ready_event().wait()
 
 		task1_stop_event = Event()
 		task = TestWSchedulerWatchdog.DummyTask(task1_stop_event)
-		schedule = WTaskSchedule(task)
+		schedule = WScheduleRecord(task)
 		registry.exec(schedule)
 		task.start_event().wait()
 		task.started.wait()
@@ -154,13 +154,13 @@ class TestWRunningTaskRegistry:
 		registry.stop()
 
 
-class TestWPostponedTaskRegistry:
+class TestWPostponedRecordRegistry:
 
 	@repeat_fn(__test_repeat_count__)
 	def test(self):
-		registry = WPostponedTaskRegistry()
-		assert(registry.maximum_tasks() is None)
-		assert(registry.has_tasks() is False)
+		registry = WPostponedRecordRegistry()
+		assert(registry.maximum_records() is None)
+		assert(registry.has_records() is False)
 		assert(len(registry) == 0)
 
 		drop_count = []
@@ -169,11 +169,11 @@ class TestWPostponedTaskRegistry:
 			drop_count.append(None)
 
 		task = TestWSchedulerWatchdog.DummyTask()
-		wait_schedule1 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.wait, on_drop=on_drop
+		wait_schedule1 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.wait, on_drop=on_drop
 		)
-		wait_schedule2 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.wait, on_drop=on_drop
+		wait_schedule2 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.wait, on_drop=on_drop
 		)
 
 		assert(len(drop_count) == 0)
@@ -192,7 +192,7 @@ class TestWPostponedTaskRegistry:
 		assert(wait_schedule1 in tasks)
 		assert(wait_schedule2 in tasks)
 
-		registry = WPostponedTaskRegistry(maximum_tasks=0)
+		registry = WPostponedRecordRegistry(maximum_records=0)
 		assert(len(drop_count) == 0)
 		assert(len(registry) == 0)
 
@@ -205,7 +205,7 @@ class TestWPostponedTaskRegistry:
 		assert(len(registry) == 0)
 
 		drop_count.clear()
-		registry = WPostponedTaskRegistry(maximum_tasks=1)
+		registry = WPostponedRecordRegistry(maximum_records=1)
 		assert(len(drop_count) == 0)
 		assert(len(registry) == 0)
 
@@ -223,36 +223,36 @@ class TestWPostponedTaskRegistry:
 		assert(wait_schedule2 not in tasks)
 
 		drop_count.clear()
-		registry = WPostponedTaskRegistry()
+		registry = WPostponedRecordRegistry()
 		assert(len(drop_count) == 0)
 		assert(len(registry) == 0)
 
-		drop_schedule = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.drop, on_drop=on_drop
+		drop_schedule = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.drop, on_drop=on_drop
 		)
 		registry.postpone(drop_schedule)
 		assert(len(drop_count) == 1)
 		assert(len(registry) == 0)
 
 		drop_count.clear()
-		postpone_first_group_1_schedule1 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_first, task_id='group1', on_drop=on_drop
+		postpone_first_group_1_schedule1 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_id='group1', on_drop=on_drop
 		)
 
-		postpone_first_group_1_schedule2 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_first, task_id='group1', on_drop=on_drop
+		postpone_first_group_1_schedule2 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_id='group1', on_drop=on_drop
 		)
 
-		postpone_first_group_2_schedule = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_first, task_id='group2', on_drop=on_drop
+		postpone_first_group_2_schedule = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_first, task_id='group2', on_drop=on_drop
 		)
 
-		postpone_first_schedule1 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_first, on_drop=on_drop
+		postpone_first_schedule1 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_first, on_drop=on_drop
 		)
 
-		postpone_first_schedule2 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_first, on_drop=on_drop
+		postpone_first_schedule2 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_first, on_drop=on_drop
 		)
 
 		registry.postpone(postpone_first_group_1_schedule1)
@@ -282,32 +282,32 @@ class TestWPostponedTaskRegistry:
 		assert(postpone_first_schedule1 in tasks)
 		assert(postpone_first_schedule2 in tasks)
 
-		wait_group_1 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.wait, task_id='group1', on_drop=on_drop
+		wait_group_1 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.wait, task_id='group1', on_drop=on_drop
 		)
 		registry.postpone(wait_group_1)
 		pytest.raises(RuntimeError, registry.postpone, postpone_first_group_1_schedule1)
 		tasks = [x for x in registry]
 
 		drop_count.clear()
-		postpone_last_group_1_schedule1 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_last, task_id='group1', on_drop=on_drop
+		postpone_last_group_1_schedule1 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_id='group1', on_drop=on_drop
 		)
 
-		postpone_last_group_1_schedule2 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_last, task_id='group1', on_drop=on_drop
+		postpone_last_group_1_schedule2 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_id='group1', on_drop=on_drop
 		)
 
-		postpone_last_group_2_schedule = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_last, task_id='group2', on_drop=on_drop
+		postpone_last_group_2_schedule = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_last, task_id='group2', on_drop=on_drop
 		)
 
-		postpone_last_schedule1 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_last, on_drop=on_drop
+		postpone_last_schedule1 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_last, on_drop=on_drop
 		)
 
-		postpone_last_schedule2 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.postpone_last, on_drop=on_drop
+		postpone_last_schedule2 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.postpone_last, on_drop=on_drop
 		)
 		registry.postpone(postpone_last_group_1_schedule1)
 		assert(len(drop_count) == 0)
@@ -336,8 +336,8 @@ class TestWPostponedTaskRegistry:
 		assert(postpone_last_schedule1 in tasks)
 		assert(postpone_last_schedule2 in tasks)
 
-		wait_group_1 = WTaskSchedule(
-			task, policy=WTaskSchedule.PostponePolicy.wait, task_id='group1', on_drop=on_drop
+		wait_group_1 = WScheduleRecord(
+			task, policy=WScheduleRecord.PostponePolicy.wait, task_id='group1', on_drop=on_drop
 		)
 		registry.postpone(wait_group_1)
 		pytest.raises(RuntimeError, registry.postpone, postpone_last_group_1_schedule1)
@@ -354,7 +354,7 @@ class TestWTaskSourceRegistry:
 			WTaskSourceProto.__init__(self)
 			self.tasks = []
 
-		def has_tasks(self):
+		def has_records(self):
 			if self.tasks is not None:
 				result = tuple(self.tasks)
 				self.tasks.clear()
@@ -367,6 +367,9 @@ class TestWTaskSourceRegistry:
 		def tasks_planned(self):
 			return len(self.tasks)
 
+		def scheduler_service(self):
+			return None
+
 	@repeat_fn(__test_repeat_count__)
 	def test(self):
 		registry = WTaskSourceRegistry()
@@ -378,7 +381,7 @@ class TestWTaskSourceRegistry:
 		assert(registry.check() is None)
 		assert(registry.task_sources() == (task_source1, ))
 
-		task1 = WTaskSchedule(TestWSchedulerWatchdog.DummyTask())
+		task1 = WScheduleRecord(TestWSchedulerWatchdog.DummyTask())
 		task_source1.tasks.append(task1)
 		registry.update()
 		assert(registry.check() == (task1, ))
@@ -391,7 +394,7 @@ class TestWTaskSourceRegistry:
 		assert(result == (task_source1, task_source2) or result == (task_source2, task_source1))
 
 		task_source1.tasks.append(task1)
-		task2 = WTaskSchedule(TestWSchedulerWatchdog.DummyTask())
+		task2 = WScheduleRecord(TestWSchedulerWatchdog.DummyTask())
 		task_source2.tasks.append(task2)
 		assert(registry.check() is None)
 
@@ -416,13 +419,13 @@ class TestWTaskSourceRegistry:
 		pytest.raises(ValueError, registry.update)
 
 
-class TestWTaskSchedulerService:
+class TestWSchedulerService:
 
 	__wait_task_timeout__ = 0.001
 
-	class HFSchedulerService(WTaskSchedulerService):
+	class HFSchedulerService(WSchedulerServiceService):
 		__thread_polling_timeout__ = (
-			TestWRunningTaskRegistry.HFRunningTaskRegistry.__thread_polling_timeout__ / 2
+			TestWRunningRecordRegistry.HFRunningTaskRegistry.__thread_polling_timeout__ / 2
 		)
 
 	class DummyTask(TestWSchedulerWatchdog.DummyTask):
@@ -436,10 +439,10 @@ class TestWTaskSchedulerService:
 
 		def thread_started(self):
 			TestWSchedulerWatchdog.DummyTask.thread_started(self)
-			TestWTaskSchedulerService.DummyTask.__result__ += 1
+			TestWSchedulerService.DummyTask.__result__ += 1
 
 		def on_drop(self):
-			TestWTaskSchedulerService.DummyTask.__dropped__ += 1
+			TestWSchedulerService.DummyTask.__dropped__ += 1
 			self.drop_event.set()
 
 	def wait_for_events(*events, every=False):
@@ -455,7 +458,7 @@ class TestWTaskSchedulerService:
 					break
 
 			if len(events) > 0:
-				events[0].wait(TestWTaskSchedulerService.__wait_task_timeout__)
+				events[0].wait(TestWSchedulerService.__wait_task_timeout__)
 
 	@staticmethod
 	def wait_for_tasks(*tasks, every=False):
@@ -471,33 +474,34 @@ class TestWTaskSchedulerService:
 					break
 
 			if len(tasks) > 0:
-				tasks[0].ready_event().wait(TestWTaskSchedulerService.__wait_task_timeout__)
+				tasks[0].ready_event().wait(TestWSchedulerService.__wait_task_timeout__)
 
 	@repeat_fn(__test_repeat_count__)
 	def test(self):
-		TestWTaskSchedulerService.DummyTask.__result__ = 0
-		TestWTaskSchedulerService.DummyTask.__dropped__ = 0
+		TestWSchedulerService.DummyTask.__result__ = 0
+		TestWSchedulerService.DummyTask.__dropped__ = 0
 
-		service = WTaskSchedulerService()
-		assert(isinstance(service, WTaskSchedulerService) is True)
-		assert(isinstance(service, WTaskSchedulerProto) is True)
+		service = WSchedulerServiceService()
+		assert(isinstance(service, WSchedulerServiceService) is True)
+		assert(isinstance(service, WSchedulerServiceProto) is True)
 		assert(isinstance(service, WThreadTask) is True)
-		assert(service.maximum_running_tasks() > 0)
-		assert(service.maximum_running_tasks() == WTaskSchedulerService.__default_maximum_running_tasks__)
-		assert(service.maximum_postponed_tasks() is None)
+		assert(service.maximum_running_records() > 0)
+		assert(service.maximum_running_records() == WSchedulerServiceService.__default_maximum_running_records__)
+		assert(service.maximum_postponed_records() is None)
 		assert(service.task_sources() == tuple())
 
-		service = WTaskSchedulerService(maximum_postponed_tasks=2, maximum_running_tasks=1)
-		assert(service.maximum_running_tasks() == 1)
-		assert(service.maximum_postponed_tasks() == 2)
+		service = WSchedulerServiceService(maximum_postponed_records=2, maximum_running_records=1)
+		assert(service.maximum_running_records() == 1)
+		assert(service.maximum_postponed_records() == 2)
 
 		pytest.raises(
-			ValueError, WTaskSchedulerService, maximum_postponed_tasks=1,
-			postponed_tasks_registry=WPostponedTaskRegistry()
+			ValueError, WSchedulerServiceService, maximum_postponed_records=1,
+			postponed_record_registry=WPostponedRecordRegistry()
 		)
 
-		service = TestWTaskSchedulerService.HFSchedulerService(
-			maximum_running_tasks=2, running_tasks_registry=TestWRunningTaskRegistry.HFRunningTaskRegistry(
+		service = TestWSchedulerService.HFSchedulerService(
+			maximum_running_records=2,
+			running_record_registry=TestWRunningRecordRegistry.HFRunningTaskRegistry(
 				watchdog_cls=TestWSchedulerWatchdog.HFWatchdog
 			)
 		)
@@ -509,58 +513,58 @@ class TestWTaskSchedulerService:
 		service.start()
 		service.start_event().wait()
 
-		assert (TestWTaskSchedulerService.DummyTask.__result__ == 0)
-		assert(TestWTaskSchedulerService.DummyTask.__dropped__ == 0)
-		task1 = TestWTaskSchedulerService.DummyTask()
-		task_source1.tasks.append(WTaskSchedule(task1, on_drop=task1.on_drop))
+		assert (TestWSchedulerService.DummyTask.__result__ == 0)
+		assert(TestWSchedulerService.DummyTask.__dropped__ == 0)
+		task1 = TestWSchedulerService.DummyTask()
+		task_source1.tasks.append(WScheduleRecord(task1, on_drop=task1.on_drop))
 		service.update()
 
 		task1.start_event().wait()
-		TestWTaskSchedulerService.wait_for_tasks(task1)
+		TestWSchedulerService.wait_for_tasks(task1)
 
-		assert(TestWTaskSchedulerService.DummyTask.__result__ == 1)
-		assert(TestWTaskSchedulerService.DummyTask.__dropped__ == 0)
+		assert(TestWSchedulerService.DummyTask.__result__ == 1)
+		assert(TestWSchedulerService.DummyTask.__dropped__ == 0)
 
 		task_source2 = TestWTaskSourceRegistry.TaskSource()
 		service.add_task_source(task_source2)
 		result = service.task_sources()
 		assert(result == (task_source1, task_source2) or result == (task_source2, task_source1))
 
-		long_run_task = TestWTaskSchedulerService.DummyTask(Event())
+		long_run_task = TestWSchedulerService.DummyTask(Event())
 
 		group1_task1_stop_event = Event()
-		group1_task1 = TestWTaskSchedulerService.DummyTask(group1_task1_stop_event)
+		group1_task1 = TestWSchedulerService.DummyTask(group1_task1_stop_event)
 		group1_task2_stop_event = Event()
-		group1_task2 = TestWTaskSchedulerService.DummyTask(group1_task2_stop_event)
-		task_source1.tasks.append(WTaskSchedule(long_run_task, on_drop=long_run_task.on_drop))
+		group1_task2 = TestWSchedulerService.DummyTask(group1_task2_stop_event)
+		task_source1.tasks.append(WScheduleRecord(long_run_task, on_drop=long_run_task.on_drop))
 		task_source1.tasks.append(
-			WTaskSchedule(
+			WScheduleRecord(
 				group1_task1, on_drop=group1_task1.on_drop, task_id='group1',
-				policy=WTaskSchedule.PostponePolicy.drop
+				policy=WScheduleRecord.PostponePolicy.drop
 			)
 		)
 		task_source2.tasks.append(
-			WTaskSchedule(
+			WScheduleRecord(
 				group1_task2, on_drop=group1_task2.on_drop, task_id='group1',
-				policy=WTaskSchedule.PostponePolicy.drop
+				policy=WScheduleRecord.PostponePolicy.drop
 			)
 		)
 
 		service.update()
 
-		TestWTaskSchedulerService.wait_for_events(group1_task1.start_event(), group1_task2.start_event())
-		running_tasks = service.running_tasks()
+		TestWSchedulerService.wait_for_events(group1_task1.start_event(), group1_task2.start_event())
+		running_tasks = service.running_records()
 		for task in running_tasks:
-			assert(isinstance(task, WRunningScheduledTask) is True)
-			task = task.task_schedule().task()
+			assert(isinstance(task, WRunningScheduleRecord) is True)
+			task = task.record().task()
 			assert(task in (group1_task1, group1_task2, long_run_task))
 
-		TestWTaskSchedulerService.wait_for_tasks(group1_task1, group1_task2)
+		TestWSchedulerService.wait_for_tasks(group1_task1, group1_task2)
 		group1_task1_stop_event.set()
 		group1_task2_stop_event.set()
-		TestWTaskSchedulerService.wait_for_tasks(group1_task1, group1_task2, every=True)
-		assert(TestWTaskSchedulerService.DummyTask.__result__ == 2)
-		assert(TestWTaskSchedulerService.DummyTask.__dropped__ == 1)
+		TestWSchedulerService.wait_for_tasks(group1_task1, group1_task2, every=True)
+		assert(TestWSchedulerService.DummyTask.__result__ == 2)
+		assert(TestWSchedulerService.DummyTask.__dropped__ == 1)
 
 		group1_task1.stop()
 		group1_task2.stop()
@@ -568,19 +572,19 @@ class TestWTaskSchedulerService:
 		group1_task1_stop_event = Event()
 		group1_task2_stop_event = Event()
 
-		group1_task1 = TestWTaskSchedulerService.DummyTask(group1_task1_stop_event)
-		group1_task2 = TestWTaskSchedulerService.DummyTask(group1_task2_stop_event)
+		group1_task1 = TestWSchedulerService.DummyTask(group1_task1_stop_event)
+		group1_task2 = TestWSchedulerService.DummyTask(group1_task2_stop_event)
 
 		task_source1.tasks.append(
-			WTaskSchedule(
+			WScheduleRecord(
 				group1_task1, on_drop=group1_task1.on_drop, task_id='group1',
-				policy=WTaskSchedule.PostponePolicy.wait
+				policy=WScheduleRecord.PostponePolicy.wait
 			)
 		)
 		task_source2.tasks.append(
-			WTaskSchedule(
+			WScheduleRecord(
 				group1_task2, on_drop=group1_task2.on_drop, task_id='group1',
-				policy=WTaskSchedule.PostponePolicy.wait
+				policy=WScheduleRecord.PostponePolicy.wait
 			)
 		)
 
@@ -588,9 +592,9 @@ class TestWTaskSchedulerService:
 
 		group1_task1_stop_event.set()
 		group1_task2_stop_event.set()
-		TestWTaskSchedulerService.wait_for_tasks(group1_task1, group1_task2, every=True)
-		assert(TestWTaskSchedulerService.DummyTask.__result__ == 4)
-		assert(TestWTaskSchedulerService.DummyTask.__dropped__ == 1)
+		TestWSchedulerService.wait_for_tasks(group1_task1, group1_task2, every=True)
+		assert(TestWSchedulerService.DummyTask.__result__ == 4)
+		assert(TestWSchedulerService.DummyTask.__dropped__ == 1)
 
 		service.stop()
-		TestWTaskSchedulerService.wait_for_tasks(long_run_task)
+		TestWSchedulerService.wait_for_tasks(long_run_task)

@@ -32,8 +32,8 @@ from wasp_general.verify import verify_type, verify_value, verify_subclass
 from wasp_general.thread import WCriticalResource
 from wasp_general.datetime import utc_datetime
 
-from wasp_general.task.scheduler.proto import WScheduledTask, WRunningTaskRegistryProto, WTaskSchedulerProto
-from wasp_general.task.scheduler.proto import WTaskSchedule, WRunningScheduledTask, WTaskSourceProto
+from wasp_general.task.scheduler.proto import WScheduleTask, WRunningRecordRegistryProto, WSchedulerServiceProto
+from wasp_general.task.scheduler.proto import WScheduleRecord, WRunningScheduleRecord, WTaskSourceProto
 from wasp_general.task.thread import WPollingThreadTask
 
 
@@ -57,51 +57,52 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 	__thread_name_prefix__ = 'TaskScheduler-Watchdog-'
 
 	@classmethod
-	@verify_type('paranoid', task_schedule=WTaskSchedule)
-	def create(cls, task_schedule, registry):
+	@verify_type('paranoid', record=WScheduleRecord)
+	def create(cls, record, registry):
 		""" Core method for watchdog creation. Derived classes may redefine this method in order to change
 		watchdog creation process
 
-		:param task_schedule: scheduled task that is ready to be executed
+		:param record: schedule record that is ready to be executed
 		:param registry: registry that is created this watchdog and registry that must be notified of \
 		scheduled task stopping
 		:return:
 		"""
-		return cls(task_schedule, registry, cls.generate_uid())
+		return cls(record, registry, cls.generate_uid())
 
-	@verify_type(task_schedule=WTaskSchedule)
-	def __init__(self, task_schedule, registry, uid):
+	@verify_type(record=WScheduleRecord)
+	def __init__(self, record, registry, uid):
 		""" Create new watch dog.
 
-		:param task_schedule: scheduled task that is ready to be executed
+		:param record: schedule record that is ready to be executed
 		:param registry: registry that is created this watch dog and registry that must be notified of \
 		scheduled task stopping
+		:param uid: unique (i hope so) task identifier
 
-		note: :class:`.WRunningTaskRegistry` is using :meth:`.WSchedulerWatchdog.create` method for watch
+		note: :class:`.WRunningRecordRegistry` is using :meth:`.WSchedulerWatchdog.create` method for watch
 		dog creation
 		"""
 		WCriticalResource.__init__(self)
 		WPollingThreadTask.__init__(self, thread_name=self.__thread_name_prefix__ + str(uid))
-		if isinstance(registry, WRunningTaskRegistry) is False:
+		if isinstance(registry, WRunningRecordRegistry) is False:
 			raise TypeError('Invalid registry type')
 
-		self.__task_schedule = task_schedule
+		self.__record = record
 		self.__registry = registry
 		self.__uid = uid
 		self.__started_at = None
 		self.__task = None
 
-	def task_schedule(self):
-		""" Return scheduled task
+	def record(self):
+		""" Return scheduler record
 
-		:return: WTaskSchedule
+		:return: WScheduleRecord
 		"""
-		return self.__task_schedule
+		return self.__record
 
 	def registry(self):
 		""" Return parent registry
 
-		:return: WRunningTaskRegistry
+		:return: WRunningRecordRegistry
 		"""
 		return self.__registry
 
@@ -145,8 +146,8 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 			raise RuntimeError('Unable to start task. In order to start a new task - at first stop it')
 
 		self.__started_at = utc_datetime()
-		self.__task = self.task_schedule().task()
-		if isinstance(self.__task, WScheduledTask) is False:
+		self.__task = self.record().task()
+		if isinstance(self.__task, WScheduleTask) is False:
 			task_class = self.__task.__class__.__qualname__
 			raise RuntimeError('Unable to start unknown type of task: %s' % task_class)
 
@@ -186,15 +187,15 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def running_task(self):
-		""" Return information about running scheduled task. If task is not running (for example in the middle
+		""" Return information about running schedule records. If task is not running (for example in the middle
 		of a termination) - None is returned
 
-		:return: WRunningScheduledTask or None
+		:return: WRunningScheduleRecord or None
 		"""
 		started_at = self.started_at()
 		if started_at is None:
 			return
-		return WRunningScheduledTask(self.task_schedule(), started_at, self.uid())
+		return WRunningScheduleRecord(self.record(), started_at, self.uid())
 
 	@classmethod
 	def generate_uid(cls):
@@ -205,10 +206,10 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		return uuid.uuid4()
 
 
-class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollingThreadTask):
-	""" Registry of started scheduled tasks. Has :meth:`.WRunningTaskRegistry.cleanup_event` event that is set when
-	any of running scheduled task stopped. This event starts process of internal clean up (descriptors that were
-	created for shceduled task - will be removed)
+class WRunningRecordRegistry(WCriticalResource, WRunningRecordRegistryProto, WPollingThreadTask):
+	""" Registry of started scheduled records. Has :meth:`.WRunningRecordRegistry.cleanup_event` event that is set
+	when any of running scheduled task stopped. This event starts process of internal clean up (descriptors that
+	were created for the record - will be removed)
 	"""
 
 	__thread_polling_timeout__ = WPollingThreadTask.__thread_polling_timeout__ / 4
@@ -230,7 +231,7 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 		:param watchdog_cls: watchdog that should be used (:class:`.WSchedulerWatchdog` by default)
 		"""
 		WCriticalResource.__init__(self)
-		WRunningTaskRegistryProto.__init__(self)
+		WRunningRecordRegistryProto.__init__(self)
 		WPollingThreadTask.__init__(self, thread_name='SchedulerRegistry')
 		self.__running_registry = []
 		self.__done_registry = []
@@ -252,30 +253,31 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 		return self.__watchdog_cls
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-	@verify_type('paranoid', task_schedule=WTaskSchedule)
-	def exec(self, task_schedule):
-		""" Start the given task (no checks are made by this method, task will be started as is)
+	@verify_type('paranoid', record=WScheduleRecord)
+	def exec(self, record):
+		""" Start the given schedule record (no time checks are made by this method, task will be started as is)
 
-		:param task_schedule: scheduled task to start
+		:param record: schedule record to start
 
 		:return: None
 		"""
-		watchdog = self.watchdog_class().create(task_schedule, self)
+		watchdog_cls = self.watchdog_class()
+		watchdog = watchdog_cls.create(record, self)
 		watchdog.start()
 		watchdog.start_event().wait(self.__watchdog_startup_timeout__)
 		self.__running_registry.append(watchdog)
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-	def running_tasks(self):
-		""" Return scheduled tasks that are running at the moment
+	def running_records(self):
+		""" Return schedule records that are running at the moment
 
-		:return: tuple of WRunningScheduledTask
+		:return: tuple of WRunningScheduleRecord
 		"""
 		return tuple(filter(lambda x: x is not None, [x.running_task() for x in self.__running_registry]))
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def __len__(self):
-		""" Return number of running tasks
+		""" Return number of running records
 
 		:return: int
 		"""
@@ -333,123 +335,125 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 		self.__running_registry.clear()
 
 
-class WPostponedTaskRegistry:
-	""" Registry for postponed tasks.
+class WPostponedRecordRegistry:
+	""" Registry for postponed records.
 	"""
 
-	@verify_type(maximum_tasks=(int, None))
-	@verify_value(maximum_tasks=lambda x: x is None or x >= 0)
-	def __init__(self, maximum_tasks=None):
+	@verify_type(maximum_records=(int, None))
+	@verify_value(maximum_records=lambda x: x is None or x >= 0)
+	def __init__(self, maximum_records=None):
 		""" Create new registry
 
-		:param maximum_tasks: maximum number of tasks to postpone (no limit by default)
+		:param maximum_records: maximum number of tasks to postpone (no limit by default)
 		"""
-		self.__tasks = []
-		self.__maximum_tasks = maximum_tasks
+		self.__records = []
+		self.__maximum_records = maximum_records
 
-	def maximum_tasks(self):
-		""" Return maximum number of tasks to postpone
+	def maximum_records(self):
+		""" Return maximum number of records to postpone
 
 		:return: int
 		"""
-		return self.__maximum_tasks
+		return self.__maximum_records
 
-	@verify_type(task_schedule=WTaskSchedule)
-	def postpone(self, task_schedule):
+	@verify_type(record=WScheduleRecord)
+	def postpone(self, record):
 		""" Postpone (if required) the given task. The real action is depended on task postpone policy
 
-		:param task_schedule: task to postpone
+		:param record: record to postpone
 		:return: None
 		"""
 
-		maximum_tasks = self.maximum_tasks()
-		if maximum_tasks is not None and len(self.__tasks) >= maximum_tasks:
-			task_schedule.task_dropped()
+		maximum_records = self.maximum_records()
+		if maximum_records is not None and len(self.__records) >= maximum_records:
+			record.task_dropped()
 			return
 
-		task_policy = task_schedule.policy()
-		task_id = task_schedule.task_id()
+		task_policy = record.policy()
+		task_id = record.task_id()
 
-		if task_policy == WTaskSchedule.PostponePolicy.wait:
-			self.__tasks.append(task_schedule)
+		if task_policy == WScheduleRecord.PostponePolicy.wait:
+			self.__records.append(record)
 
-		elif task_policy == WTaskSchedule.PostponePolicy.drop:
-			task_schedule.task_dropped()
+		elif task_policy == WScheduleRecord.PostponePolicy.drop:
+			record.task_dropped()
 
-		elif task_policy == WTaskSchedule.PostponePolicy.postpone_first:
+		elif task_policy == WScheduleRecord.PostponePolicy.postpone_first:
 			if task_id is None:
-				self.__tasks.append(task_schedule)
+				self.__records.append(record)
 			else:
-				schedule_found = None
-				for previous_scheduled_task, task_index in self.__search_task(task_id):
-					if previous_scheduled_task.policy() != task_policy:
+				record_found = None
+				for previous_scheduled_record, task_index in self.__search_record(task_id):
+					if previous_scheduled_record.policy() != task_policy:
 						raise RuntimeError('Invalid tasks policies')
-					schedule_found = previous_scheduled_task
+					record_found = previous_scheduled_record
 					break
 
-				if schedule_found is not None:
-					task_schedule.task_dropped()
+				if record_found is not None:
+					record.task_dropped()
 				else:
-					self.__tasks.append(task_schedule)
+					self.__records.append(record)
 
-		elif task_policy == WTaskSchedule.PostponePolicy.postpone_last:
+		elif task_policy == WScheduleRecord.PostponePolicy.postpone_last:
 			if task_id is None:
-				self.__tasks.append(task_schedule)
+				self.__records.append(record)
 			else:
-				schedule_found = None
-				for previous_scheduled_task, task_index in self.__search_task(task_id):
-					if previous_scheduled_task.policy() != task_policy:
+				record_found = None
+				for previous_scheduled_record, task_index in self.__search_record(task_id):
+					if previous_scheduled_record.policy() != task_policy:
 						raise RuntimeError('Invalid tasks policies')
-					schedule_found = task_index
+					record_found = task_index
 					break
 
-				if schedule_found is not None:
-					self.__tasks.pop(schedule_found).task_dropped()
+				if record_found is not None:
+					self.__records.pop(record_found).task_dropped()
 
-				self.__tasks.append(task_schedule)
+				self.__records.append(record)
 		else:
 			raise RuntimeError('Invalid policy spotted')
 
 	@verify_type(task_id=str)
-	def __search_task(self, task_id):
+	def __search_record(self, task_id):
 		""" Search (iterate over) for tasks with the given task id
 
 		:param task_id: target id
 
 		:return: None
 		"""
-		for i in range(len(self.__tasks)):
-			task_schedule = self.__tasks[i]
-			if task_schedule.task_id() == task_id:
-				yield task_schedule, i
+		for i in range(len(self.__records)):
+			record = self.__records[i]
+			if record.task_id() == task_id:
+				yield record, i
 
-	def has_tasks(self):
-		""" Check if there are postpone tasks. True - there is at least one postpone task, False - otherwise
+	def has_records(self):
+		""" Check if there are postponed records. True - there is at least one postpone record,
+		False - otherwise
 
 		:return: bool
 		"""
-		return len(self.__tasks) > 0
+		return len(self.__records) > 0
 
 	def __len__(self):
-		""" Return number of postponed tasks
+		""" Return number of postponed records
 
 		:return: int
 		"""
-		return len(self.__tasks)
+		return len(self.__records)
 
 	def __iter__(self):
-		""" Iterate over postpone tasks. Once task is yield from this method, this task is removed from registry
+		""" Iterate over postponed records. Once record is yield from this method, this record is removed
+		from registry immediately
 
 		:return: None
 		"""
-		while len(self.__tasks) > 0:
-			yield self.__tasks.pop(0)
+		while len(self.__records) > 0:
+			yield self.__records.pop(0)
 
 
 class WTaskSourceRegistry:
 	""" Registry of tasks sources. It works as a dynamic queue - every task source notify this registry when
-	next task should be started. And this registry return those tasks that is about to start. Registry is able
-	to return tasks from different sources at one time.
+	next task should be started. And this registry fetches those tasks that is about to start. Registry is able
+	to return schedule records from different sources at one time.
 	"""
 
 	def __init__(self):
@@ -474,7 +478,7 @@ class WTaskSourceRegistry:
 
 	@verify_type(task_source=(WTaskSourceProto, None))
 	def update(self, task_source=None):
-		""" Recheck next start of tasks from all the sources (or from the given one only)
+		""" Recheck next start of records from all the sources (or from the given one only)
 
 		:param task_source: if defined - source to check
 
@@ -486,7 +490,7 @@ class WTaskSourceRegistry:
 			self.__update_all()
 
 	def __update_all(self):
-		""" Recheck next start of tasks from all the sources
+		""" Recheck next start of records from all the sources
 
 		:return: None
 		"""
@@ -517,9 +521,9 @@ class WTaskSourceRegistry:
 				self.__next_sources.append(task_source)
 
 	def check(self):
-		""" Check if there are tasks to start and return them if there are any
+		""" Check if there are records that are ready to start and return them if there are any
 
-		:return: tuple of WTaskSchedule or None (if there are no tasks to start)
+		:return: tuple of WScheduleRecord or None (if there are no tasks to start)
 		"""
 		if self.__next_start is not None:
 			utc_now = utc_datetime()
@@ -527,9 +531,9 @@ class WTaskSourceRegistry:
 				result = []
 
 				for task_source in self.__next_sources:
-					scheduled_tasks = task_source.has_tasks()
-					if scheduled_tasks is not None:
-						result.extend(scheduled_tasks)
+					records = task_source.has_records()
+					if records is not None:
+						result.extend(records)
 
 				self.__update_all()
 
@@ -544,7 +548,7 @@ class WTaskSourceRegistry:
 		return tuple(self.__sources.keys())
 
 
-class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThreadTask):
+class WSchedulerServiceService(WCriticalResource, WSchedulerServiceProto, WPollingThreadTask):
 	""" Main scheduler service. This class unites different registries to present entire scheduler
 	"""
 
@@ -555,32 +559,32 @@ class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThre
 	""" Timeout with which critical section lock must be acquired
 	"""
 
-	__default_maximum_running_tasks__ = 10
-	""" Number of tasks that are able to run simultaneously that is used by default
+	__default_maximum_running_records__ = 10
+	""" Number of records that are able to run simultaneously. This value is used by default
 	"""
 
-	@verify_type('paranoid', maximum_postponed_tasks=(int, None))
-	@verify_value('paranoid', maximum_postponed_tasks=lambda x: x is None or x > 0)
-	@verify_type(maximum_running_tasks=(int, None), running_tasks_registry=(WRunningTaskRegistry, None))
-	@verify_type(postponed_tasks_registry=(WPostponedTaskRegistry, None))
-	@verify_value(maximum_running_tasks=lambda x: x is None or x > 0)
+	@verify_type('paranoid', maximum_postponed_records=(int, None))
+	@verify_value('paranoid', maximum_postponed_records=lambda x: x is None or x > 0)
+	@verify_type(maximum_running_records=(int, None), running_record_registry=(WRunningRecordRegistry, None))
+	@verify_type(postponed_record_registry=(WPostponedRecordRegistry, None))
+	@verify_value(maximum_running_records=lambda x: x is None or x > 0)
 	def __init__(
-		self, maximum_running_tasks=None, running_tasks_registry=None, maximum_postponed_tasks=None,
-		postponed_tasks_registry=None
+		self, maximum_running_records=None, running_record_registry=None, maximum_postponed_records=None,
+		postponed_record_registry=None
 	):
 		""" Create new scheduler
 
-		:param maximum_running_tasks: number of tasks that are able to run simultaneously \
-		(WTaskSchedulerService.__default_maximum_running_tasks__ is used as default value)
-		:param running_tasks_registry: registry for running tasks
-		:param maximum_postponed_tasks: number of tasks that are able to be postponed (no limit by default)
-		:param postponed_tasks_registry: registry for postponed tasks
+		:param maximum_running_records: number of records that are able to run simultaneously \
+		(WSchedulerServiceService.__default_maximum_running_records__ is used as default value)
+		:param running_record_registry: registry for running records
+		:param maximum_postponed_records: number of records that are able to be postponed (no limit by default)
+		:param postponed_record_registry: registry for postponed records
 		"""
 		WCriticalResource.__init__(self)
-		WTaskSchedulerProto.__init__(self)
+		WSchedulerServiceProto.__init__(self)
 		WPollingThreadTask.__init__(self, thread_name='TaskScheduler')
 
-		if maximum_postponed_tasks is not None and postponed_tasks_registry is not None:
+		if maximum_postponed_records is not None and postponed_record_registry is not None:
 			raise ValueError(
 				'Conflict values found. Unable to instantiate scheduler service with '
 				'"maximum_postponed_tasks" and "postponed_tasks_registry" values (chose one)'
@@ -588,29 +592,29 @@ class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThre
 
 		default = lambda x, y: x if x is not None else y
 
-		self.__maximum_running_tasks = default(
-			maximum_running_tasks, self.__class__.__default_maximum_running_tasks__
+		self.__maximum_running_records = default(
+			maximum_running_records, self.__class__.__default_maximum_running_records__
 		)
 
-		self.__running_tasks_registry = default(running_tasks_registry, WRunningTaskRegistry())
-		self.__postponed_tasks_registry = WPostponedTaskRegistry(maximum_postponed_tasks)
+		self.__running_record_registry = default(running_record_registry, WRunningRecordRegistry())
+		self.__postponed_record_registry = WPostponedRecordRegistry(maximum_postponed_records)
 		self.__sources_registry = WTaskSourceRegistry()
 
 		self.__awake_at = None
 
-	def maximum_running_tasks(self):
+	def maximum_running_records(self):
 		""" Return number of tasks that are able to run simultaneously
 
 		:return: int
 		"""
-		return self.__maximum_running_tasks
+		return self.__maximum_running_records
 
-	def maximum_postponed_tasks(self):
+	def maximum_postponed_records(self):
 		""" Return number of tasks that are able to be postponed
 
 		:return: int or None (for no limit)
 		"""
-		return self.__postponed_tasks_registry.maximum_tasks()
+		return self.__postponed_record_registry.maximum_records()
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	@verify_type('paranoid', task_source=WTaskSourceProto)
@@ -642,20 +646,20 @@ class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThre
 		"""
 		self.__sources_registry.update(task_source=task_source)
 
-	def running_tasks(self):
+	def running_records(self):
 		""" Return scheduled tasks that are running at the moment
 
-		:return: tuple of WRunningScheduledTask
+		:return: tuple of WRunningScheduleRecord
 		"""
-		return self.__running_tasks_registry.running_tasks()
+		return self.__running_record_registry.running_records()
 
 	def thread_started(self):
 		""" Start required registries and start this scheduler
 
 		:return: None
 		"""
-		self.__running_tasks_registry.start()
-		self.__running_tasks_registry.start_event().wait()
+		self.__running_record_registry.start()
+		self.__running_record_registry.start_event().wait()
 		WPollingThreadTask.thread_started(self)
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
@@ -666,20 +670,20 @@ class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThre
 		:return: None
 		"""
 		scheduled_tasks = self.__sources_registry.check()
-		has_postponed_tasks = self.__postponed_tasks_registry.has_tasks()
-		maximum_tasks = self.maximum_running_tasks()
+		has_postponed_tasks = self.__postponed_record_registry.has_records()
+		maximum_tasks = self.maximum_running_records()
 
 		if scheduled_tasks is not None or has_postponed_tasks is not None:
-			running_tasks = len(self.__running_tasks_registry)
+			running_tasks = len(self.__running_record_registry)
 
 			if running_tasks >= maximum_tasks:
 				if scheduled_tasks is not None:
 					for task in scheduled_tasks:
-						self.__postponed_tasks_registry.postpone(task)
+						self.__postponed_record_registry.postpone(task)
 			else:
 				if has_postponed_tasks is True:
-					for postponed_task in self.__postponed_tasks_registry:
-						self.__running_tasks_registry.exec(postponed_task)
+					for postponed_task in self.__postponed_record_registry:
+						self.__running_record_registry.exec(postponed_task)
 						running_tasks += 1
 						if running_tasks >= maximum_tasks:
 							break
@@ -687,9 +691,9 @@ class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThre
 				if scheduled_tasks is not None:
 					for task in scheduled_tasks:
 						if running_tasks >= maximum_tasks:
-							self.__postponed_tasks_registry.postpone(task)
+							self.__postponed_record_registry.postpone(task)
 						else:
-							self.__running_tasks_registry.exec(task)
+							self.__running_record_registry.exec(task)
 							running_tasks += 1
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
@@ -698,4 +702,4 @@ class WTaskSchedulerService(WCriticalResource, WTaskSchedulerProto, WPollingThre
 
 		:return: None
 		"""
-		self.__running_tasks_registry.stop()
+		self.__running_record_registry.stop()

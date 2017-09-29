@@ -34,7 +34,18 @@ from wasp_general.verify import verify_type, verify_value
 from wasp_general.datetime import utc_datetime
 from wasp_general.thread import WCriticalResource
 
-from wasp_general.task.scheduler.proto import WTaskSourceProto, WTaskSchedule, WScheduledTask, WTaskSchedulerProto
+from wasp_general.task.scheduler.proto import WTaskSourceProto, WScheduleRecord, WScheduleTask, WSchedulerServiceProto
+
+
+# noinspection PyAbstractClass
+class WBasicTaskSource(WTaskSourceProto):
+
+	@verify_type(scheduler=WSchedulerServiceProto)
+	def __init__(self, scheduler_service):
+		self.__service = scheduler_service
+
+	def scheduler_service(self):
+		return self.__service
 
 
 class WCronSchedule:
@@ -343,14 +354,14 @@ class WCronUTCSchedule(WCronSchedule):
 		return utc_datetime()
 
 
-class WCronTaskSchedule(WTaskSchedule):
+class WCronScheduleRecord(WScheduleRecord):
 
-	@verify_type('paranoid', task=WScheduledTask, task_id=(str, None))
+	@verify_type('paranoid', task=WScheduleTask, task_id=(str, None))
 	@verify_value('paranoid', on_drop=lambda x: x is None or callable(x))
 	@verify_type(schedule=WCronSchedule, omit_skipped=bool)
 	@verify_value(schedule=lambda x: isinstance(x, WCronLocalTZSchedule) or isinstance(x, WCronUTCSchedule))
 	def __init__(self, cron_schedule, task, policy=None, task_id=None, on_drop=None, omit_skipped=True):
-		WTaskSchedule.__init__(self, task, policy=policy, task_id=task_id, on_drop=on_drop)
+		WScheduleRecord.__init__(self, task, policy=policy, task_id=task_id, on_drop=on_drop)
 		self.__schedule = cron_schedule
 		self.__omit_skipped = omit_skipped
 
@@ -370,31 +381,27 @@ class WCronTaskSchedule(WTaskSchedule):
 		self.cron_schedule().complete(omit_skipped=self.__omit_skipped)
 
 
-class WCronTaskSource(WTaskSourceProto, WCriticalResource):
+class WCronTaskSource(WBasicTaskSource, WCriticalResource):
 
-	@verify_type(scheduler=WTaskSchedulerProto)
-	def __init__(self, scheduler):
-		WTaskSourceProto.__init__(self)
+	@verify_type('paranoid', scheduler_service=WSchedulerServiceProto)
+	def __init__(self, scheduler_service):
+		WBasicTaskSource.__init__(self, scheduler_service=scheduler_service)
 		WCriticalResource.__init__(self)
-		self.__scheduler = scheduler
 		self.__tasks = []
 		self.__next_task = None
 
-	def scheduler(self):
-		return self.__scheduler
-
-	@verify_type(task=WCronTaskSchedule)
+	@verify_type(task=WCronScheduleRecord)
 	def add_task(self, task):
 		self.__add_task(task)
-		self.scheduler().update(task_source=self)
+		self.scheduler_service().update(task_source=self)
 
 	@WCriticalResource.critical_section()
-	@verify_type('paranoid', task=WCronTaskSchedule)
+	@verify_type('paranoid', task=WCronScheduleRecord)
 	def __add_task(self, task):
 		self.__tasks.append(task)
 		self.__update(task)
 
-	@verify_type('paranoid', task=(WCronTaskSchedule, None))
+	@verify_type('paranoid', task=(WCronScheduleRecord, None))
 	def __update(self, task=None):
 		if task is not None:
 			next_start = task.next_start()
@@ -417,7 +424,7 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 		return len(self.__tasks)
 
 	@WCriticalResource.critical_section()
-	def has_tasks(self):
+	def has_records(self):
 		if self.__next_task is not None:
 			next_start = self.__next_task.next_start()
 			if next_start is not None and next_start <= utc_datetime():
@@ -432,29 +439,26 @@ class WCronTaskSource(WTaskSourceProto, WCriticalResource):
 			return self.__next_task.next_start()
 
 
-class WInstantTaskSource(WTaskSourceProto, WCriticalResource):
+class WInstantTaskSource(WBasicTaskSource, WCriticalResource):
 
-	@verify_type(scheduler=WTaskSchedulerProto)
+	@verify_type('paranoid', scheduler_service=WSchedulerServiceProto)
 	@verify_value(on_drop_callback=lambda x: x is None or callable(x))
-	def __init__(self, scheduler, on_drop_callback=None):
-		WTaskSourceProto.__init__(self)
+	def __init__(self, scheduler_service, on_drop_callback=None):
+		WBasicTaskSource.__init__(self, scheduler_service=scheduler_service)
 		WCriticalResource.__init__(self)
-		self.__scheduler = scheduler
 		self.__tasks = []
 		self.__on_drop = on_drop_callback
 
-	def scheduler(self):
-		return self.__scheduler
-
 	@WCriticalResource.critical_section()
-	@verify_type(task=WScheduledTask)
+	@verify_type(task=WScheduleTask)
 	def add_task(self, task):
 		self.__tasks.append(task)
 
 	@WCriticalResource.critical_section()
-	def has_tasks(self):
+	def has_records(self):
 		if len(self.__tasks) > 0:
-			result = [WTaskSchedule(x, on_drop=self.__on_drop) for x in self.__tasks]
+			on_drop = lambda x: self.__on_drop(x) if self.__on_drop is not None else lambda x: None
+			result = [WScheduleRecord(x, on_drop=on_drop(x)) for x in self.__tasks]
 			self.__tasks = []
 			return tuple(result)
 

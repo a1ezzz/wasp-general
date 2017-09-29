@@ -1,3 +1,6 @@
 
 TODO 0. Write Code!
-1. Jenkins test
+TODO 1. Scheduler. Review method names and add some methods-shortcuts
+TODO 2. Scheduler. Review methods "name" and "description" (may be better to use uuid functions instead of names)
+TODO 3. Scheduler. Review thread_names
+TODO 4. Store last N finished task status
