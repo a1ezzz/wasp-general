@@ -457,7 +457,7 @@ class WInstantTaskSource(WBasicTaskSource, WCriticalResource):
 	@WCriticalResource.critical_section()
 	def has_records(self):
 		if len(self.__tasks) > 0:
-			on_drop = lambda x: self.__on_drop(x) if self.__on_drop is not None else lambda x: None
+			on_drop = lambda x: lambda: self.__on_drop(x) if self.__on_drop is not None else lambda x: None
 			result = [WScheduleRecord(x, on_drop=on_drop(x)) for x in self.__tasks]
 			self.__tasks = []
 			return tuple(result)
