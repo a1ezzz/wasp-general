@@ -11,7 +11,7 @@ from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord, WR
 from wasp_general.task.scheduler.proto import WRunningRecordRegistryProto, WTaskSourceProto, WSchedulerServiceProto
 
 from wasp_general.task.scheduler.scheduler import WSchedulerWatchdog, WRunningRecordRegistry, WPostponedRecordRegistry
-from wasp_general.task.scheduler.scheduler import WTaskSourceRegistry, WSchedulerServiceService
+from wasp_general.task.scheduler.scheduler import WTaskSourceRegistry, WSchedulerService
 
 
 def repeat_fn(count):
@@ -420,7 +420,7 @@ class TestWSchedulerService:
 
 	__wait_task_timeout__ = 0.001
 
-	class HFSchedulerService(WSchedulerServiceService):
+	class HFSchedulerService(WSchedulerService):
 		__thread_polling_timeout__ = (
 			TestWRunningRecordRegistry.HFRunningTaskRegistry.__thread_polling_timeout__ / 2
 		)
@@ -478,21 +478,21 @@ class TestWSchedulerService:
 		TestWSchedulerService.DummyTask.__result__ = 0
 		TestWSchedulerService.DummyTask.__dropped__ = 0
 
-		service = WSchedulerServiceService(thread_name_suffix='!')
-		assert(isinstance(service, WSchedulerServiceService) is True)
+		service = WSchedulerService(thread_name_suffix='!')
+		assert(isinstance(service, WSchedulerService) is True)
 		assert(isinstance(service, WSchedulerServiceProto) is True)
 		assert(isinstance(service, WThreadTask) is True)
 		assert(service.maximum_running_records() > 0)
-		assert(service.maximum_running_records() == WSchedulerServiceService.__default_maximum_running_records__)
+		assert(service.maximum_running_records() == WSchedulerService.__default_maximum_running_records__)
 		assert(service.maximum_postponed_records() is None)
 		assert(service.task_sources() == tuple())
 
-		service = WSchedulerServiceService(maximum_postponed_records=2, maximum_running_records=1)
+		service = WSchedulerService(maximum_postponed_records=2, maximum_running_records=1)
 		assert(service.maximum_running_records() == 1)
 		assert(service.maximum_postponed_records() == 2)
 
 		pytest.raises(
-			ValueError, WSchedulerServiceService, maximum_postponed_records=1,
+			ValueError, WSchedulerService, maximum_postponed_records=1,
 			postponed_record_registry=WPostponedRecordRegistry()
 		)
 
@@ -517,6 +517,7 @@ class TestWSchedulerService:
 		service.update()
 
 		task1.start_event().wait()
+
 		TestWSchedulerService.wait_for_tasks(task1)
 
 		assert(TestWSchedulerService.DummyTask.__result__ == 1)
@@ -550,6 +551,10 @@ class TestWSchedulerService:
 		service.update()
 
 		TestWSchedulerService.wait_for_events(group1_task1.start_event(), group1_task2.start_event())
+
+		result = service.records_status()
+		assert(result == (1, 0) or result == (2, 0))
+
 		running_tasks = service.running_records()
 		for task in running_tasks:
 			assert(isinstance(task, WRunningScheduleRecord) is True)
@@ -557,6 +562,7 @@ class TestWSchedulerService:
 			assert(task in (group1_task1, group1_task2, long_run_task))
 
 		TestWSchedulerService.wait_for_tasks(group1_task1, group1_task2)
+
 		group1_task1_stop_event.set()
 		group1_task2_stop_event.set()
 		TestWSchedulerService.wait_for_tasks(group1_task1, group1_task2, every=True)
@@ -586,6 +592,8 @@ class TestWSchedulerService:
 		)
 
 		service.update()
+
+		result = service.records_status()
 
 		group1_task1_stop_event.set()
 		group1_task2_stop_event.set()

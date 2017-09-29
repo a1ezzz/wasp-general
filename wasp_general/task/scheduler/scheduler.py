@@ -542,7 +542,7 @@ class WTaskSourceRegistry:
 		return tuple(self.__sources.keys())
 
 
-class WSchedulerServiceService(WCriticalResource, WSchedulerServiceProto, WPollingThreadTask):
+class WSchedulerService(WCriticalResource, WSchedulerServiceProto, WPollingThreadTask):
 	""" Main scheduler service. This class unites different registries to present entire scheduler
 	"""
 
@@ -575,7 +575,7 @@ class WSchedulerServiceService(WCriticalResource, WSchedulerServiceProto, WPolli
 		""" Create new scheduler
 
 		:param maximum_running_records: number of records that are able to run simultaneously \
-		(WSchedulerServiceService.__default_maximum_running_records__ is used as default value)
+		(WSchedulerService.__default_maximum_running_records__ is used as default value)
 		:param running_record_registry: registry for running records
 		:param maximum_postponed_records: number of records that are able to be postponed (no limit by default)
 		:param postponed_record_registry: registry for postponed records
@@ -656,6 +656,13 @@ class WSchedulerServiceService(WCriticalResource, WSchedulerServiceProto, WPolli
 		:return: tuple of WRunningScheduleRecord
 		"""
 		return self.__running_record_registry.running_records()
+
+	def records_status(self):
+		""" Return number of running and postponed tasks
+
+		:return: tuple of two ints (first - running tasks, second - postponed tasks)
+		"""
+		return len(self.__running_record_registry), len(self.__postponed_record_registry)
 
 	def thread_started(self):
 		""" Start required registries and start this scheduler
