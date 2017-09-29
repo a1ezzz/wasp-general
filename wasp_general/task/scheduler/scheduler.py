@@ -54,40 +54,40 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 	""" Timeout with which critical section lock must be acquired
 	"""
 
+	__thread_name_prefix__ = 'TaskScheduler-Watchdog-'
+
 	@classmethod
 	@verify_type('paranoid', task_schedule=WTaskSchedule)
-	def create(cls, task_schedule, registry, thread_name):
+	def create(cls, task_schedule, registry):
 		""" Core method for watchdog creation. Derived classes may redefine this method in order to change
 		watchdog creation process
 
 		:param task_schedule: scheduled task that is ready to be executed
 		:param registry: registry that is created this watchdog and registry that must be notified of \
 		scheduled task stopping
-		:param thread_name: name of watch dog thread
 		:return:
 		"""
-		return cls(task_schedule, registry, thread_name)
+		return cls(task_schedule, registry, cls.generate_uid())
 
 	@verify_type(task_schedule=WTaskSchedule)
-	@verify_type('paranoid', thread_name=str)
-	def __init__(self, task_schedule, registry, thread_name):
+	def __init__(self, task_schedule, registry, uid):
 		""" Create new watch dog.
 
 		:param task_schedule: scheduled task that is ready to be executed
 		:param registry: registry that is created this watch dog and registry that must be notified of \
 		scheduled task stopping
-		:param thread_name: name of watch dog thread
 
 		note: :class:`.WRunningTaskRegistry` is using :meth:`.WSchedulerWatchdog.create` method for watch
 		dog creation
 		"""
 		WCriticalResource.__init__(self)
-		WPollingThreadTask.__init__(self, thread_name=thread_name)
+		WPollingThreadTask.__init__(self, thread_name=self.__thread_name_prefix__ + str(uid))
 		if isinstance(registry, WRunningTaskRegistry) is False:
 			raise TypeError('Invalid registry type')
 
 		self.__task_schedule = task_schedule
 		self.__registry = registry
+		self.__uid = uid
 		self.__started_at = None
 		self.__task = None
 
@@ -127,6 +127,13 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		"""
 		self.__thread_started()
 		WPollingThreadTask.thread_started(self)
+
+	def uid(self):
+		""" Return task unique (at most time) identifier
+
+		:return: UUID
+		"""
+		return self.__uid
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def __dog_started(self):
@@ -187,7 +194,15 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		started_at = self.started_at()
 		if started_at is None:
 			return
-		return WRunningScheduledTask(self.task_schedule(), started_at)
+		return WRunningScheduledTask(self.task_schedule(), started_at, self.uid())
+
+	@classmethod
+	def generate_uid(cls):
+		""" Generate unique (at most time) identifier
+
+		:return: UUID
+		"""
+		return uuid.uuid4()
 
 
 class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollingThreadTask):
@@ -245,9 +260,7 @@ class WRunningTaskRegistry(WCriticalResource, WRunningTaskRegistryProto, WPollin
 
 		:return: None
 		"""
-		watchdog = self.watchdog_class().create(
-			task_schedule, self, 'TaskScheduler-Watchdog-%s' % str(uuid.uuid4())
-		)
+		watchdog = self.watchdog_class().create(task_schedule, self)
 		watchdog.start()
 		watchdog.start_event().wait(self.__watchdog_startup_timeout__)
 		self.__running_registry.append(watchdog)

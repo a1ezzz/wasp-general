@@ -443,6 +443,9 @@ class WInstantTaskSource(WTaskSourceProto, WCriticalResource):
 		self.__tasks = []
 		self.__on_drop = on_drop_callback
 
+	def scheduler(self):
+		return self.__scheduler
+
 	@WCriticalResource.critical_section()
 	@verify_type(task=WScheduledTask)
 	def add_task(self, task):

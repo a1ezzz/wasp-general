@@ -148,14 +148,17 @@ class WRunningScheduledTask:
 
 	@verify_type(schedule=WTaskSchedule, started_at=datetime)
 	@verify_value(starting_datetime=lambda x: x.tzinfo is not None and x.tzinfo == timezone.utc)
-	def __init__(self, schedule, started_at):
+	@verify_value(uid=lambda x: x is not None)
+	def __init__(self, schedule, started_at, uid):
 		""" Create new descriptor
 
 		:param schedule: started schedule record
 		:param started_at: datetime when the specified task was started (it must be specified in UTC timezone)
+		:param uid: unique (at most time) identifier of running task
 		"""
 		self.__scheduled = schedule
 		self.__started_at = started_at
+		self.__uid = uid
 
 	def task_schedule(self):
 		""" Return started schedule record
@@ -170,6 +173,13 @@ class WRunningScheduledTask:
 		:return: datetime in UTC timezone
 		"""
 		return self.__started_at
+
+	def task_uid(self):
+		""" Return uid of running task
+
+		:return: anything but None
+		"""
+		return self.__uid
 
 
 class WTaskSourceProto(metaclass=ABCMeta):

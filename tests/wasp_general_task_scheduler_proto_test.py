@@ -76,6 +76,7 @@ class TestWRunningScheduledTask:
 		assert(ValueError, WRunningScheduledTask, schedule, started_at)
 
 		started_at = utc_datetime()
-		running_task = WRunningScheduledTask(schedule, started_at)
+		running_task = WRunningScheduledTask(schedule, started_at, 1)
 		assert(running_task.task_schedule() == schedule)
 		assert(running_task.started_at() == started_at)
+		assert(running_task.task_uid() == 1)

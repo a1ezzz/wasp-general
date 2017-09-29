@@ -58,20 +58,24 @@ class TestWSchedulerWatchdog:
 
 		registry = WRunningTaskRegistry()
 
-		pytest.raises(TypeError, WSchedulerWatchdog.create, schedule, 1, 'thread1')
+		pytest.raises(TypeError, WSchedulerWatchdog.create, schedule, 1)
 
-		dog = WSchedulerWatchdog.create(schedule, registry, 'thread1')
+		assert(WSchedulerWatchdog.generate_uid() != WSchedulerWatchdog.generate_uid())
+
+		dog = WSchedulerWatchdog.create(schedule, registry)
 		assert(isinstance(dog, WSchedulerWatchdog) is True)
 		assert(isinstance(dog, WThreadTask) is True)
 		assert(dog.task_schedule() == schedule)
 		assert(dog.registry() == registry)
 		assert(dog.started_at() is None)
 		assert(dog.running_task() is None)
+		assert(dog.uid() is not None)
+		assert(dog.uid() != WSchedulerWatchdog.generate_uid())
 
 		stop_event = Event()
 		task = TestWSchedulerWatchdog.DummyTask(stop_event)
 		schedule = WTaskSchedule(task)
-		dog = TestWSchedulerWatchdog.HFWatchdog.create(schedule, registry, 'thread1')
+		dog = TestWSchedulerWatchdog.HFWatchdog.create(schedule, registry)
 		dog.start()
 		dog.start_event().wait()
 		task.started.wait()
@@ -86,16 +90,16 @@ class TestWSchedulerWatchdog:
 		dog.stop()
 
 		buggy_schedule = WTaskSchedule(task)
-		dog = WSchedulerWatchdog.create(buggy_schedule, registry, 'thread1')
+		dog = WSchedulerWatchdog.create(buggy_schedule, registry)
 		pytest.raises(RuntimeError, dog.thread_started)
 
 		buggy_schedule = WTaskSchedule(task)
 		buggy_schedule.task = lambda: None
-		dog = WSchedulerWatchdog.create(buggy_schedule, registry, 'thread1')
+		dog = WSchedulerWatchdog.create(buggy_schedule, registry)
 		pytest.raises(RuntimeError, dog.start)
 
 		buggy_schedule.task = lambda: 1
-		dog = WSchedulerWatchdog.create(buggy_schedule, registry, 'thread1')
+		dog = WSchedulerWatchdog.create(buggy_schedule, registry)
 		pytest.raises(RuntimeError, dog.start)
 
 
