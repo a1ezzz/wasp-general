@@ -188,8 +188,8 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 				if ready_event is not None:
 					ready_event.set()
 			except Exception as e:
-				self.thread_exception(e)
 				self.exception_event().set()
+				self.thread_exception(e)
 
 		if self.__thread is None:
 			if stop_event is not None:
@@ -228,6 +228,8 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 	@abstractmethod
 	def thread_stopped(self):
 		""" Method is called when task is about to stop (is called before joining process).
+		This method is called whenever exception was raised or not
+
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
