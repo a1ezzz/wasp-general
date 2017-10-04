@@ -227,16 +227,16 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 		"""
 		# TODO: "coverage" requires more tests
 
+		task = self.started_tasks(task_registry_id=task_tag)
+
+		if task is None:
+			return
+
 		def stop(task_to_stop):
 			if task_to_stop in self.__started:
 				if isinstance(task_to_stop, WStoppableTask) is True:
 					task_to_stop.stop()
 				self.__started.remove(task_to_stop)
-
-		task = self.started_tasks(task_registry_id=task_tag)
-
-		if task is None:
-			return
 
 		def stop_dependency(task_to_stop):
 			deeper_dependencies = []
@@ -307,7 +307,8 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 			for task_list in calculate_priorities(task):
 				for single_task in task_list:
 					stop(single_task)
-		else:
+
+		if stop_dependent is not True:  # check if we've already stopped this task
 			stop(task)
 
 
