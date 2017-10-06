@@ -155,6 +155,11 @@ class WWriterChain(io.BufferedWriter):
 		for link in chain:
 			yield link
 
+	def flush(self):
+		io.BufferedWriter.flush(self)
+		for link in self:
+			link.flush()
+
 	def close(self):
 		io.BufferedWriter.close(self)
 		for link in self:
