@@ -345,14 +345,14 @@ class WPostponedRecordRegistry:
 		task_group_id = record.task_group_id()
 
 		if task_policy == WScheduleRecord.PostponePolicy.wait:
-			self.__records.append(record)
+			self.__postpone_record(record)
 
 		elif task_policy == WScheduleRecord.PostponePolicy.drop:
 			record.task_dropped()
 
 		elif task_policy == WScheduleRecord.PostponePolicy.postpone_first:
 			if task_group_id is None:
-				self.__records.append(record)
+				self.__postpone_record(record)
 			else:
 				record_found = None
 				for previous_scheduled_record, task_index in self.__search_record(task_group_id):
@@ -364,11 +364,11 @@ class WPostponedRecordRegistry:
 				if record_found is not None:
 					record.task_dropped()
 				else:
-					self.__records.append(record)
+					self.__postpone_record(record)
 
 		elif task_policy == WScheduleRecord.PostponePolicy.postpone_last:
 			if task_group_id is None:
-				self.__records.append(record)
+				self.__postpone_record(record)
 			else:
 				record_found = None
 				for previous_scheduled_record, task_index in self.__search_record(task_group_id):
@@ -380,7 +380,7 @@ class WPostponedRecordRegistry:
 				if record_found is not None:
 					self.__records.pop(record_found).task_dropped()
 
-				self.__records.append(record)
+				self.__postpone_record(record)
 		else:
 			raise RuntimeError('Invalid policy spotted')
 
@@ -396,6 +396,17 @@ class WPostponedRecordRegistry:
 			record = self.__records[i]
 			if record.task_group_id() == task_group_id:
 				yield record, i
+
+	@verify_type(record=WScheduleRecord)
+	def __postpone_record(self, record):
+		""" Save the record and trigger 'postpone' method
+
+		:param record: record to save
+
+		:return: None
+		"""
+		self.__records.append(record)
+		record.task_postponed()
 
 	def has_records(self):
 		""" Check if there are postponed records. True - there is at least one postpone record,

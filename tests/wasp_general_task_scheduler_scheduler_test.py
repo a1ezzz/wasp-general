@@ -419,10 +419,12 @@ class TestWSchedulerService:
 
 		__result__ = 0
 		__dropped__ = 0
+		__waited__ = 0
 
 		def __init__(self, wait_for=None):
 			TestWSchedulerWatchdog.DummyTask.__init__(self, wait_for=wait_for)
 			self.drop_event = Event()
+			self.wait_event = Event()
 
 		def thread_started(self):
 			TestWSchedulerWatchdog.DummyTask.thread_started(self)
@@ -431,6 +433,10 @@ class TestWSchedulerService:
 		def on_drop(self):
 			TestWSchedulerService.DummyTask.__dropped__ += 1
 			self.drop_event.set()
+
+		def on_wait(self):
+			TestWSchedulerService.DummyTask.__waited__ += 1
+			self.wait_event.set()
 
 	def wait_for_events(*events, every=False):
 		events = list(events)
@@ -467,6 +473,7 @@ class TestWSchedulerService:
 	def test(self):
 		TestWSchedulerService.DummyTask.__result__ = 0
 		TestWSchedulerService.DummyTask.__dropped__ = 0
+		TestWSchedulerService.DummyTask.__waited__ = 0
 
 		service = WSchedulerService(thread_name_suffix='!')
 		assert(isinstance(service, WSchedulerService) is True)
@@ -502,8 +509,9 @@ class TestWSchedulerService:
 
 		assert (TestWSchedulerService.DummyTask.__result__ == 0)
 		assert(TestWSchedulerService.DummyTask.__dropped__ == 0)
+		assert(TestWSchedulerService.DummyTask.__waited__ == 0)
 		task1 = TestWSchedulerService.DummyTask()
-		task_source1.tasks.append(WScheduleRecord(task1, on_drop=task1.on_drop))
+		task_source1.tasks.append(WScheduleRecord(task1, on_drop=task1.on_drop, on_wait=task1.on_wait))
 		service.update()
 
 		task1.start_event().wait()
@@ -512,6 +520,7 @@ class TestWSchedulerService:
 
 		assert(TestWSchedulerService.DummyTask.__result__ == 1)
 		assert(TestWSchedulerService.DummyTask.__dropped__ == 0)
+		assert(TestWSchedulerService.DummyTask.__waited__ == 0)
 
 		task_source2 = TestWTaskSourceRegistry.TaskSource()
 		service.add_task_source(task_source2)
@@ -524,17 +533,19 @@ class TestWSchedulerService:
 		group1_task1 = TestWSchedulerService.DummyTask(group1_task1_stop_event)
 		group1_task2_stop_event = Event()
 		group1_task2 = TestWSchedulerService.DummyTask(group1_task2_stop_event)
-		task_source1.tasks.append(WScheduleRecord(long_run_task, on_drop=long_run_task.on_drop))
+		task_source1.tasks.append(WScheduleRecord(
+			long_run_task, on_drop=long_run_task.on_drop, on_wait=long_run_task.on_wait
+		))
 		task_source1.tasks.append(
 			WScheduleRecord(
-				group1_task1, on_drop=group1_task1.on_drop, task_group_id='group1',
-				policy=WScheduleRecord.PostponePolicy.drop
+				group1_task1, on_drop=group1_task1.on_drop, on_wait=group1_task1.on_wait,
+				task_group_id='group1', policy=WScheduleRecord.PostponePolicy.drop
 			)
 		)
 		task_source2.tasks.append(
 			WScheduleRecord(
-				group1_task2, on_drop=group1_task2.on_drop, task_group_id='group1',
-				policy=WScheduleRecord.PostponePolicy.drop
+				group1_task2, on_drop=group1_task2.on_drop, on_wait=group1_task2.on_wait,
+				task_group_id='group1', policy=WScheduleRecord.PostponePolicy.drop
 			)
 		)
 
@@ -557,6 +568,7 @@ class TestWSchedulerService:
 		TestWSchedulerService.wait_for_tasks(group1_task1, group1_task2, every=True)
 		assert(TestWSchedulerService.DummyTask.__result__ == 2)
 		assert(TestWSchedulerService.DummyTask.__dropped__ == 1)
+		assert(TestWSchedulerService.DummyTask.__waited__ == 0)
 
 		group1_task1.stop()
 		group1_task2.stop()
@@ -569,14 +581,14 @@ class TestWSchedulerService:
 
 		task_source1.tasks.append(
 			WScheduleRecord(
-				group1_task1, on_drop=group1_task1.on_drop, task_group_id='group1',
-				policy=WScheduleRecord.PostponePolicy.wait
+				group1_task1, on_drop=group1_task1.on_drop, on_wait=group1_task1.on_wait,
+				task_group_id='group1', policy=WScheduleRecord.PostponePolicy.wait
 			)
 		)
 		task_source2.tasks.append(
 			WScheduleRecord(
-				group1_task2, on_drop=group1_task2.on_drop, task_group_id='group1',
-				policy=WScheduleRecord.PostponePolicy.wait
+				group1_task2, on_drop=group1_task2.on_drop, on_wait=group1_task2.on_wait,
+				task_group_id='group1', policy=WScheduleRecord.PostponePolicy.wait
 			)
 		)
 
@@ -587,8 +599,13 @@ class TestWSchedulerService:
 		group1_task1_stop_event.set()
 		group1_task2_stop_event.set()
 		TestWSchedulerService.wait_for_tasks(group1_task1, group1_task2, every=True)
+
+		group1_task1.wait_event.wait()
+		group1_task2.wait_event.wait()
+
 		assert(TestWSchedulerService.DummyTask.__result__ == 4)
 		assert(TestWSchedulerService.DummyTask.__dropped__ == 1)
+		assert(TestWSchedulerService.DummyTask.__waited__ == 2)
 
 		service.stop()
 		TestWSchedulerService.wait_for_tasks(long_run_task)

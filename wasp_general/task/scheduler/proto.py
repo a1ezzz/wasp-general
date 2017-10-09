@@ -80,12 +80,14 @@ class WScheduleRecord:
 
 	:class:`.WScheduleRecord` has a policy, that describes what scheduler should do if it can not run this task
 	at the specified moment. This policy is a recommendation for a scheduler and a scheduler can omit it if
-	(for example) a scheduler queue is full. In any case, if this task is dropped (skipped) from being running
-	"on_drop" callback is called (it invokes via :meth:`.WScheduleRecord.task_dropped` method)
+	(for example) a scheduler queue is full. In any case, if this task is dropped (skipped) or postponed (moved to
+	a queue of waiting tasks) correlated callback is called. "on_drop" callback is called for skipped tasks
+	(it invokes via :meth:`.WScheduleRecord.task_dropped` method) and "on_wait" for postponed tasks (via
+	:meth:`.WScheduleRecord.task_postponed` method)
 
-	note: It is important that tasks with the same id (task_group_id) have the same postpone policy. If they do not have
-	the same policy, then exception may be raised. No pre-checks are made to resolve this, because of unpredictable
-	logic of different tasks from different sources
+	note: It is important that tasks with the same id (task_group_id) have the same postpone policy. If they do not
+	have the same policy, then exception may be raised. No pre-checks are made to resolve this, because of
+	unpredictable logic of different tasks from different sources
 	"""
 	# TODO: add policy that resolves concurrency of running tasks (like skipping tasks, that is already running)
 
@@ -99,14 +101,15 @@ class WScheduleRecord:
 		postpone_last = 4  # stack the last task and drop all the previous tasks with the same task ID
 
 	@verify_type(task=WScheduleTask, task_group_id=(str, None))
-	@verify_value(on_drop=lambda x: x is None or callable(x))
-	def __init__(self, task, policy=None, task_group_id=None, on_drop=None):
+	@verify_value(on_drop=lambda x: x is None or callable(x), on_wait=lambda x: x is None or callable(x))
+	def __init__(self, task, policy=None, task_group_id=None, on_drop=None, on_wait=None):
 		""" Create new schedule record
 
 		:param task: task to run
 		:param policy: postpone policy
 		:param task_group_id: identifier that groups different scheduler records and single postpone policy
 		:param on_drop: callback, that must be called if this task is skipped
+		:param on_wait: callback, that must be called if this task is postponed
 		"""
 
 		if policy is not None and isinstance(policy, WScheduleRecord.PostponePolicy) is False:
@@ -116,6 +119,7 @@ class WScheduleRecord:
 		self.__policy = policy if policy is not None else WScheduleRecord.PostponePolicy.wait
 		self.__task_group_id = task_group_id
 		self.__on_drop = on_drop
+		self.__on_wait = on_wait
 
 	def task(self):
 		""" Return task that should be run
@@ -144,6 +148,14 @@ class WScheduleRecord:
 		see :meth:`.WScheduleRecord.__init__`
 		"""
 		return self.__task_group_id
+
+	def task_postponed(self):
+		""" Call a "on_wait" callback. This method is executed by a scheduler when it postpone this task
+
+		:return: None
+		"""
+		if self.__on_wait is not None:
+			return self.__on_wait()
 
 	def task_dropped(self):
 		""" Call a "on_drop" callback. This method is executed by a scheduler when it skip this task

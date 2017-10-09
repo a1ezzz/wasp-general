@@ -43,6 +43,9 @@ class TestWScheduleTask:
 		assert(task.stop_event() is not None)
 		assert(task.ready_event() is not None)
 
+		assert(task.uid() is not None)
+		assert(TestWScheduleTask.DummyTask().uid() != TestWScheduleTask.DummyTask().uid())
+
 
 class TestWScheduleRecord:
 
@@ -55,13 +58,24 @@ class TestWScheduleRecord:
 		assert(schedule.task() == task)
 		assert(schedule.policy() == WScheduleRecord.PostponePolicy.wait)
 		assert(schedule.task_group_id() is None)
+		assert(schedule.task_uid() == task.uid())
 
-		callback_result = []
+		drop_callback_result = []
 
 		def drop_callback():
-			callback_result.append(1)
+			drop_callback_result.append(1)
+
+		wait_callback_result = []
+
+		def wait_callback():
+			wait_callback_result.append(1)
 
 		schedule = WScheduleRecord(task, on_drop=drop_callback)
-		assert(callback_result == [])
+		assert(drop_callback_result == [])
 		schedule.task_dropped()
-		assert(callback_result == [1])
+		assert(drop_callback_result == [1])
+
+		schedule = WScheduleRecord(task, on_wait=wait_callback)
+		assert(wait_callback_result == [])
+		schedule.task_postponed()
+		assert(wait_callback_result == [1])
