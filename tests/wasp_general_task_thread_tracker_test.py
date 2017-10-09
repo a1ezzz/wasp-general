@@ -11,6 +11,11 @@ def test_abstract():
 	pytest.raises(TypeError, WThreadTrackerInfoStorageProto)
 	pytest.raises(
 		NotImplementedError,
+		WThreadTrackerInfoStorageProto.register_start,
+		None, TestWThreadTracker.Task()
+	)
+	pytest.raises(
+		NotImplementedError,
 		WThreadTrackerInfoStorageProto.register_stop,
 		None, TestWThreadTracker.Task()
 	)
@@ -46,9 +51,13 @@ class TestWThreadTracker:
 	class Storage(WThreadTrackerInfoStorageProto):
 
 		def __init__(self):
+			self.start_count = 0
 			self.stop_count = 0
 			self.termination_count = 0
 			self.exception_count = 0
+
+		def register_start(self, task, task_details=None):
+			self.start_count += 1
 
 		def register_stop(self, task, task_details=None):
 			self.stop_count += 1
@@ -60,7 +69,7 @@ class TestWThreadTracker:
 			self.exception_count += 1
 
 		def status(self):
-			return self.stop_count, self.termination_count, self.exception_count
+			return self.start_count, self.stop_count, self.termination_count, self.exception_count
 
 	def test(self):
 		task = TestWThreadTracker.Task()
@@ -68,7 +77,7 @@ class TestWThreadTracker:
 		assert(isinstance(task, WThreadTracker) is True)
 		assert(isinstance(task, WThreadTask) is True)
 		assert(task.tracker_storage() is None)
-		assert(task.task_details() is None)
+		assert(task.task_details(WThreadTracker.TrackerEvents.start) is None)
 
 		assert(task.track_stop() is True)
 		assert(task.track_termination() is True)
@@ -79,40 +88,41 @@ class TestWThreadTracker:
 		task.stop()
 
 		storage = TestWThreadTracker.Storage()
-		assert(storage.status() == (0, 0, 0))
+		assert(storage.status() == (0, 0, 0, 0))
 		task = TestWThreadTracker.Task(tracker_storage=storage)
-		assert(storage.status() == (0, 0, 0))
+		assert(storage.status() == (0, 0, 0, 0))
 		task.start()
-		assert(storage.status() == (0, 0, 0))
+		assert(storage.status() == (1, 0, 0, 0))
 		task.ready_event().wait()
 		task.stop()
-		assert(storage.status() == (1, 0, 0))
+		assert(storage.status() == (1, 1, 0, 0))
 
 		task.thread_started = task.long_task
-		assert(storage.status() == (1, 0, 0))
+		assert(storage.status() == (1, 1, 0, 0))
 		task.start()
-		assert(storage.status() == (1, 0, 0))
+		assert(storage.status() == (2, 1, 0, 0))
 		task.start_event().wait()
-		assert(storage.status() == (1, 0, 0))
+		assert(storage.status() == (2, 1, 0, 0))
 		task.stop()
-		assert(storage.status() == (1, 1, 0))
+		assert(storage.status() == (2, 1, 1, 0))
 
 		task.thread_started = TestWThreadTracker.Task.exc_task
-		assert(storage.status() == (1, 1, 0))
+		assert(storage.status() == (2, 1, 1, 0))
 		task.start()
 		task.start_event().wait()
 		task.stop()
-		assert(storage.status() == (1, 1, 1))
+		assert(storage.status() == (3, 1, 1, 1))
 
 		storage.register_exception = TestWThreadTracker.Task.exc_task
-		assert(storage.status() == (1, 1, 1))
+		assert(storage.status() == (3, 1, 1, 1))
 		task.start()
 		task.start_event().wait()
 		task.stop()
-		assert(storage.status() == (1, 1, 1))
+		assert(storage.status() == (4, 1, 1, 1))
 
 		task = TestWThreadTracker.Task(
-			tracker_storage=storage, track_stop=False, track_termination=False, track_exception=False
+			tracker_storage=storage, track_start=False, track_stop=False, track_termination=False,
+			track_exception=False
 		)
 
 		assert(task.track_stop() is False)
@@ -131,7 +141,7 @@ class TestWThreadTracker:
 		task.start()
 		task.stop()
 
-		assert(storage.status() == (1, 1, 1))
+		assert(storage.status() == (4, 1, 1, 1))
 
 		storage.register_stop = TestWThreadTracker.Task.exc_task
 		task = TestWThreadTracker.Task(tracker_storage=storage)
@@ -154,62 +164,80 @@ class TestWSimpleTrackerStorage:
 
 		task1 = TestWThreadTracker.Task(storage)
 		task1.start()
-		task1.stop()
 
 		result = [x for x in storage]
 		assert(len(result) == 1)
-		assert(result[0].record_type == WSimpleTrackerStorage.RecordType.stop)
+		assert(result[0].record_type == WThreadTracker.TrackerEvents.start)
 		assert(result[0].thread_task == task1)
 		assert(result[0].task_details is None)
 
-		task2 = TestWThreadTracker.Task(storage)
-		task2.task_details = lambda: '!!!'
-		task2.start()
-		task2.stop()
+		task1.stop()
 
 		result = [x for x in storage]
 		assert(len(result) == 2)
-		assert(result[0].record_type == WSimpleTrackerStorage.RecordType.stop)
-		assert(result[0].thread_task == task2)
-		assert(result[0].task_details == '!!!')
-		assert(result[1].thread_task == task1)
-
-		task3 = TestWThreadTracker.Task(storage)
-		task3.thread_started = task3.long_task
-		task3.start()
-		task3.start_event().wait()
-		task3.stop()
-
-		result = [x for x in storage]
-		assert(len(result) == 3)
-		assert(result[0].record_type == WSimpleTrackerStorage.RecordType.termination)
-		assert(result[0].thread_task == task3)
+		assert(result[0].record_type == WThreadTracker.TrackerEvents.stop)
+		assert(result[0].thread_task == task1)
 		assert(result[0].task_details is None)
-		assert(result[1].thread_task == task2)
-		assert(result[2].thread_task == task1)
+		assert(result[1].thread_task == task1)
+		assert(result[1].record_type == WThreadTracker.TrackerEvents.start)
 
-		task4 = TestWThreadTracker.Task(storage)
-		task4.thread_started = TestWThreadTracker.Task.exc_task
-		task4.start()
-		task4.start_event().wait()
-		task4.stop()
+		task2 = TestWThreadTracker.Task(storage)
+		task2.task_details = lambda x: '!!!'
+		task2.start()
+		task2.stop()
 
 		result = [x for x in storage]
 		assert(len(result) == 4)
-		assert(result[0].record_type == WSimpleTrackerStorage.RecordType.exception)
-		assert(result[0].thread_task == task4)
+		assert(result[0].record_type == WThreadTracker.TrackerEvents.stop)
+		assert(result[0].thread_task == task2)
+		assert(result[0].task_details == '!!!')
+		assert(result[1].thread_task == task2)
+		assert(result[2].thread_task == task1)
+		assert(result[3].thread_task == task1)
+
+		task3 = TestWThreadTracker.Task(storage)
+		task3.thread_started = task3.long_task
+		task3.start()
+		task3.start_event().wait()
+		task3.stop()
+
+		result = [x for x in storage]
+		assert(len(result) == 6)
+		assert(result[0].record_type == WThreadTracker.TrackerEvents.termination)
+		assert(result[0].thread_task == task3)
 		assert(result[0].task_details is None)
 		assert(result[1].thread_task == task3)
 		assert(result[2].thread_task == task2)
-		assert(result[3].thread_task == task1)
+		assert(result[3].thread_task == task2)
+		assert(result[4].thread_task == task1)
+		assert(result[5].thread_task == task1)
 
-		storage = WSimpleTrackerStorage(records_limit=2)
+		task4 = TestWThreadTracker.Task(storage)
+		task4.thread_started = TestWThreadTracker.Task.exc_task
+		task4.start()
+		task4.start_event().wait()
+		task4.stop()
+
+		result = [x for x in storage]
+		assert(len(result) == 8)
+		assert(result[0].record_type == WThreadTracker.TrackerEvents.exception)
+		assert(result[0].thread_task == task4)
+		assert(result[0].task_details is None)
+		assert(result[1].thread_task == task4)
+		assert(result[2].thread_task == task3)
+		assert(result[3].thread_task == task3)
+		assert(result[4].thread_task == task2)
+		assert(result[5].thread_task == task2)
+		assert(result[6].thread_task == task1)
+		assert(result[7].thread_task == task1)
+
+		storage = WSimpleTrackerStorage(records_limit=4)
 		task1 = TestWThreadTracker.Task(storage)
 		task1.start()
 		task1.stop()
 
 		task2 = TestWThreadTracker.Task(storage)
-		task2.task_details = lambda: '!!!'
+		task2.task_details = lambda x: '!!!'
 		task2.start()
 		task2.stop()
 
@@ -227,19 +255,23 @@ class TestWSimpleTrackerStorage:
 
 		result = [x for x in storage]
 
-		assert(len(result) == 2)
-		assert(result[0].record_type == WSimpleTrackerStorage.RecordType.exception)
+		assert(len(result) == 4)
+		assert(result[0].record_type == WThreadTracker.TrackerEvents.exception)
 		assert(result[0].thread_task == task4)
 		assert(result[0].task_details is None)
-		assert(result[1].thread_task == task3)
+		assert(result[1].thread_task == task4)
+		assert(result[2].thread_task == task3)
+		assert(result[3].thread_task == task3)
 
-		storage = WSimpleTrackerStorage(record_stop=False, record_termination=False, record_exception=False)
+		storage = WSimpleTrackerStorage(
+			record_start=False, record_stop=False, record_termination=False, record_exception=False
+		)
 		task1 = TestWThreadTracker.Task(storage)
 		task1.start()
 		task1.stop()
 
 		task2 = TestWThreadTracker.Task(storage)
-		task2.task_details = lambda: '!!!'
+		task2.task_details = lambda x: '!!!'
 		task2.start()
 		task2.stop()
 
