@@ -154,49 +154,6 @@ class WScheduleRecord:
 			return self.__on_drop()
 
 
-class WRunningScheduleRecord:
-	""" This is a descriptor for running scheduler records (:class:`.WScheduleRecord`).
-	"""
-
-	@verify_type(record=WScheduleRecord, started_at=datetime)
-	@verify_value(starting_datetime=lambda x: x.tzinfo is not None and x.tzinfo == timezone.utc)
-	def __init__(self, record, started_at):
-		""" Create new descriptor
-
-		:param record: started schedule record
-		:param started_at: datetime when the specified task was started (it must be specified in UTC timezone)
-		"""
-		self.__record = record
-		self.__started_at = started_at
-
-	def record(self):
-		""" Return started schedule record
-
-		:return: WScheduleRecord
-		"""
-		return self.__record
-
-	def started_at(self):
-		""" Return datetime when this task was started
-
-		:return: datetime in UTC timezone
-		"""
-		return self.__started_at
-
-	def task(self):
-		""" Return running task
-
-		:return: WScheduleTask
-		"""
-		return self.record().task()
-
-	def task_uid(self):
-		""" Shortcut for self.record().task_uid() which is shortcut for self.task().uid(). So this is
-		shortcut for self.record().task().uid()
-		"""
-		return self.record().task_uid()
-
-
 class WTaskSourceProto(metaclass=ABCMeta):
 	""" Prototype for scheduler record generator. :class:`.WSchedulerServiceProto` doesn't have scheduler as set of
 	records. Instead, a service uses this class as scheduler records holder and checks if it is time to execute
@@ -239,8 +196,8 @@ class WTaskSourceProto(metaclass=ABCMeta):
 
 class WRunningRecordRegistryProto(metaclass=ABCMeta):
 	""" This class describes a registry of running tasks. It executes a scheduler record
-	(:class:`.WScheduleRecord`), creates and store the related descriptor
-	(:class:`.WRunningScheduleRecord`), and watches that these tasks are running
+	(:class:`.WScheduleRecord`), creates and store the related records (:class:`.WScheduleRecord`), and watches
+	that these tasks are running
 	"""
 
 	@abstractmethod
@@ -258,7 +215,7 @@ class WRunningRecordRegistryProto(metaclass=ABCMeta):
 	def running_records(self):
 		""" Return tuple of running tasks
 
-		:return: tuple of WRunningScheduleRecord
+		:return: tuple of WScheduleRecord
 		"""
 		raise NotImplementedError('This method is abstract')
 

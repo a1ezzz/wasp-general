@@ -32,7 +32,7 @@ from wasp_general.thread import WCriticalResource
 from wasp_general.datetime import utc_datetime
 
 from wasp_general.task.scheduler.proto import WScheduleTask, WRunningRecordRegistryProto, WSchedulerServiceProto
-from wasp_general.task.scheduler.proto import WScheduleRecord, WRunningScheduleRecord, WTaskSourceProto
+from wasp_general.task.scheduler.proto import WScheduleRecord, WTaskSourceProto
 from wasp_general.task.thread import WPollingThreadTask
 
 
@@ -88,7 +88,6 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 
 		self.__record = record
 		self.__registry = registry
-		self.__started_at = None
 		self.__task = None
 
 	def record(self):
@@ -104,13 +103,6 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		:return: WRunningRecordRegistry
 		"""
 		return self.__registry
-
-	def started_at(self):
-		""" Return datetime in UTC timezone when the scheduled task was started
-
-		:return: datetime in UTC or None
-		"""
-		return self.__started_at
 
 	def start(self):
 		""" Start scheduled task and start watching
@@ -137,7 +129,6 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		if self.__task is not None:
 			raise RuntimeError('Unable to start task. In order to start a new task - at first stop it')
 
-		self.__started_at = utc_datetime()
 		self.__task = self.record().task()
 		if isinstance(self.__task, WScheduleTask) is False:
 			task_class = self.__task.__class__.__qualname__
@@ -174,20 +165,7 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		"""
 		if self.__task is not None:
 			self.__task.stop()
-			self.__started_at = None
 			self.__task = None
-
-	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-	def running_task(self):
-		""" Return information about running schedule records. If task is not running (for example in the middle
-		of a termination) - None is returned
-
-		:return: WRunningScheduleRecord or None
-		"""
-		started_at = self.started_at()
-		if started_at is None:
-			return
-		return WRunningScheduleRecord(self.record(), started_at)
 
 
 class WRunningRecordRegistry(WCriticalResource, WRunningRecordRegistryProto, WPollingThreadTask):
@@ -265,9 +243,9 @@ class WRunningRecordRegistry(WCriticalResource, WRunningRecordRegistryProto, WPo
 	def running_records(self):
 		""" Return schedule records that are running at the moment
 
-		:return: tuple of WRunningScheduleRecord
+		:return: tuple of WScheduleRecord
 		"""
-		return tuple(filter(lambda x: x is not None, [x.running_task() for x in self.__running_registry]))
+		return tuple([x.record() for x in self.__running_registry])
 
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def __len__(self):
@@ -653,7 +631,7 @@ class WSchedulerService(WCriticalResource, WSchedulerServiceProto, WPollingThrea
 	def running_records(self):
 		""" Return scheduled tasks that are running at the moment
 
-		:return: tuple of WRunningScheduleRecord
+		:return: tuple of WScheduleRecord
 		"""
 		return self.__running_record_registry.running_records()
 

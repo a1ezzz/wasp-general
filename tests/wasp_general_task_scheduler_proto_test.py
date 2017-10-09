@@ -6,7 +6,7 @@ from datetime import datetime
 from wasp_general.task.thread import WThreadTask
 from wasp_general.datetime import utc_datetime
 
-from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord, WRunningScheduleRecord, WTaskSourceProto
+from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord, WTaskSourceProto
 from wasp_general.task.scheduler.proto import WRunningRecordRegistryProto, WSchedulerServiceProto
 
 
@@ -65,20 +65,3 @@ class TestWScheduleRecord:
 		assert(callback_result == [])
 		schedule.task_dropped()
 		assert(callback_result == [1])
-
-
-class TestWRunningScheduleRecord:
-
-	def test(self):
-		task = TestWScheduleTask.DummyTask()
-		record = WScheduleRecord(task)
-		started_at = datetime.now()
-
-		assert(ValueError, WRunningScheduleRecord, record, started_at)
-
-		started_at = utc_datetime()
-		running_task = WRunningScheduleRecord(record, started_at)
-		assert(running_task.task() == task)
-		assert(running_task.task_uid() == task.uid())
-		assert(running_task.record() == record)
-		assert(running_task.started_at() == started_at)

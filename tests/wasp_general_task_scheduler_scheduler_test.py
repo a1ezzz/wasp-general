@@ -7,7 +7,7 @@ from threading import Event
 
 from wasp_general.datetime import utc_datetime
 from wasp_general.task.thread import WThreadTask
-from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord, WRunningScheduleRecord
+from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord
 from wasp_general.task.scheduler.proto import WRunningRecordRegistryProto, WTaskSourceProto, WSchedulerServiceProto
 
 from wasp_general.task.scheduler.scheduler import WSchedulerWatchdog, WRunningRecordRegistry, WPostponedRecordRegistry
@@ -65,8 +65,6 @@ class TestWSchedulerWatchdog:
 		assert(isinstance(dog, WThreadTask) is True)
 		assert(dog.record() == schedule)
 		assert(dog.registry() == registry)
-		assert(dog.started_at() is None)
-		assert(dog.running_task() is None)
 
 		stop_event = Event()
 		task = TestWSchedulerWatchdog.DummyTask(stop_event)
@@ -75,12 +73,7 @@ class TestWSchedulerWatchdog:
 		dog.start()
 		dog.start_event().wait()
 		task.started.wait()
-		utc_dt = utc_datetime()
-		assert((utc_dt - timedelta(seconds=10)) < dog.started_at() < utc_dt)
-		running_task = dog.running_task()
-		assert(isinstance(running_task, WRunningScheduleRecord) is True)
-		assert((utc_dt - timedelta(seconds=10)) < running_task.started_at() < utc_dt)
-		assert(running_task.record() == schedule)
+		assert(dog.record() == schedule)
 		pytest.raises(RuntimeError, dog.start)
 		stop_event.set()
 		dog.stop()
@@ -133,10 +126,7 @@ class TestWRunningRecordRegistry:
 		assert(len(running_task) == 1)
 
 		running_task = running_task[0]
-		utc_dt = utc_datetime()
-		assert(isinstance(running_task, WRunningScheduleRecord) is True)
-		assert((utc_dt - timedelta(seconds=10)) < running_task.started_at() < utc_dt)
-		assert(running_task.record() == schedule)
+		assert(running_task == schedule)
 
 		task1_stop_event.set()
 		task.ready_event().wait()
@@ -556,9 +546,8 @@ class TestWSchedulerService:
 		assert(result == (1, 0) or result == (2, 0))
 
 		running_tasks = service.running_records()
-		for task in running_tasks:
-			assert(isinstance(task, WRunningScheduleRecord) is True)
-			task = task.record().task()
+		for record in running_tasks:
+			task = record.task()
 			assert(task in (group1_task1, group1_task2, long_run_task))
 
 		TestWSchedulerService.wait_for_tasks(group1_task1, group1_task2)
