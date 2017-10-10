@@ -28,17 +28,28 @@ from abc import ABCMeta, abstractmethod
 import traceback
 from enum import Enum
 
-from wasp_general.verify import verify_type
+from wasp_general.verify import verify_type, verify_value
 
 from wasp_general.task.thread import WThreadTask
+from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord
 from wasp_general.thread import WCriticalResource
 from wasp_general.datetime import utc_datetime
 
 
 class WThreadTrackerInfoStorageProto(metaclass=ABCMeta):
-	""" Prototype for a storage that keeps thread task events like start event, normal stop, termination or raised
-	unhandled exceptions)
+	""" Prototype for a storage that keeps thread task events like start event, normal stop, termination, raised
+	unhandled exceptions) or scheduler events
 	"""
+
+	class TrackerEvents(Enum):
+		""" Possible tracking events
+		"""
+		start = 1  # start
+		stop = 2  # normal stop
+		termination = 3  # termination stop
+		exception = 4  # unhandled exception stop
+		wait = 5  # task has been postponed (scheduler event)
+		drop = 6  # task has been dropped (scheduler event)
 
 	@abstractmethod
 	@verify_type(task=WThreadTask, details=(str, None))
@@ -90,6 +101,30 @@ class WThreadTrackerInfoStorageProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@abstractmethod
+	@verify_type(task=WThreadTask, details=(str, None))
+	def register_wait(self, task, task_details=None):
+		""" Store event of task postponing (this event is used in a scheduler classes)
+
+		:param task: task that was postponed
+		:param task_details: (optional) task details - any kind of data related to the given task
+
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	@verify_type(task=WThreadTask, details=(str, None))
+	def register_drop(self, task, task_details=None):
+		""" Store event of task drop (this event is used in a scheduler classes)
+
+		:param task: task that was dropped
+		:param task_details: (optional) task details - any kind of data related to the given task
+
+		:return: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
 
 # noinspection PyAbstractClass
 class WThreadTracker(WThreadTask):
@@ -97,16 +132,8 @@ class WThreadTracker(WThreadTask):
 	unhandled exceptions)
 
 	:note: Since there is an extra work that should be done, this class may be inappropriate for low-latency
-	situation. Also, registering termination events should be done quickly because of this task joining timeout.
+	situation. Also, registering events should be done quickly because of this task joining timeout.
 	"""
-
-	class TrackerEvents(Enum):
-		""" Possible tracking events
-		"""
-		start = 1  # start
-		stop = 2  # normal stop
-		termination = 3  # termination stop
-		exception = 4  # unhandled exception stop
 
 	@verify_type('paranoid', thread_name=(str, None), join_on_stop=bool, thread_join_timeout=(int, float, None))
 	@verify_type(tracker_storage=(WThreadTrackerInfoStorageProto, None), track_start=bool, track_stop=bool)
@@ -175,7 +202,7 @@ class WThreadTracker(WThreadTask):
 		return self.__track_exception
 
 	# noinspection PyMethodMayBeStatic
-	@verify_type(event=TrackerEvents)
+	@verify_type(event=WThreadTrackerInfoStorageProto.TrackerEvents)
 	def task_details(self, event):
 		""" Return task details that should be registered with a tracker storage
 
@@ -192,7 +219,7 @@ class WThreadTracker(WThreadTask):
 		"""
 		tracker = self.tracker_storage()
 		if tracker is not None and self.track_start() is True:
-			details = self.task_details(WThreadTracker.TrackerEvents.start)
+			details = self.task_details(WThreadTrackerInfoStorageProto.TrackerEvents.start)
 			tracker.register_start(self, task_details=details)
 		WThreadTask.start(self)
 
@@ -207,11 +234,11 @@ class WThreadTracker(WThreadTask):
 			try:
 				if self.ready_event().is_set() is True:
 					if self.track_stop() is True:
-						details = self.task_details(WThreadTracker.TrackerEvents.stop)
+						details = self.task_details(WThreadTrackerInfoStorageProto.TrackerEvents.stop)
 						tracker.register_stop(self, task_details=details)
 				elif self.exception_event().is_set() is False:
 					if self.track_termination() is True:
-						details = self.task_details(WThreadTracker.TrackerEvents.termination)
+						details = self.task_details(WThreadTrackerInfoStorageProto.TrackerEvents.termination)
 						tracker.register_termination(self, task_details=details)
 			except Exception as e:
 				self.thread_tracker_exception(e)
@@ -229,7 +256,7 @@ class WThreadTracker(WThreadTask):
 		if tracker is not None:
 			try:
 				if self.track_exception() is True:
-					details = self.task_details(WThreadTracker.TrackerEvents.exception)
+					details = self.task_details(WThreadTrackerInfoStorageProto.TrackerEvents.exception)
 					tracker.register_exception(
 						self,
 						raised_exception,
@@ -265,7 +292,7 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		""" General record of single event
 		"""
 
-		@verify_type(record_type=WThreadTracker.TrackerEvents, thread_task=WThreadTask)
+		@verify_type(record_type=WThreadTrackerInfoStorageProto.TrackerEvents, thread_task=WThreadTask)
 		@verify_type(task_details=(str, None))
 		def __init__(self, record_type, thread_task, task_details=None):
 			""" Create new record
@@ -287,16 +314,16 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		@verify_type(exception=Exception, exception_details=str)
 		def __init__(self, task, exception, exception_details, task_details=None):
 			WSimpleTrackerStorage.Record.__init__(
-				self, WThreadTracker.TrackerEvents.exception, task, task_details=task_details
+				self, WThreadTrackerInfoStorageProto.TrackerEvents.exception, task, task_details=task_details
 			)
 			self.exception = exception
 			self.exception_details = exception_details
 
 	@verify_type(records_limit=(int, None), record_start=bool, record_stop=bool, record_termination=bool)
-	@verify_type(record_exception=bool)
+	@verify_type(record_exception=bool, record_wait=bool, record_drop=bool)
 	def __init__(
 		self, records_limit=None, record_start=True, record_stop=True, record_termination=True,
-		record_exception=True
+		record_exception=True, record_wait=True, record_drop=True
 	):
 		""" Create new storage
 
@@ -306,6 +333,8 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		:param record_stop: whether to keep normal stop events or not
 		:param record_termination: whether to keep termination stop events or not
 		:param record_exception: whether to keep unhandled exceptions events or not
+		:param record_wait: whether to keep postponing events or not
+		:param record_drop: whether to keep drop events or not
 		"""
 		WCriticalResource.__init__(self)
 		WThreadTrackerInfoStorageProto.__init__(self)
@@ -315,6 +344,8 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		self.__record_stop = record_stop
 		self.__record_termination = record_termination
 		self.__record_exception = record_exception
+		self.__record_wait = record_wait
+		self.__record_drop = record_drop
 
 	def record_limit(self):
 		""" Return maximum number of records to keep
@@ -351,11 +382,25 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		"""
 		return self.__record_exception
 
+	def record_wait(self):
+		""" Return True if this storage is saving postponing events, otherwise - False
+
+		:return: bool
+		"""
+		return self.__record_wait
+
+	def record_drop(self):
+		""" Return True if this storage is saving dropping events, otherwise - False
+
+		:return: bool
+		"""
+		return self.__record_drop
+
 	def register_start(self, task, task_details=None):
 		""" :meth:`.WSimpleTrackerStorage.register_start` method implementation
 		"""
 		if self.record_start() is True:
-			record_type = WThreadTracker.TrackerEvents.start
+			record_type = WThreadTrackerInfoStorageProto.TrackerEvents.start
 			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
 			self.__store_record(record)
 
@@ -364,7 +409,7 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		""" :meth:`.WSimpleTrackerStorage.register_stop` method implementation
 		"""
 		if self.record_stop() is True:
-			record_type = WThreadTracker.TrackerEvents.stop
+			record_type = WThreadTrackerInfoStorageProto.TrackerEvents.stop
 			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
 			self.__store_record(record)
 
@@ -373,7 +418,7 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		""" :meth:`.WSimpleTrackerStorage.register_termination` method implementation
 		"""
 		if self.record_termination() is True:
-			record_type = WThreadTracker.TrackerEvents.termination
+			record_type = WThreadTrackerInfoStorageProto.TrackerEvents.termination
 			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
 			self.__store_record(record)
 
@@ -385,6 +430,24 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 			record = WSimpleTrackerStorage.ExceptionRecord(
 				task, raised_exception, exception_details, task_details=task_details
 			)
+			self.__store_record(record)
+
+	@verify_type(task=WThreadTask, details=(str, None))
+	def register_wait(self, task, task_details=None):
+		""" :meth:`.WSimpleTrackerStorage.register_wait` method implementation
+		"""
+		if self.record_wait() is True:
+			record_type = WThreadTrackerInfoStorageProto.TrackerEvents.wait
+			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
+			self.__store_record(record)
+
+	@verify_type(task=WThreadTask, details=(str, None))
+	def register_drop(self, task, task_details=None):
+		""" :meth:`.WSimpleTrackerStorage.register_drop` method implementation
+		"""
+		if self.record_drop() is True:
+			record_type = WThreadTrackerInfoStorageProto.TrackerEvents.drop
+			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
 			self.__store_record(record)
 
 	@WCriticalResource.critical_section(timeout=__critical_section_timeout__)
@@ -420,3 +483,76 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		registry.reverse()
 		for record in registry:
 			yield record
+
+
+class WScheduleRecordTracker(WScheduleRecord):
+	""" Schedule record that may register scheduler events related to a scheduled task like 'postponing' event
+	and 'drop' event.
+
+	:note: Since there is an extra work that should be done, this class may be inappropriate for low-latency
+	situation. Also, registering events should be done quickly because of this task joining timeout.
+	"""
+
+	@verify_type('paranoid', task=WScheduleTask, task_group_id=(str, None))
+	@verify_value('paranoid', on_drop=lambda x: x is None or callable(x))
+	@verify_value('paranoid', on_wait=lambda x: x is None or callable(x))
+	@verify_type(task=WThreadTracker)
+	@verify_type(track_wait=bool, track_drop=bool)
+	def __init__(
+		self, task, policy=None, task_group_id=None, on_drop=None, on_wait=None,
+		track_wait=True, track_drop=True
+	):
+		""" Create new schedule record, that may track schedule events
+
+		:param task: same as task in :meth:`.WScheduleRecord.__init__` except it must be \
+		:class:`.WThreadTracker` instance
+		:param policy: same as policy in :meth:`.WScheduleRecord.__init__`
+		:param task_group_id: same as task_group_id in :meth:`.WScheduleRecord.__init__`
+		:param on_drop: same as on_drop in :meth:`.WScheduleRecord.__init__`
+		:param on_wait: same as on_wait in :meth:`.WScheduleRecord.__init__`
+		:param track_wait: whether to register postponing event of this record or not
+		:param track_drop: whether to register drop event of this record or not
+		"""
+		WScheduleRecord.__init__(
+			self, task, policy=policy, task_group_id=task_group_id, on_drop=on_drop, on_wait=on_wait
+		)
+		self.__track_wait = track_wait
+		self.__track_drop = track_drop
+
+	def track_wait(self):
+		""" Return True if this task is tracking "postponing" event otherwise - False
+
+		:return: bool
+		"""
+		return self.__track_wait
+
+	def track_drop(self):
+		""" Return True if this task is tracking "drop" event otherwise - False
+
+		:return: bool
+		"""
+		return self.__track_drop
+
+	def task_postponed(self):
+		""" Track (if required) postponing event and do the same job as :meth:`.WScheduleRecord.task_postponed`
+		method do
+
+		:return: None
+		"""
+		tracker = self.task().tracker_storage()
+		if tracker is not None and self.track_wait() is True:
+			details = self.task().task_details(WThreadTrackerInfoStorageProto.TrackerEvents.wait)
+			tracker.register_wait(self.task(), task_details=details)
+		WScheduleRecord.task_postponed(self)
+
+	def task_dropped(self):
+		""" Track (if required) drop event and do the same job as :meth:`.WScheduleRecord.task_dropped`
+		method do
+
+		:return: None
+		"""
+		tracker = self.task().tracker_storage()
+		if tracker is not None and self.track_drop() is True:
+			details = self.task().task_details(WThreadTrackerInfoStorageProto.TrackerEvents.drop)
+			tracker.register_drop(self.task(), task_details=details)
+		WScheduleRecord.task_dropped(self)
