@@ -396,16 +396,16 @@ class WCronTaskSource(WBasicTaskSource, WCriticalResource):
 		self.__tasks = []
 		self.__next_task = None
 
-	@verify_type(task=WCronScheduleRecord)
-	def add_task(self, task):
-		self.__add_task(task)
+	@verify_type(record=WCronScheduleRecord)
+	def add_record(self, record):
+		self.__add_record(record)
 		self.scheduler_service().update(task_source=self)
 
 	@WCriticalResource.critical_section()
-	@verify_type('paranoid', task=WCronScheduleRecord)
-	def __add_task(self, task):
-		self.__tasks.append(task)
-		self.__update(task)
+	@verify_type('paranoid', record=WCronScheduleRecord)
+	def __add_record(self, record):
+		self.__tasks.append(record)
+		self.__update(record)
 
 	@verify_type('paranoid', task=(WCronScheduleRecord, None))
 	def __update(self, task=None):
@@ -447,32 +447,38 @@ class WCronTaskSource(WBasicTaskSource, WCriticalResource):
 
 class WInstantTaskSource(WBasicTaskSource, WCriticalResource):
 
+	__lock_acquiring_timeout__ = 5
+	""" Timeout with which critical section lock must be acquired
+	"""
+
 	@verify_type('paranoid', scheduler_service=WSchedulerServiceProto)
-	@verify_value(on_drop_callback=lambda x: x is None or callable(x))
-	def __init__(self, scheduler_service, on_drop_callback=None):
+	def __init__(self, scheduler_service):
 		WBasicTaskSource.__init__(self, scheduler_service=scheduler_service)
 		WCriticalResource.__init__(self)
-		self.__tasks = []
-		self.__on_drop = on_drop_callback
+		self.__records = []
 
-	@WCriticalResource.critical_section()
-	@verify_type(task=WScheduleTask)
-	def add_task(self, task):
-		self.__tasks.append(task)
+	@verify_type('paranoid', record=WScheduleRecord)
+	def add_record(self, record):
+		self.__add_record(record)
+		self.scheduler_service().update(self)
 
-	@WCriticalResource.critical_section()
+	@verify_type(record=WScheduleRecord)
+	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
+	def __add_record(self, record):
+		self.__records.append(record)
+
+	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def has_records(self):
-		if len(self.__tasks) > 0:
-			on_drop = lambda x: lambda: self.__on_drop(x) if self.__on_drop is not None else lambda x: None
-			result = [WScheduleRecord(x, on_drop=on_drop(x)) for x in self.__tasks]
-			self.__tasks = []
+		if len(self.__records) > 0:
+			result = self.__records.copy()
+			self.__records = []
 			return tuple(result)
 
-	@WCriticalResource.critical_section()
+	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def next_start(self):
-		if len(self.__tasks) > 0:
+		if len(self.__records) > 0:
 			return utc_datetime()
 
-	@WCriticalResource.critical_section()
+	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def tasks_planned(self):
-		return len(self.__tasks)
+		return len(self.__records)
