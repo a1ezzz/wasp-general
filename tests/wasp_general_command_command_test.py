@@ -7,6 +7,10 @@ from wasp_general.command.command import WCommandPrioritizedSelector, WCommandSe
 
 
 def test_abstract():
+	pytest.raises(TypeError, WCommandResult.VarSerializationHelper)
+	pytest.raises(NotImplementedError, WCommandResult.VarSerializationHelper.serialize, None, None)
+	pytest.raises(NotImplementedError, WCommandResult.VarSerializationHelper.deserialize, None, None)
+
 	pytest.raises(TypeError, WCommandProto)
 	pytest.raises(NotImplementedError, WCommandProto.match, None)
 	pytest.raises(NotImplementedError, WCommandProto.exec, None)
@@ -20,6 +24,32 @@ class TestWCommandResult:
 	def test(self):
 		assert(WCommandResult('foo').output == 'foo')
 		assert(WCommandResult('foo', 1).error == 1)
+
+		command_result = WCommandResult(var1=1, var2='q')
+		assert(command_result.serialize_var() == {'var1': 1, 'var2': 'q'})
+
+		class A:
+			def __eq__(self, other):
+				return isinstance(other, A)
+
+		class AHelper(WCommandResult.VarSerializationHelper):
+
+			def serialize(self, var_value):
+				return 'A'
+
+			def deserialize(self, serialized_value):
+				return A()
+
+		command_result = WCommandResult(var1=1, var2='q', var3=A())
+		assert (command_result.serialize_var(var3=AHelper()) == {'var1': 1, 'var2': 'q', 'var3': 'A'})
+		pytest.raises(TypeError, command_result.serialize_var, var3=1)
+
+		result_env = WCommandResult.deserialize_env({'var1': 1, 'var2': 'q'})
+		assert(result_env == {'var1': 1, 'var2': 'q'})
+
+		result_env = WCommandResult.deserialize_env({'var1': 1, 'var2': 'q', 'var3': 'B'}, var3=AHelper())
+		assert(result_env == {'var1': 1, 'var2': 'q', 'var3': A()})
+		pytest.raises(TypeError, WCommandResult.deserialize_env, {'var1': 1}, var1='')
 
 
 class TestWCommandProto:

@@ -34,17 +34,91 @@ class WCommandResult:
 	""" Define result of a command
 	"""
 
+	class VarSerializationHelper(metaclass=ABCMeta):
+		""" Class that helps to serialize/deserialize specific objects. Instead of a real
+		serialization/deserialization to string or bytes/from string or bytes derived classes should
+		decompose/compose objects to simpler types like dict, tuple, int, float, str, None
+		"""
+
+		@abstractmethod
+		def serialize(self, var_value):
+			""" Decompose object to simpler types like dict, tuple, int, float, str, None
+
+			:param var_value: original object to decompose
+
+			:return: anything
+			"""
+			raise NotImplementedError('This method is abstract')
+
+		@abstractmethod
+		def deserialize(self, serialized_value):
+			""" Compose object from a result of :meth:`.VarSerializationHelper.serialize` method
+
+			:param serialized_value: data to compose from
+
+			:return: anything
+			"""
+			raise NotImplementedError('This method is abstract')
+
 	@verify_type(output=(str, None))
-	def __init__(self, output=None, error=None):
-		""" Create new result. 'error' variable shows whether command was finished successfully. If 'error'
+	def __init__(self, output=None, error=None, **env_vars):
+		""" Create new result. 'output' is optional variable that is used as command output.
+
+		'error' variable shows whether command was finished successfully. If 'error'
 		variable is other than None, then 'error' variable is error code/flag/... and 'output' variable is
 		error message.
 
 		:param output: command output
 		:param error: error flag
+		:param env_vars: extra vars that may be used later as command environment variables or may be \
+		interpreted as command result
 		"""
 		self.output = output
 		self.error = error
+		self.env = env_vars.copy()
+
+	def serialize_var(self, **serialization_helpers):
+		""" Serialize command environment variables with the specified helpers. If no helper is specified
+		original dictionary copy is returned
+
+		:param serialization_helpers: objects that helps to serialize complex variables
+
+		:return: dict
+		"""
+		result = self.env.copy()
+		for var_name in serialization_helpers.keys():
+			if var_name in result.keys():
+				helper = serialization_helpers[var_name]
+				if isinstance(helper, WCommandResult.VarSerializationHelper) is False:
+					raise helper(
+						'Invalid serialization helper is specified for "%s" variable' %
+						var_name
+					)
+				result[var_name] = helper.serialize(result[var_name])
+		return result
+
+	@classmethod
+	@verify_type(env=dict)
+	def deserialize_env(cls, env, **serialization_helpers):
+		""" Deserialize command environment variables from the specified dictionary and helpers. If no helper
+		is specified dictionary copy is returned
+
+		:param env: dictionary that holds data that should be deserialized
+		:param serialization_helpers: objects that helps to deserialize complex variables
+
+		:return: dict
+		"""
+		result = env.copy()
+		for var_name in serialization_helpers.keys():
+			if var_name in result.keys():
+				helper = serialization_helpers[var_name]
+				if isinstance(helper, WCommandResult.VarSerializationHelper) is False:
+					raise TypeError(
+						'Invalid serialization helper is specified for "%s" variable' %
+						var_name
+					)
+				result[var_name] = helper.deserialize(result[var_name])
+		return result
 
 
 class WCommandProto(metaclass=ABCMeta):
