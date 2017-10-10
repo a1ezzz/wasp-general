@@ -136,6 +136,11 @@ class TestWCommandPrioritizedSelector:
 
 class TestWCommandSet:
 
+	class Command(WCommand):
+
+		def _exec(self, *command_tokens, **command_env):
+			return WCommandResult(output='context set', sec_var='1')
+
 	def test(self):
 		command_set = WCommandSet()
 		assert(isinstance(command_set.commands(), WCommandSelector) is True)
@@ -155,6 +160,22 @@ class TestWCommandSet:
 		assert(result.output == 'OK')
 
 		pytest.raises(WCommandSet.NoCommandFound, command_set.exec, 'hello world')
+
+		command_set = WCommandSet()
+		assert(command_set.tracked_vars() == tuple())
+		assert(command_set.has_var('sec_var') is False)
+
+		command_set = WCommandSet(tracked_vars=('sec_var', ))
+		assert(command_set.tracked_vars() == ('sec_var', ))
+		assert(command_set.has_var('sec_var') is False)
+
+		set_command = TestWCommandSet.Command('set')
+		command_set.commands().add(set_command)
+		assert(command_set.has_var('sec_var') is False)
+
+		command_set.exec('set')
+		assert(command_set.has_var('sec_var') is True)
+		assert(command_set.var_value('sec_var') == '1')
 
 
 class TestWReduceCommand:

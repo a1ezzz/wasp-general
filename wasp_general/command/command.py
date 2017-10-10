@@ -327,7 +327,9 @@ class WCommandPrioritizedSelector(WCommandSelector):
 
 
 class WCommandSet:
-	""" Class wraps routine of execution command from a command group
+	""" Class wraps routine of execution command from a command group. This class is able to keep command
+	environment variables from previous commands results to use them in a future commands calls. Only
+	those variables whose names were specified in a constructor will be kept.
 	"""
 
 	class NoCommandFound(Exception):
@@ -335,13 +337,17 @@ class WCommandSet:
 		"""
 		pass
 
-	@verify_type(command_selector=(WCommandSelector, None))
-	def __init__(self, command_selector=None):
+	@verify_type(command_selector=(WCommandSelector, None), follow_vars=(list, tuple, set, None))
+	def __init__(self, command_selector=None, tracked_vars=None):
 		""" Create new set
 
-		:param command_selector:
+		:param command_selector: selector (storage) for commands to use
+		:param tracked_vars: if it is specified - tuple/list/set of variables names, that must be kept \
+		between commands calls
 		"""
 		self.__commands = command_selector if command_selector is not None else WCommandSelector()
+		self.__tracked_vars = tuple(tracked_vars) if tracked_vars is not None else tuple()
+		self.__vars = {}
 
 	def commands(self):
 		""" Return used command selector
@@ -349,6 +355,35 @@ class WCommandSet:
 		:return: WCommandSelector
 		"""
 		return self.__commands
+
+	def tracked_vars(self):
+		""" Return variables names that are kept (tracked) by this command set
+
+		:return: tuple of str
+		"""
+		return self.__tracked_vars
+
+	def has_var(self, var_name):
+		""" Return True - if a environment variable with a specified name is kept by this command set.
+		Otherwise - False is returned
+
+		:param var_name: variable name to check
+
+		:return: bool
+		"""
+		return var_name in self.__vars.keys()
+
+	def var_value(self, var_name):
+		""" Return value of environment variable that is kept by this command set.
+
+		:note: No checks are made if there is a such variable. It implies that there is a such variable.
+		For any doubt - use :meth:`.WCommandSet.has_var` method
+
+		:param var_name: target variable name
+
+		:return: anything
+		"""
+		return self.__vars[var_name]
 
 	@verify_type('paranoid', command_str=str)
 	def exec(self, command_str, **command_env):
@@ -359,12 +394,29 @@ class WCommandSet:
 		:param command_env: command environment
 		:return: WCommandResult
 		"""
+		env = self.__vars.copy()
+		env.update(command_env)
+
 		command_tokens = WCommandProto.split_command(command_str)
-		command_obj = self.commands().select(*command_tokens, **command_env)
+		command_obj = self.commands().select(*command_tokens, **env)
 		if command_obj is None:
 			raise WCommandSet.NoCommandFound('No suitable command found: "%s"' % command_str)
 
-		return command_obj.exec(*command_tokens, **command_env)
+		result = command_obj.exec(*command_tokens, **env)
+		self.__track_vars(result)
+		return result
+
+	@verify_type(command_result=WCommandResult)
+	def __track_vars(self, command_result):
+		""" Check if there are any tracked variable inside the result. And keep them for future use.
+
+		:param command_result: command result tot check
+
+		:return:
+		"""
+		for var_name in self.tracked_vars():
+			if var_name in command_result.env.keys():
+				self.__vars[var_name] = command_result.env[var_name]
 
 
 class WReduceCommand(WCommandProto):
