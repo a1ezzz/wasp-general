@@ -420,14 +420,16 @@ class WEnhancedCommand(WCommandProto):
 		if len(command_tokens) > 0:
 			if command_tokens[0] == self.command():
 				try:
-					return self._exec(self.parser().parse(*command_tokens[1:]))
+					return self._exec(
+						self.parser().parse(*command_tokens[1:]), **command_env
+					)
 				except WCommandArgumentParsingError as e:
 					return WCommandResult(output=str(e), error=1)
 		raise RuntimeError('Invalid tokens')
 
 	@abstractmethod
 	@verify_type(command_arguments=dict)
-	def _exec(self, command_arguments):
+	def _exec(self, command_arguments, **command_env):
 		raise NotImplementedError('This method is abstract')
 
 	def arguments_help(self):
