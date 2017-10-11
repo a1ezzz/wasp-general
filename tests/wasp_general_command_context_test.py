@@ -6,7 +6,6 @@ from wasp_general.command.command import WCommandProto, WCommand, WCommandResult
 from wasp_general.command.command import WCommandSet
 
 from wasp_general.command.context import WContextProto, WContext, WCommandContextAdapter, WCommandContext
-from wasp_general.command.context import WCommandContextResult, WCommandContextSet
 
 
 def test_abstract():
@@ -48,7 +47,22 @@ class TestWContextProto:
 		assert(len(c3) == 3)
 
 
-class TestWCommandContextRequest:
+class TestWContext:
+
+	def test_helper(self):
+		helper = WContext.ContextSerializationHelper()
+		assert(isinstance(helper, WContext.ContextSerializationHelper) is True)
+		assert(isinstance(helper, WCommandResult.VarSerializationHelper) is True)
+
+		assert(helper.serialize(None) is None)
+		assert(helper.deserialize(None) is None)
+
+		context = WContext('context_name', 'v1')
+		serialized_data = helper.serialize(context)
+		assert(serialized_data == WContext.export_context(context))
+		assert(helper.deserialize(serialized_data) == context)
+
+		pytest.raises(TypeError, helper.serialize, 1)
 
 	def test(self):
 		c_r1 = WContext('context1')
@@ -109,11 +123,11 @@ class TestWCommandContext:
 			return WCommandResult('OK')
 
 	class Adapter(WCommandContextAdapter):
-		def adapt(self, *command_tokens, request_context=None):
-			if request_context is None:
+		def adapt(self, *command_tokens, command_context=None):
+			if command_context is None:
 				return command_tokens
 
-			result = [request_context.context_value()]
+			result = [command_context.context_value()]
 			result.extend(command_tokens)
 			return tuple(result)
 
@@ -131,69 +145,9 @@ class TestWCommandContext:
 		command2 = WCommandContext(base_command, adapter2)
 		assert(command2.match('hello', 'world', 'yeah') is True)
 		assert(command.match('hello', 'world', 'yeah') is False)
-		request_context = WContext('context', 'hello')
-		assert(command.match('world', request_context=request_context) is True)
+		command_context = WContext('context', 'hello')
+		assert(command.match('world', command_context=command_context) is True)
 
 		assert(command2.exec('hello', 'world').output == 'OK')
-		assert(command.exec('world', request_context=request_context).output == 'OK')
+		assert(command.exec('world', command_context=command_context).output == 'OK')
 		pytest.raises(RuntimeError, command.exec, 'hello', 'world')
-
-
-class TestWCommandContextResult:
-
-	def test(self):
-		context_request1 = WContext('hello')
-		context_request2 = WContext('world', 'context-value', context_request1)
-		command_result = WCommandContextResult('output', 1, context_request2)
-
-		assert(isinstance(command_result, WCommandContextResult) is True)
-		assert(isinstance(command_result, WCommandResult) is True)
-		assert (isinstance(command_result.context, WContext) is True)
-		assert(WContext.export_context(command_result.context) == (('hello', None), ('world', 'context-value')))
-		assert(command_result.output == 'output')
-		assert(command_result.error == 1)
-
-
-class TestWCommandContextSet:
-
-	class Command(WCommand):
-
-		def _exec(self, *command_tokens, **command_env):
-			return WCommandResult('simple OK')
-
-	def test(self):
-		selector = WCommandPrioritizedSelector()
-		command_set = WCommandContextSet(selector)
-		assert(command_set.commands() == selector)
-
-		command_set = WCommandContextSet()
-		assert(command_set.context() is None)
-
-		base_command = TestWCommandContext.Command('hello', 'world')
-		adapter = TestWCommandContext.Adapter(WContext.specification('context'))
-		command = WCommandContext(base_command, adapter)
-		simple_command = TestWCommandContextSet.Command('create', 'world')
-		command_set.commands().add(command)
-		command_set.commands().add(simple_command)
-
-		set_command = TestWCommandContextSet.Command('set')
-
-		def test_exec1(token, **kw):
-			return WCommandContextResult(output='context set', context=WContext('context', 'hello'))
-		set_command._exec = test_exec1
-
-		command_set.commands().add(set_command)
-
-		assert(command_set.exec('create world').output == 'simple OK')
-
-		assert(command_set.context() is None)
-		result = command_set.exec('set')
-		assert(result.output == 'context set')
-		assert(command_set.context() is not None)
-		assert(command_set.context().context_name() == 'context')
-		assert(command_set.context().context_value() == 'hello')
-
-		result = command_set.exec('world')
-		assert(result.output == 'OK')
-
-		pytest.raises(WCommandSet.NoCommandFound, command_set.exec, 'foo')
