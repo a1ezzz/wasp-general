@@ -30,8 +30,8 @@ import shlex
 from wasp_general.verify import verify_type
 
 
-class WCommandResult:
-	""" Define result of a command
+class WCommandEnv:
+	""" Define command environment
 	"""
 
 	class VarSerializationHelper(metaclass=ABCMeta):
@@ -60,24 +60,16 @@ class WCommandResult:
 			"""
 			raise NotImplementedError('This method is abstract')
 
-	@verify_type(output=(str, None))
-	def __init__(self, output=None, error=None, **env_vars):
-		""" Create new result. 'output' is optional variable that is used as command output.
+	def __init__(self, **env_vars):
+		"""
+		Create new command environment descriptor
 
-		'error' variable shows whether command was finished successfully. If 'error'
-		variable is other than None, then 'error' variable is error code/flag/... and 'output' variable is
-		error message.
-
-		:param output: command output
-		:param error: error flag
 		:param env_vars: extra vars that may be used later as command environment variables or may be \
 		interpreted as command result
-		"""
-		self.output = output
-		self.error = error
-		self.env = env_vars.copy()
+\		"""
+		self.env = env_vars
 
-	def serialize_var(self, **serialization_helpers):
+	def serialize_env(self, **serialization_helpers):
 		""" Serialize command environment variables with the specified helpers. If no helper is specified
 		original dictionary copy is returned
 
@@ -119,6 +111,26 @@ class WCommandResult:
 					)
 				result[var_name] = helper.deserialize(result[var_name])
 		return result
+
+
+class WCommandResult(WCommandEnv):
+	""" Define result of a command
+	"""
+
+	@verify_type(output=(str, None))
+	def __init__(self, output=None, error=None, **env_vars):
+		""" Create new result. 'output' is optional variable that is used as command output.
+
+		'error' variable shows whether command was finished successfully. If 'error'
+		variable is other than None, then 'error' variable is error code/flag/... and 'output' variable is
+		error message.
+
+		:param output: command output
+		:param error: error flag
+		"""
+		WCommandEnv.__init__(self, **env_vars)
+		self.output = output
+		self.error = error
 
 
 class WCommandProto(metaclass=ABCMeta):
