@@ -30,6 +30,7 @@ from wasp_general.version import __status__
 from datetime import timedelta
 from abc import abstractmethod, ABCMeta
 from threading import Event
+import queue
 
 from zmq import Context as ZMQContext
 from zmq.eventloop.ioloop import IOLoop
@@ -258,12 +259,22 @@ class WNativeSocketHandler(WBasicNativeSocketHandler):
 
 class WZMQHandler(WIOLoopServiceHandler, metaclass=ABCMeta):
 
+	class SocketOption:
+
+		def __init__(self, name, value):
+			self.name = name
+			self.value = value
+
 	class SetupAgent:
 
 		@verify_type(socket_type=int, connection=str)
-		def __init__(self, socket_type, connection):
+		def __init__(self, socket_type, connection, *socket_options):
 			self.__socket_type = socket_type
 			self.__connection = connection
+			for option in socket_options:
+				if isinstance(option, WZMQHandler.SocketOption) is False:
+					raise TypeError('Invalid socket option')
+			self.__socket_options = socket_options if len(socket_options) > 0 else tuple()
 
 		def socket_type(self):
 			return self.__socket_type
@@ -271,10 +282,16 @@ class WZMQHandler(WIOLoopServiceHandler, metaclass=ABCMeta):
 		def connection(self):
 			return self.__connection
 
+		def socket_options(self):
+			return self.__socket_options
+
 		def create_socket(self, handler):
 			if isinstance(handler, WZMQHandler) is False:
 				raise TypeError('Invalid handler type')
-			return handler.context().socket(self.socket_type())
+			context = handler.context()
+			for option in self.socket_options():
+				context.setsockopt(option.name, option.value)
+			return context.socket(self.socket_type())
 
 		@verify_type(io_loop=IOLoop)
 		def setup_handler(self, handler, io_loop):
@@ -381,6 +398,27 @@ class WZMQService(WIOLoopService):
 			handler = WZMQHandler()
 		handler.configure(setup_agent, receive_agent)
 		WIOLoopService.__init__(self, handler, loop=loop, timeout=timeout)
+
+	def discard_queue_messages(self):
+		""" Sometimes it is necessary to drop undelivered messages. These messages may be stored in different
+		caches, for example in a zmq socket queue. With different zmq flags we can tweak zmq sockets and
+		contexts no to keep those messages. But inside ZMQStream class there is a queue that can not be
+		cleaned other way then the way it does in this method. So yes, it is dirty to access protected
+		members, and yes it can be broken at any moment. And yes without correct locking procedure there
+		is a possibility of unpredicted behaviour. But still - there is no other way to drop undelivered
+		messages
+
+		Discussion of the problem: https://github.com/zeromq/pyzmq/issues/1095
+
+		:return: None
+		"""
+		zmq_stream_queue = self.handler().stream()._send_queue
+		while not zmq_stream_queue.empty():
+			try:
+				zmq_stream_queue.get(False)
+			except queue.Empty:
+				continue
+			zmq_stream_queue.task_done()
 
 
 class WLoglessIOLoop(IOLoop):
