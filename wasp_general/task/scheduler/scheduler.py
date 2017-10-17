@@ -164,7 +164,8 @@ class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 		:return: None
 		"""
 		if self.__task is not None:
-			self.__task.stop()
+			if self.__task.stop_event().is_set() is False:
+				self.__task.stop()
 			self.__task = None
 
 
