@@ -59,7 +59,7 @@ class WScheduleTask(WThreadTask):
 		:param thread_join_timeout: same as thread_join_timeout in :meth:`.WThreadTask.__init__` method
 		"""
 
-		self.__uid = uuid.uuid4()
+		self.__uid = self.generate_uid()
 
 		WThreadTask.__init__(
 			self, thread_name=(self.__thread_name_prefix__ + str(self.__uid)), join_on_stop=True,
@@ -67,11 +67,15 @@ class WScheduleTask(WThreadTask):
 		)
 
 	def uid(self):
+		return self.__uid
+
+	@classmethod
+	def generate_uid(cls):
 		""" Return "random" "unique" identifier
 
 		:return: UUID
 		"""
-		return self.__uid
+		return uuid.uuid4()
 
 
 class WScheduleRecord:
