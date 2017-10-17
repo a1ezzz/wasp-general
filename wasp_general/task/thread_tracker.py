@@ -53,74 +53,80 @@ class WThreadTrackerInfoStorageProto(metaclass=ABCMeta):
 	"""
 
 	@abstractmethod
-	@verify_type(task=WThreadTask, details=(str, None))
-	def register_start(self, task, task_details=None):
+	@verify_type(task=WThreadTask, event_details=(str, None))
+	def register_start(self, task, event_details=None):
 		""" Store start event
 
 		:param task: task that is starting
-		:param task_details: (optional) task details - any kind of data related to the given task
+		:param event_details: (optional) event details - any kind of data related to the given task and start \
+		event
 
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type(task=WThreadTask, details=(str, None))
-	def register_stop(self, task, task_details=None):
+	@verify_type(task=WThreadTask, event_details=(str, None))
+	def register_stop(self, task, event_details=None):
 		""" Store stop event
 
 		:param task: task that stopped
-		:param task_details: (optional) task details - any kind of data related to the given task
+		:param event_details: (optional) event details - any kind of data related to the given task and stop \
+		event
 
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type(task=WThreadTask, details=(str, None))
-	def register_termination(self, task, task_details=None):
+	@verify_type(task=WThreadTask, event_details=(str, None))
+	def register_termination(self, task, event_details=None):
 		""" Store termination event
 
 		:param task: task that was terminated
-		:param task_details: (optional) task details - any kind of data related to the given task
+		:param event_details: (optional) event details - any kind of data related to the given task and \
+		termination event
 
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type(task=WThreadTask, raised_exception=Exception, exception_details=str, details=(str, None))
-	def register_exception(self, task, raised_exception, exception_details, task_details=None):
+	@verify_type(task=WThreadTask, raised_exception=Exception, exception_details=str, event_details=(str, None))
+	def register_exception(self, task, raised_exception, exception_details, event_details=None):
 		""" Store exception event
 
 		:param task: task that was terminated by unhandled exception
 		:param raised_exception: unhandled exception
 		:param exception_details: any kind of data related to the raised exception
-		:param task_details: (optional) task details - any kind of data related to the given task
+		:param event_details: (optional) event details - any kind of data related to the given task and
+		exception event
 
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type(task=WThreadTask, details=(str, None))
-	def register_wait(self, task, task_details=None):
+	@verify_type(task=WThreadTask, event_details=(str, None))
+	def register_wait(self, task, event_details=None):
 		""" Store event of task postponing (this event is used in a scheduler classes)
 
 		:param task: task that was postponed
-		:param task_details: (optional) task details - any kind of data related to the given task
+		:param event_details: (optional) event details - any kind of data related to the given task and
+		postponing event
 
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type(task=WThreadTask, details=(str, None))
-	def register_drop(self, task, task_details=None):
+	@verify_type(task=WThreadTask, event_details=(str, None))
+	def register_drop(self, task, event_details=None):
 		""" Store event of task drop (this event is used in a scheduler classes)
 
 		:param task: task that was dropped
-		:param task_details: (optional) task details - any kind of data related to the given task
+		:param event_details: (optional) event details - any kind of data related to the given task and
+		event of task drop
 
 		:return: None
 		"""
@@ -204,7 +210,7 @@ class WThreadTracker(WThreadTask):
 
 	# noinspection PyMethodMayBeStatic
 	@verify_type(event=WTrackerEvents)
-	def task_details(self, event):
+	def event_details(self, event):
 		""" Return task details that should be registered with a tracker storage
 
 		:param event: source event that requested details
@@ -220,8 +226,8 @@ class WThreadTracker(WThreadTask):
 		"""
 		tracker = self.tracker_storage()
 		if tracker is not None and self.track_start() is True:
-			details = self.task_details(WTrackerEvents.start)
-			tracker.register_start(self, task_details=details)
+			details = self.event_details(WTrackerEvents.start)
+			tracker.register_start(self, event_details=details)
 		WThreadTask.start(self)
 
 	def thread_stopped(self):
@@ -235,12 +241,12 @@ class WThreadTracker(WThreadTask):
 			try:
 				if self.ready_event().is_set() is True:
 					if self.track_stop() is True:
-						details = self.task_details(WTrackerEvents.stop)
-						tracker.register_stop(self, task_details=details)
+						details = self.event_details(WTrackerEvents.stop)
+						tracker.register_stop(self, event_details=details)
 				elif self.exception_event().is_set() is False:
 					if self.track_termination() is True:
-						details = self.task_details(WTrackerEvents.termination)
-						tracker.register_termination(self, task_details=details)
+						details = self.event_details(WTrackerEvents.termination)
+						tracker.register_termination(self, event_details=details)
 			except Exception as e:
 				self.thread_tracker_exception(e)
 
@@ -257,12 +263,12 @@ class WThreadTracker(WThreadTask):
 		if tracker is not None:
 			try:
 				if self.track_exception() is True:
-					details = self.task_details(WTrackerEvents.exception)
+					details = self.event_details(WTrackerEvents.exception)
 					tracker.register_exception(
 						self,
 						raised_exception,
 						traceback.format_exc(),
-						task_details=details
+						event_details=details
 					)
 			except Exception as e:
 				self.thread_tracker_exception(e)
@@ -294,28 +300,28 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		"""
 
 		@verify_type(record_type=WTrackerEvents, thread_task=WThreadTask)
-		@verify_type(task_details=(str, None))
-		def __init__(self, record_type, thread_task, task_details=None):
+		@verify_type(event_details=(str, None))
+		def __init__(self, record_type, thread_task, event_details=None):
 			""" Create new record
 
 			:param record_type: tracking event
 			:param thread_task: original task
-			:param task_details: task details
+			:param event_details: task details
 			"""
 			self.record_type = record_type
 			self.thread_task = thread_task
-			self.task_details = task_details
+			self.event_details = event_details
 			self.registered_at = utc_datetime()
 
 	class ExceptionRecord(Record):
 		""" Record for unhandled exception
 		"""
 
-		@verify_type('paranoid', task=WThreadTask, task_details=(str, None))
+		@verify_type('paranoid', task=WThreadTask, event_details=(str, None))
 		@verify_type(exception=Exception, exception_details=str)
-		def __init__(self, task, exception, exception_details, task_details=None):
+		def __init__(self, task, exception, exception_details, event_details=None):
 			WSimpleTrackerStorage.Record.__init__(
-				self, WTrackerEvents.exception, task, task_details=task_details
+				self, WTrackerEvents.exception, task, event_details=event_details
 			)
 			self.exception = exception
 			self.exception_details = exception_details
@@ -397,58 +403,58 @@ class WSimpleTrackerStorage(WCriticalResource, WThreadTrackerInfoStorageProto):
 		"""
 		return self.__record_drop
 
-	def register_start(self, task, task_details=None):
+	def register_start(self, task, event_details=None):
 		""" :meth:`.WSimpleTrackerStorage.register_start` method implementation
 		"""
 		if self.record_start() is True:
 			record_type = WTrackerEvents.start
-			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
+			record = WSimpleTrackerStorage.Record(record_type, task, event_details=event_details)
 			self.__store_record(record)
 
 	@verify_type(task=WThreadTask, details=(str, None))
-	def register_stop(self, task, task_details=None):
+	def register_stop(self, task, event_details=None):
 		""" :meth:`.WSimpleTrackerStorage.register_stop` method implementation
 		"""
 		if self.record_stop() is True:
 			record_type = WTrackerEvents.stop
-			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
+			record = WSimpleTrackerStorage.Record(record_type, task, event_details=event_details)
 			self.__store_record(record)
 
 	@verify_type(task=WThreadTask, details=(str, None))
-	def register_termination(self, task, task_details=None):
+	def register_termination(self, task, event_details=None):
 		""" :meth:`.WSimpleTrackerStorage.register_termination` method implementation
 		"""
 		if self.record_termination() is True:
 			record_type = WTrackerEvents.termination
-			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
+			record = WSimpleTrackerStorage.Record(record_type, task, event_details=event_details)
 			self.__store_record(record)
 
 	@verify_type(task=WThreadTask, raised_exception=Exception, exception_details=str, details=(str, None))
-	def register_exception(self, task, raised_exception, exception_details, task_details=None):
+	def register_exception(self, task, raised_exception, exception_details, event_details=None):
 		""" :meth:`.WSimpleTrackerStorage.register_exception` method implementation
 		"""
 		if self.record_exception() is True:
 			record = WSimpleTrackerStorage.ExceptionRecord(
-				task, raised_exception, exception_details, task_details=task_details
+				task, raised_exception, exception_details, event_details=event_details
 			)
 			self.__store_record(record)
 
 	@verify_type(task=WThreadTask, details=(str, None))
-	def register_wait(self, task, task_details=None):
+	def register_wait(self, task, event_details=None):
 		""" :meth:`.WSimpleTrackerStorage.register_wait` method implementation
 		"""
 		if self.record_wait() is True:
 			record_type = WTrackerEvents.wait
-			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
+			record = WSimpleTrackerStorage.Record(record_type, task, event_details=event_details)
 			self.__store_record(record)
 
 	@verify_type(task=WThreadTask, details=(str, None))
-	def register_drop(self, task, task_details=None):
+	def register_drop(self, task, event_details=None):
 		""" :meth:`.WSimpleTrackerStorage.register_drop` method implementation
 		"""
 		if self.record_drop() is True:
 			record_type = WTrackerEvents.drop
-			record = WSimpleTrackerStorage.Record(record_type, task, task_details=task_details)
+			record = WSimpleTrackerStorage.Record(record_type, task, event_details=event_details)
 			self.__store_record(record)
 
 	@WCriticalResource.critical_section(timeout=__critical_section_timeout__)
@@ -558,8 +564,8 @@ class WScheduleRecordTracker(WScheduleRecord):
 		"""
 		tracker = self.task().tracker_storage()
 		if tracker is not None and self.track_wait() is True:
-			details = self.task().task_details(WTrackerEvents.wait)
-			tracker.register_wait(self.task(), task_details=details)
+			details = self.task().event_details(WTrackerEvents.wait)
+			tracker.register_wait(self.task(), event_details=details)
 		WScheduleRecord.task_postponed(self)
 
 	def task_dropped(self):
@@ -570,6 +576,6 @@ class WScheduleRecordTracker(WScheduleRecord):
 		"""
 		tracker = self.task().tracker_storage()
 		if tracker is not None and self.track_drop() is True:
-			details = self.task().task_details(WTrackerEvents.drop)
-			tracker.register_drop(self.task(), task_details=details)
+			details = self.task().event_details(WTrackerEvents.drop)
+			tracker.register_drop(self.task(), event_details=details)
 		WScheduleRecord.task_dropped(self)
