@@ -38,9 +38,9 @@ def local_datetime_formatter(dt):
 	return '%s%s' % (local_datetime(dt=dt).isoformat(), time.strftime('%Z'))
 
 
-def na_formatter(value, str_fn=None):
+def na_formatter(value, str_fn=None, none_value=None):
 	fn = str_fn if str_fn is not None else str
-	return fn(value) if value is not None else '(not available)'
+	return fn(value) if value is not None else (none_value if none_value is not None else '(not available)')
 
 
 class WConsoleTableFormatter:
