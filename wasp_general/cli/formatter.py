@@ -28,6 +28,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 import time
+import math
 
 from wasp_general.verify import verify_type
 
@@ -38,9 +39,19 @@ def local_datetime_formatter(dt):
 	return '%s%s' % (local_datetime(dt=dt).isoformat(), time.strftime('%Z'))
 
 
+@verify_type(none_value=(str, None))
 def na_formatter(value, str_fn=None, none_value=None):
 	fn = str_fn if str_fn is not None else str
 	return fn(value) if value is not None else (none_value if none_value is not None else '(not available)')
+
+
+@verify_type(size=int)
+def data_size_formatter(size):
+	suffixes = ['bytes', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+	suffix_index = int(math.floor(math.log2(size) / 10))
+	if suffix_index >= len(suffixes):
+		suffix_index = len(suffixes) - 1
+	return '{:.2f} {}'.format(size / (1 << (suffix_index * 10)), suffixes[suffix_index])
 
 
 class WConsoleTableFormatter:
