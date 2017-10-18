@@ -28,8 +28,9 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 import io
+import time
 
-from wasp_general.verify import verify_type, verify_subclass
+from wasp_general.verify import verify_type, verify_subclass, verify_value
 from wasp_general.crypto.aes import WAES
 from wasp_general.crypto.hash import WHash
 
@@ -103,8 +104,45 @@ class WHashCalculationWriter(io.BufferedWriter):
 
 
 class WThrottlingWriter(io.BufferedWriter):
-	# TODO: implement
-	pass
+
+	__default_maximum_timeout__ = 1.5
+
+	@verify_type(write_limit=(int, float, None), maximum_timeout=(int, float, None))
+	@verify_value(maximum_timeout=lambda x: x is None or x > 0)
+	def __init__(self, raw, write_limit=None, maximum_timeout=None):
+		io.BufferedWriter.__init__(self, raw)
+		self.__write_limit = write_limit
+		self.__maximum_timeout = \
+			maximum_timeout if maximum_timeout is not None else self.__default_maximum_timeout__
+
+		self.__started_at = time.time()
+		self.__finished_at = None
+		self.__bytes_processed = 0
+
+	def write_limit(self):
+		return self.__write_limit
+
+	@verify_type(b=(bytes, memoryview))
+	def write(self, b):
+		if self.__write_limit is not None:
+			current_rate = self.write_rate()
+			if current_rate > self.__write_limit:
+				rate_delta = current_rate - self.__write_limit
+				sleep_time = self.__bytes_processed / rate_delta
+				time.sleep(min(sleep_time, self.__maximum_timeout))
+
+		io.BufferedWriter.write(self, b)
+		b_l = len(b)
+		self.__bytes_processed += b_l
+		return b_l
+
+	def close(self, *args, **kwargs):
+		self.__finished_at = time.time()
+		io.BufferedWriter.close(self, *args, **kwargs)
+
+	def write_rate(self):
+		finished_at = self.__finished_at if self.__finished_at is not None else time.time()
+		return self.__bytes_processed / (finished_at - self.__started_at)
 
 
 class WResponsiveWriter(io.BufferedWriter):
