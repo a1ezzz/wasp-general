@@ -64,6 +64,74 @@ class WResponsiveIO:
 		return self.__stop_event
 
 
+class WIOCounter:
+
+	def __init__(self):
+		self.__bytes_processed = 0
+		self.__start_at = None
+		self.__finished_at = None
+
+	def bytes_processed(self):
+		return self.__bytes_processed
+
+	def start_counter(self):
+		if self.__start_at is None:
+			self.__start_at = time.time()
+		else:
+			raise RuntimeError('Unable to start counter two times in a row')
+
+	def stop_counter(self):
+		if self.__finished_at is None:
+			self.__finished_at = time.time()
+
+	def rate(self):
+		start_at = self.__start_at
+		if start_at is None:
+			raise RuntimeError('Unable to calculate rate without start method called')
+
+		finished_at = self.__finished_at
+		if finished_at is None:
+			finished_at = time.time()
+
+		return self.bytes_processed() / (finished_at - start_at)
+
+	@verify_type(processed_bytes=int)
+	def __iadd__(self, processed_bytes):
+		self.__bytes_processed += processed_bytes
+		return self
+
+	def reset(self):
+		self.__bytes_processed = 0
+		self.__start_at = None
+
+
+class WThrottlingIO(WIOCounter):
+
+	__default_maximum_timeout__ = 1.5
+
+	@verify_type(throttling_to=(int, float, None), maximum_timeout=(int, float, None))
+	@verify_value(maximum_timeout=lambda x: x is None or x > 0)
+	def __init__(self, throttling_to=None, maximum_timeout=None):
+		WIOCounter.__init__(self)
+		self.__throttling_to = throttling_to
+		self.__maximum_timeout = \
+			maximum_timeout if maximum_timeout is not None else self.__default_maximum_timeout__
+
+	def throttling_to(self):
+		return self.__throttling_to
+
+	def maximum_timeout(self):
+		return self.__maximum_timeout
+
+	def check_rate(self):
+		current_rate = self.rate()
+		max_rate = self.throttling_to()
+		if current_rate > max_rate:
+			rate_delta = current_rate - max_rate
+			sleep_time = self.bytes_processed() / rate_delta
+			time.sleep(min(sleep_time, self.maximum_timeout()))
+
+
 class WIOChainLink:
 
 	def __init__(self, io_cls, *args, **kwargs):
@@ -165,46 +233,26 @@ class WHashCalculationWriter(io.BufferedWriter, WHashIO):
 		return len(b)
 
 
-class WThrottlingWriter(io.BufferedWriter):
+class WThrottlingWriter(io.BufferedWriter, WThrottlingIO):
 
-	__default_maximum_timeout__ = 1.5
-
-	@verify_type(write_limit=(int, float, None), maximum_timeout=(int, float, None))
-	@verify_value(maximum_timeout=lambda x: x is None or x > 0)
-	def __init__(self, raw, write_limit=None, maximum_timeout=None):
+	@verify_type('paranoid', throttling_to=(int, float, None), maximum_timeout=(int, float, None))
+	@verify_value('paranoid', maximum_timeout=lambda x: x is None or x > 0)
+	def __init__(self, raw, throttling_to=None, maximum_timeout=None):
 		io.BufferedWriter.__init__(self, raw)
-		self.__write_limit = write_limit
-		self.__maximum_timeout = \
-			maximum_timeout if maximum_timeout is not None else self.__default_maximum_timeout__
+		WThrottlingIO.__init__(self, throttling_to=throttling_to, maximum_timeout=maximum_timeout)
+		self.start_counter()
 
-		self.__started_at = time.time()
-		self.__finished_at = None
-		self.__bytes_processed = 0
-
-	def write_limit(self):
-		return self.__write_limit
+	def close(self, *args, **kwargs):
+		self.stop_counter()
+		io.BufferedWriter.close(self, *args, **kwargs)
 
 	@verify_type(b=(bytes, memoryview))
 	def write(self, b):
-		if self.__write_limit is not None:
-			current_rate = self.write_rate()
-			if current_rate > self.__write_limit:
-				rate_delta = current_rate - self.__write_limit
-				sleep_time = self.__bytes_processed / rate_delta
-				time.sleep(min(sleep_time, self.__maximum_timeout))
-
+		self.check_rate()
 		io.BufferedWriter.write(self, b)
-		b_l = len(b)
-		self.__bytes_processed += b_l
-		return b_l
-
-	def close(self, *args, **kwargs):
-		self.__finished_at = time.time()
-		io.BufferedWriter.close(self, *args, **kwargs)
-
-	def write_rate(self):
-		finished_at = self.__finished_at if self.__finished_at is not None else time.time()
-		return self.__bytes_processed / (finished_at - self.__started_at)
+		data_length = len(b)
+		self += data_length
+		return data_length
 
 
 class WResponsiveWriter(io.BufferedWriter, WResponsiveIO):
@@ -258,7 +306,7 @@ class WBufferedIOReader(io.BufferedReader):
 		if size == 0:
 			return self.read_chunk(size)
 
-		result = b''
+		result_buffer = self.create_buffer()
 		chunk_size = io.DEFAULT_BUFFER_SIZE
 		read_chunk = True
 		while read_chunk is True:
@@ -271,12 +319,28 @@ class WBufferedIOReader(io.BufferedReader):
 			elif next_chunk == b'':
 				read_chunk = False
 
-			result += next_chunk
+			result_buffer = self.append_buffer(result_buffer, next_chunk)
 
-		return result
+		return bytes(result_buffer)
 
 	def read_chunk(self, size):
 		return self.raw.read(size)
+
+	@classmethod
+	def create_buffer(cls):
+		return b''
+
+	@classmethod
+	def append_buffer(cls, buffer, data):
+		buffer += data
+		return buffer
+
+
+class WDiscardReaderResult(WBufferedIOReader):
+
+	@classmethod
+	def append_buffer(cls, buffer, data):
+		return buffer
 
 
 class WHashCalculationReader(WBufferedIOReader, WHashIO):
