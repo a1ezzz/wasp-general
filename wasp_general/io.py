@@ -95,14 +95,19 @@ class WIOCounter:
 
 		return self.bytes_processed() / (finished_at - start_at)
 
-	@verify_type(processed_bytes=int)
+	@verify_type('paranoid', processed_bytes=int)
 	def __iadd__(self, processed_bytes):
-		self.__bytes_processed += processed_bytes
+		self.increase_counter(processed_bytes)
 		return self
+
+	@verify_type(processed_bytes=int)
+	def increase_counter(self, processed_bytes):
+		self.__bytes_processed += processed_bytes
 
 	def reset(self):
 		self.__bytes_processed = 0
 		self.__start_at = None
+		self.__finished_at = None
 
 
 class WThrottlingIO(WIOCounter):
@@ -251,7 +256,7 @@ class WThrottlingWriter(io.BufferedWriter, WThrottlingIO):
 		self.check_rate()
 		io.BufferedWriter.write(self, b)
 		data_length = len(b)
-		self += data_length
+		self.increase_counter(data_length)
 		return data_length
 
 
