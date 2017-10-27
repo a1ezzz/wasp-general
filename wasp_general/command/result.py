@@ -33,11 +33,22 @@ from wasp_general.command.proto import WCommandResultProto
 from wasp_general.verify import verify_type, verify_value
 
 
-class WPlainCommandResult(WCommandResultProto):
+# noinspection PyAbstractClass
+class WCommandEnv(WCommandResultProto):
+
+	def __init__(self, **command_env):
+		WCommandResultProto.__init__(self)
+		self.__command_env = command_env
+
+	def environment(self):
+		return self.__command_env.copy()
+
+
+class WPlainCommandResult(WCommandEnv):
 
 	@verify_type(result=str)
-	def __init__(self, result):
-		WCommandResultProto.__init__(self)
+	def __init__(self, result, **command_env):
+		WCommandEnv.__init__(self, **command_env)
 		self.__result = result
 
 	def __str__(self):
@@ -72,25 +83,24 @@ class WCommandResultEntry(WCommandResultEntryProto):
 		return self.__result
 
 
-class WDetailedCommandResult(WCommandResultProto):
+class WDetailedCommandResult(WCommandEnv):
 
 	__default_joining_str__ = '\n'
 
 	@verify_type(entries=(str, WCommandResultEntryProto))
-	def __init__(self, *entries, join_by=None):
+	def __init__(self, *entries, **command_env):
+		WCommandEnv.__init__(self, **command_env)
 		self.__entries = []
 		for entry in entries:
 			if isinstance(entry, str) is True:
 				entry = WCommandResultEntry(entry)
 			self.__entries.append(entry)
 
-		self.__join_by = join_by if join_by is not None else self.__default_joining_str__
-
 	def entries(self):
 		return self.__entries
 
 	def join_by(self):
-		return self.__join_by
+		return self.__default_joining_str__
 
 	def __str__(self):
 		return self.join_by().join([str(x) for x in self.__entries])

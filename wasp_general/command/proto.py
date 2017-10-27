@@ -36,3 +36,6 @@ class WCommandResultProto(metaclass=ABCMeta):
 	def __str__(self):
 		raise NotImplementedError('This method is abstract')
 
+	@abstractmethod
+	def environment(self):
+		raise NotImplementedError('This method is abstract')
