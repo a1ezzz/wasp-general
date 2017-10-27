@@ -29,8 +29,7 @@ from wasp_general.version import __status__
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type
-from wasp_general.command.command import WCommandProto, WCommandResult, WCommandPrioritizedSelector, WCommandSet
-from wasp_general.command.command import WCommandSelector
+from wasp_general.command.command import WCommandProto
 
 
 class WContextProto(metaclass=ABCMeta):
@@ -108,27 +107,6 @@ class WContextProto(metaclass=ABCMeta):
 class WContext(WContextProto):
 	""" :class:`.WContextProto` implementation
 	"""
-
-	class ContextSerializationHelper(WCommandResult.VarSerializationHelper):
-		""" Helper decompose/compose WContext objects with :meth:`.WContext.import_context`,
-		:meth:`.WContext.export_context` methods
-		"""
-
-		def serialize(self, var_value):
-			""" :meth:`.WCommandResult.VarSerializationHelper.serialize` method implementation
-			"""
-			if var_value is None:
-				return None
-			if isinstance(var_value, WContext) is False:
-				raise TypeError('Invalid context value type')
-			return var_value.export_context(var_value)
-
-		def deserialize(self, serialized_value):
-			""" :meth:`.WCommandResult.VarSerializationHelper.deserialize` method implementation
-			"""
-			if serialized_value is None:
-				return None
-			return WContext.import_context(serialized_value)
 
 	@verify_type(context_name=str, context_value=(str, None), linked_context=(WContextProto, None))
 	def __init__(self, context_name, context_value=None, linked_context=None):
@@ -298,7 +276,7 @@ class WCommandContext(WCommandProto):
 		:param command_tokens: command tokens to execute
 		:param command_context: command context
 		:param command_env: command environment
-		:return: WCommandResult
+		:return: WCommandResultProto
 		"""
 		if self.adapter().match(command_context, **command_env) is False:
 			cmd = WCommandProto.join_tokens(*command_tokens)

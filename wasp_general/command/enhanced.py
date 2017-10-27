@@ -31,7 +31,8 @@ from abc import abstractmethod
 from enum import Enum
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.command.command import WCommandProto, WCommandResult
+from wasp_general.command.command import WCommandProto
+from wasp_general.command.proto import WCommandResultProto
 
 
 class WCommandArgumentParsingError(Exception):
@@ -419,12 +420,7 @@ class WEnhancedCommand(WCommandProto):
 	def exec(self, *command_tokens, **command_env):
 		if len(command_tokens) > 0:
 			if command_tokens[0] == self.command():
-				try:
-					return self._exec(
-						self.parser().parse(*command_tokens[1:]), **command_env
-					)
-				except WCommandArgumentParsingError as e:
-					return WCommandResult(output=str(e), error=1)
+				return self._exec(self.parser().parse(*command_tokens[1:]), **command_env)
 		raise RuntimeError('Invalid tokens')
 
 	@abstractmethod

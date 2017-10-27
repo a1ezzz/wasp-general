@@ -28,7 +28,8 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 from wasp_general.verify import verify_type
-from wasp_general.command.command import WCommand, WCommandResult
+from wasp_general.command.command import WCommand
+from wasp_general.command.result import WPlainCommandResult
 from wasp_general.cli.curses import WCursesConsole
 
 
@@ -49,15 +50,4 @@ class WExitCommand(WCommand):
 	@verify_type('paranoid', command_tokens=str)
 	def _exec(self, *command_tokens, **command_env):
 		self.__console.stop()
-		return WCommandResult('Exiting...')
-
-
-class WEmptyCommand(WCommand):
-
-	@verify_type('paranoid', command_tokens=str)
-	def match(self, *command_tokens, **command_env):
-		return len(command_tokens) == 0
-
-	@verify_type('paranoid', command_tokens=str)
-	def _exec(self, *command_tokens, **command_env):
-		return WCommandResult()
+		return WPlainCommandResult('Exiting...')

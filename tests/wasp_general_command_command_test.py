@@ -2,62 +2,19 @@
 
 import pytest
 
-from wasp_general.command.command import WCommandEnv, WCommandResult, WCommandProto, WCommand, WCommandSelector
+from wasp_general.command.command import WCommandProto, WCommand, WCommandSelector
 from wasp_general.command.command import WCommandPrioritizedSelector, WCommandSet, WReduceCommand
+from wasp_general.command.proto import WCommandResultProto
+from wasp_general.command.result import WPlainCommandResult
 
 
 def test_abstract():
-	pytest.raises(TypeError, WCommandEnv.VarSerializationHelper)
-	pytest.raises(NotImplementedError, WCommandEnv.VarSerializationHelper.serialize, None, None)
-	pytest.raises(NotImplementedError, WCommandEnv.VarSerializationHelper.deserialize, None, None)
-
 	pytest.raises(TypeError, WCommandProto)
 	pytest.raises(NotImplementedError, WCommandProto.match, None)
 	pytest.raises(NotImplementedError, WCommandProto.exec, None)
 
 	pytest.raises(TypeError, WCommand)
 	pytest.raises(NotImplementedError, WCommand._exec, None)
-
-
-class TestWCommandEnv:
-
-	def test(self):
-		command_env = WCommandEnv(var1=1, var2='q')
-		assert(command_env.serialize_env() == {'var1': 1, 'var2': 'q'})
-
-		class A:
-			def __eq__(self, other):
-				return isinstance(other, A)
-
-		class AHelper(WCommandEnv.VarSerializationHelper):
-
-			def serialize(self, var_value):
-				return 'A'
-
-			def deserialize(self, serialized_value):
-				return A()
-
-		command_env = WCommandEnv(var1=1, var2='q', var3=A())
-		assert (command_env.serialize_env(var3=AHelper()) == {'var1': 1, 'var2': 'q', 'var3': 'A'})
-		pytest.raises(TypeError, command_env.serialize_env, var3=1)
-
-		command_env = WCommandEnv.deserialize_env({'var1': 1, 'var2': 'q'})
-		assert(command_env == {'var1': 1, 'var2': 'q'})
-
-		command_env = WCommandEnv.deserialize_env({'var1': 1, 'var2': 'q', 'var3': 'B'}, var3=AHelper())
-		assert(command_env == {'var1': 1, 'var2': 'q', 'var3': A()})
-		pytest.raises(TypeError, WCommandEnv.deserialize_env, {'var1': 1}, var1='')
-
-
-class TestWCommandResult:
-
-	def test(self):
-		command_result = WCommandResult('foo')
-		assert(isinstance(command_result, WCommandResult) is True)
-		assert(isinstance(command_result, WCommandEnv) is True)
-		assert(command_result.output == 'foo')
-
-		assert(WCommandResult('foo', 1).error == 1)
 
 
 class TestWCommandProto:
@@ -74,7 +31,7 @@ class TestWCommand:
 	class Command(WCommand):
 
 		def _exec(self, *command_tokens):
-			return WCommandResult('OK')
+			return WPlainCommandResult('OK')
 
 	def test(self):
 		command = TestWCommand.Command('create', 'world')
@@ -87,8 +44,8 @@ class TestWCommand:
 		assert(TestWCommand.Command('create').match('create') is True)
 
 		result = command.exec('create', 'world', '2.0')
-		assert(isinstance(result, WCommandResult) is True)
-		assert(result.output == 'OK')
+		assert(isinstance(result, WCommandResultProto) is True)
+		assert(str(result) == 'OK')
 
 		pytest.raises(RuntimeError, command.exec, 'update')
 
@@ -147,7 +104,7 @@ class TestWCommandSet:
 	class Command(WCommand):
 
 		def _exec(self, *command_tokens, **command_env):
-			return WCommandResult(output='context set', sec_var='1')
+			return WPlainCommandResult('context set', sec_var='1')
 
 	def test(self):
 		command_set = WCommandSet()
@@ -164,8 +121,8 @@ class TestWCommandSet:
 		assert(command_set.commands() == command_selector)
 
 		result = command_set.exec('create world 2.0')
-		assert(isinstance(result, WCommandResult) is True)
-		assert(result.output == 'OK')
+		assert(isinstance(result, WCommandResultProto) is True)
+		assert(str(result) == 'OK')
 
 		pytest.raises(WCommandSet.NoCommandFound, command_set.exec, 'hello world')
 
@@ -206,5 +163,5 @@ class TestWReduceCommand:
 		assert(reduce_command.match('section2', 'hello') is False)
 
 		result = reduce_command.exec('section1', 'hello')
-		assert(isinstance(result, WCommandResult) is True)
-		assert(result.output == 'OK')
+		assert(isinstance(result, WCommandResultProto) is True)
+		assert(str(result) == 'OK')

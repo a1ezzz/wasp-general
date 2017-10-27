@@ -28,109 +28,7 @@ from abc import ABCMeta, abstractmethod
 import shlex
 
 from wasp_general.verify import verify_type
-
-
-class WCommandEnv:
-	""" Define command environment
-	"""
-
-	class VarSerializationHelper(metaclass=ABCMeta):
-		""" Class that helps to serialize/deserialize specific objects. Instead of a real
-		serialization/deserialization to string or bytes/from string or bytes derived classes should
-		decompose/compose objects to simpler types like dict, tuple, int, float, str, None
-		"""
-
-		@abstractmethod
-		def serialize(self, var_value):
-			""" Decompose object to simpler types like dict, tuple, int, float, str, None
-
-			:param var_value: original object to decompose
-
-			:return: anything
-			"""
-			raise NotImplementedError('This method is abstract')
-
-		@abstractmethod
-		def deserialize(self, serialized_value):
-			""" Compose object from a result of :meth:`.VarSerializationHelper.serialize` method
-
-			:param serialized_value: data to compose from
-
-			:return: anything
-			"""
-			raise NotImplementedError('This method is abstract')
-
-	def __init__(self, **env_vars):
-		"""
-		Create new command environment descriptor
-
-		:param env_vars: extra vars that may be used later as command environment variables or may be \
-		interpreted as command result
-\		"""
-		self.env = env_vars
-
-	def serialize_env(self, **serialization_helpers):
-		""" Serialize command environment variables with the specified helpers. If no helper is specified
-		original dictionary copy is returned
-
-		:param serialization_helpers: objects that helps to serialize complex variables
-
-		:return: dict
-		"""
-		result = self.env.copy()
-		for var_name in serialization_helpers.keys():
-			if var_name in result.keys():
-				helper = serialization_helpers[var_name]
-				if isinstance(helper, WCommandResult.VarSerializationHelper) is False:
-					raise helper(
-						'Invalid serialization helper is specified for "%s" variable' %
-						var_name
-					)
-				result[var_name] = helper.serialize(result[var_name])
-		return result
-
-	@classmethod
-	@verify_type(env=dict)
-	def deserialize_env(cls, env, **serialization_helpers):
-		""" Deserialize command environment variables from the specified dictionary and helpers. If no helper
-		is specified dictionary copy is returned
-
-		:param env: dictionary that holds data that should be deserialized
-		:param serialization_helpers: objects that helps to deserialize complex variables
-
-		:return: dict
-		"""
-		result = env.copy()
-		for var_name in serialization_helpers.keys():
-			if var_name in result.keys():
-				helper = serialization_helpers[var_name]
-				if isinstance(helper, WCommandResult.VarSerializationHelper) is False:
-					raise TypeError(
-						'Invalid serialization helper is specified for "%s" variable' %
-						var_name
-					)
-				result[var_name] = helper.deserialize(result[var_name])
-		return result
-
-
-class WCommandResult(WCommandEnv):
-	""" Define result of a command
-	"""
-
-	@verify_type(output=(str, None))
-	def __init__(self, output=None, error=None, **env_vars):
-		""" Create new result. 'output' is optional variable that is used as command output.
-
-		'error' variable shows whether command was finished successfully. If 'error'
-		variable is other than None, then 'error' variable is error code/flag/... and 'output' variable is
-		error message.
-
-		:param output: command output
-		:param error: error flag
-		"""
-		WCommandEnv.__init__(self, **env_vars)
-		self.output = output
-		self.error = error
+from wasp_general.command.proto import WCommandResultProto
 
 
 class WCommandProto(metaclass=ABCMeta):
@@ -160,7 +58,7 @@ class WCommandProto(metaclass=ABCMeta):
 
 		:param command_tokens: command to execute
 		:param command_env: command environment
-		:return: WCommandResult
+		:return: WCommandResultProto
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -221,7 +119,7 @@ class WCommand(WCommandProto):
 
 		:param command_tokens: command to execute
 		:param command_env: command environment
-		:return: WCommandResult
+		:return: WCommandResultProto
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -404,7 +302,7 @@ class WCommandSet:
 
 		:param command_str: command to execute
 		:param command_env: command environment
-		:return: WCommandResult
+		:return: WCommandResultProto
 		"""
 		env = self.__vars.copy()
 		env.update(command_env)
@@ -418,7 +316,7 @@ class WCommandSet:
 		self.__track_vars(result)
 		return result
 
-	@verify_type(command_result=WCommandResult)
+	@verify_type(command_result=WCommandResultProto)
 	def __track_vars(self, command_result):
 		""" Check if there are any tracked variable inside the result. And keep them for future use.
 
@@ -426,9 +324,10 @@ class WCommandSet:
 
 		:return:
 		"""
+		command_env = command_result.environment()
 		for var_name in self.tracked_vars():
-			if var_name in command_result.env.keys():
-				self.__vars[var_name] = command_result.env[var_name]
+			if var_name in command_env.keys():
+				self.__vars[var_name] = command_env[var_name]
 
 
 class WReduceCommand(WCommandProto):

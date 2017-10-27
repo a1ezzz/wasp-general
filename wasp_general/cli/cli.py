@@ -33,7 +33,7 @@ from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.command.command import WCommandSet, WCommandResult
+from wasp_general.command.command import WCommandSet, WCommandResultProto
 
 
 class WConsoleHistory:
@@ -559,16 +559,9 @@ class WConsoleBase(WConsoleProto):
 		"""
 		return '> '
 
-	@verify_type(result=WCommandResult)
+	@verify_type(result=WCommandResultProto)
 	def handle_result(self, result):
-		if result.output is not None:
-			self.write(result.output)
-		if result.error is not None:
-			if result.output is not None:
-				msg = 'Error: %s' % str(result.output)
-			else:
-				msg = 'Error processing command'
-			self.write(msg)
+		self.write(str(result))
 
 	@verify_type(e=Exception)
 	def handle_exception(self, e):

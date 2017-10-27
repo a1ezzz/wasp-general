@@ -2,8 +2,9 @@
 
 import pytest
 
-from wasp_general.command.command import WCommandProto, WCommand, WCommandResult, WCommandPrioritizedSelector
+from wasp_general.command.command import WCommandProto, WCommand, WCommandPrioritizedSelector
 from wasp_general.command.command import WCommandSet
+from wasp_general.command.result import WPlainCommandResult
 
 from wasp_general.command.context import WContextProto, WContext, WCommandContextAdapter, WCommandContext
 
@@ -48,21 +49,6 @@ class TestWContextProto:
 
 
 class TestWContext:
-
-	def test_helper(self):
-		helper = WContext.ContextSerializationHelper()
-		assert(isinstance(helper, WContext.ContextSerializationHelper) is True)
-		assert(isinstance(helper, WCommandResult.VarSerializationHelper) is True)
-
-		assert(helper.serialize(None) is None)
-		assert(helper.deserialize(None) is None)
-
-		context = WContext('context_name', 'v1')
-		serialized_data = helper.serialize(context)
-		assert(serialized_data == WContext.export_context(context))
-		assert(helper.deserialize(serialized_data) == context)
-
-		pytest.raises(TypeError, helper.serialize, 1)
 
 	def test(self):
 		c_r1 = WContext('context1')
@@ -120,7 +106,7 @@ class TestWCommandContext:
 	class Command(WCommand):
 
 		def _exec(self, *command_tokens, **kwargs):
-			return WCommandResult('OK')
+			return WPlainCommandResult('OK')
 
 	class Adapter(WCommandContextAdapter):
 		def adapt(self, *command_tokens, command_context=None):
@@ -148,6 +134,6 @@ class TestWCommandContext:
 		command_context = WContext('context', 'hello')
 		assert(command.match('world', command_context=command_context) is True)
 
-		assert(command2.exec('hello', 'world').output == 'OK')
-		assert(command.exec('world', command_context=command_context).output == 'OK')
+		assert(str(command2.exec('hello', 'world')) == 'OK')
+		assert(str(command.exec('world', command_context=command_context)) == 'OK')
 		pytest.raises(RuntimeError, command.exec, 'hello', 'world')
