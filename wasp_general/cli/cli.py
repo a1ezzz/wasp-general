@@ -561,7 +561,9 @@ class WConsoleBase(WConsoleProto):
 
 	@verify_type(result=WCommandResultProto)
 	def handle_result(self, result):
-		self.write(str(result))
+		result = str(result)
+		if len(result) > 0:
+			self.write()
 
 	@verify_type(e=Exception)
 	def handle_exception(self, e):

@@ -51,3 +51,14 @@ class WExitCommand(WCommand):
 	def _exec(self, *command_tokens, **command_env):
 		self.__console.stop()
 		return WPlainCommandResult('Exiting...')
+
+
+class WEmptyCommand(WCommand):
+
+	@verify_type('paranoid', command_tokens=str)
+	def match(self, *command_tokens, **command_env):
+		return len(command_tokens) == 0
+
+	@verify_type('paranoid', command_tokens=str)
+	def _exec(self, *command_tokens, **command_env):
+		return WPlainCommandResult('')
