@@ -31,6 +31,7 @@ from abc import ABCMeta, abstractmethod
 
 from wasp_general.command.proto import WCommandResultProto
 from wasp_general.verify import verify_type, verify_value
+from wasp_general.cli.formatter import WConsoleTableFormatter
 
 
 # noinspection PyAbstractClass
@@ -104,3 +105,40 @@ class WDetailedCommandResult(WCommandEnv):
 
 	def __str__(self):
 		return self.join_by().join([str(x) for x in self.__entries])
+
+
+class WCommandResultTableEntry(WCommandResultEntryProto):
+
+	__default_delimiter__ = '*'
+
+	@verify_type('paranoid', entry_tag=(str, None))
+	@verify_value('paranoid', entry_tag=lambda x: x is None or len(x) > 0)
+	@verify_type(headers=(str, None), delimiter=(str, None))
+	@verify_value(headers=lambda x: x is None or len(x) > 0)
+	@verify_value(delimiter=lambda x: x is None or len(x) == 1)
+	def __init__(self, *headers, delimiter=None, entry_tag=None):
+		WCommandResultEntryProto.__init__(self, entry_tag=entry_tag)
+		self.__headers = headers
+		self.__rows = []
+		self.__delimiter = delimiter if delimiter is not None else self.__default_delimiter__
+
+	def headers(self):
+		return self.__headers
+
+	def rows(self):
+		return self.__rows.copy()
+
+	def delimiter(self):
+		return self.__delimiter
+
+	@verify_type(cells=(str, None))
+	@verify_value(cells=lambda x: x is None or len(x) > 0)
+	def add_row(self, *cells):
+		self.__rows.append(cells)
+
+	def __str__(self):
+		# TODO: WConsoleTableFormatter doesn't support None values
+		table_formatter = WConsoleTableFormatter(*self.headers())
+		for row in self.rows():
+			table_formatter.add_row(row)
+		return table_formatter.format(self.delimiter())
