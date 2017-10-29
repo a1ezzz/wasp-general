@@ -31,11 +31,14 @@ from wasp_general.verify import verify_type
 from wasp_general.network.messenger.proto import WMessengerOnionProto
 from wasp_general.network.messenger.proto import WMessengerOnionLayerProto
 
+from wasp_general.network.messenger.layers import WMessengerSimpleCastingLayer
 from wasp_general.network.messenger.coders import WMessengerFixedModificationLayer, WMessengerEncodingLayer
 from wasp_general.network.messenger.coders import WMessengerHexLayer, WMessengerBase64Layer, WMessengerAESLayer
 from wasp_general.network.messenger.coders import WMessengerRSALayer
 
 from wasp_general.network.messenger.packers import WMessengerJSONPacker
+
+from wasp_general.network.messenger.composer import WMessengerComposerLayer
 
 from wasp_general.network.messenger.transport import WMessengerSendAgentLayer, WMessengerSyncReceiveAgentLayer
 
@@ -48,7 +51,8 @@ class WMessengerOnion(WMessengerOnionProto):
 	__builtin_layers__ = {x.name(): x for x in [
 		WMessengerFixedModificationLayer(), WMessengerEncodingLayer(), WMessengerHexLayer(),
 		WMessengerBase64Layer(), WMessengerAESLayer(), WMessengerRSALayer(), WMessengerJSONPacker(),
-		WMessengerSendAgentLayer(), WMessengerSyncReceiveAgentLayer()
+		WMessengerSendAgentLayer(), WMessengerSyncReceiveAgentLayer(), WMessengerComposerLayer(),
+		WMessengerSimpleCastingLayer()
 	]}
 	""" Builtin layers
 	"""
