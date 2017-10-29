@@ -143,8 +143,7 @@ class WCommandResultTableEntry(WCommandResultEntryProto):
 		self.__rows.append(cells)
 
 	def __str__(self):
-		# TODO: WConsoleTableFormatter doesn't support None values
 		table_formatter = WConsoleTableFormatter(*self.headers())
 		for row in self.rows():
-			table_formatter.add_row(row)
+			table_formatter.add_row(*(map(lambda x: x if x is not None else '', row)))
 		return table_formatter.format(self.delimiter())
