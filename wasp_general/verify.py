@@ -326,11 +326,11 @@ class TypeVerifier(Verifier):
 		:return: function
 		"""
 
-		def raise_exception(text_spec):
+		def raise_exception(x_spec):
 			exc_text = 'Argument "%s" for function "%s" has invalid type' % (
 				arg_name, Verifier.function_name(decorated_function)
 			)
-			exc_text += ' (%s)' % text_spec
+			exc_text += ' (%s should be %s)' % (x_spec, type_spec)
 			raise TypeError(exc_text)
 
 		if isinstance(type_spec, (tuple, list, set)):
