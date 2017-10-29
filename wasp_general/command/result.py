@@ -56,6 +56,12 @@ class WPlainCommandResult(WCommandEnv):
 		return self.__result
 
 
+class WPlainErrorCommandResult(WPlainCommandResult):
+
+	def __str__(self):
+		return 'Error. ' + WPlainCommandResult.__str__(self)
+
+
 class WCommandResultEntryProto(metaclass=ABCMeta):
 
 	@verify_type(entry_tag=(str, None))
