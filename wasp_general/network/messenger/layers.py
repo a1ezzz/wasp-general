@@ -29,12 +29,31 @@ from wasp_general.version import __status__
 from abc import abstractmethod
 from enum import Enum
 
-from wasp_general.verify import verify_type
+from wasp_general.verify import verify_type, verify_subclass
 
 from wasp_general.network.messenger.proto import WMessengerEnvelopeProto
 from wasp_general.network.messenger.proto import WMessengerOnionSessionProto, WMessengerOnionLayerProto
 
 from wasp_general.network.messenger.envelope import WMessengerTextEnvelope, WMessengerBytesEnvelope
+
+
+class WMessengerSimpleCastingLayer(WMessengerOnionLayerProto):
+
+	__layer_name__ = "com.binblob.wasp-general.simple-casting-layer"
+	""" Layer name
+	"""
+
+	def __init__(self):
+		""" Construct new layer
+		"""
+		WMessengerOnionLayerProto.__init__(self, WMessengerSimpleCastingLayer.__layer_name__)
+
+	@verify_type(envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto)
+	@verify_subclass(from_envelope=WMessengerEnvelopeProto, to_envelope=WMessengerEnvelopeProto)
+	def process(self, envelope, session, from_envelope=None, to_envelope=None, **kwargs):
+		if isinstance(envelope, from_envelope) is False:
+			raise TypeError('Source envelope type mismatch')
+		return to_envelope(envelope.message(), meta=envelope)
 
 
 class WMessengerOnionModeLayerProto(WMessengerOnionLayerProto):
@@ -188,3 +207,5 @@ class WMessengerOnionPackerLayerProto(WMessengerOnionModeLayerProto):
 		:return: WMessengerEnvelopeProto
 		"""
 		raise NotImplementedError('This method is abstract')
+
+
