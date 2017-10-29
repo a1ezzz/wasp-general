@@ -110,16 +110,34 @@ class WCompositeComposer(WComposerProto):
 		def required(self):
 			return self.__required
 
+		def compose(self, key_value):
+			return self.basic_composer().compose(key_value)
+
+		def decompose(self, key_value):
+			return self.basic_composer().decompose(key_value)
+
+		@abstractmethod
+		def has_key(self, obj, key):
+			raise NotImplementedError('This method is abstract')
+
+		@abstractmethod
+		def get_key(self, obj, key):
+			raise NotImplementedError('This method is abstract')
+
+		@abstractmethod
+		def set_key(self, obj, key, value):
+			raise NotImplementedError('This method is abstract')
+
 	@verify_type('paranoid', composite_keys=CompositeKey)
 	def __init__(self, *composite_keys):
 		self.__required_keys = []
 		self.__optional_keys = []
 
 		for key in composite_keys:
-			self.add_key(key)
+			self.add_composite_key(key)
 
 	@verify_type(composite_key=CompositeKey)
-	def add_key(self, composite_key):
+	def add_composite_key(self, composite_key):
 		keys_list = self.__required_keys if composite_key.required() else self.__optional_keys
 		keys_list.append(composite_key)
 
@@ -135,16 +153,19 @@ class WCompositeComposer(WComposerProto):
 		result = self.create_obj()
 
 		for composite_key in self.required_keys():
-			key, value = composite_key.decompose(obj_spec)
+			key = composite_key.key()
+			if key not in obj_spec.keys():
+				raise TypeError('Required key not found')
+			value = composite_key.compose(obj_spec[key])
 			obj_spec.pop(key)
-			result = self.set_key(result, key, value)
+			result = composite_key.set_key(result, key, value)
 
 		for composite_key in self.optional_keys():
-			key_result = composite_key.decompose(obj_spec)
-			if key_result is not None:
-				key, value = key_result
+			key = composite_key.key()
+			if key in obj_spec.keys():
+				value = composite_key.compose(obj_spec[key])
 				obj_spec.pop(key)
-				result = self.set_key(result, key, value)
+				result = composite_key.set_key(result, key, value)
 
 		if len(obj_spec) > 0:
 			raise TypeError('Unable to process every fields')
@@ -154,22 +175,22 @@ class WCompositeComposer(WComposerProto):
 		result = {}
 
 		for composite_key in self.required_keys():
-			key, value = composite_key.decompose(obj)
+			key = composite_key.key()
+			if composite_key.has_key(obj, key) is False:
+				raise TypeError('Required key not found')
+			value = composite_key.decompose(composite_key.get_key(obj, key))
 			result[key] = value
 
 		for composite_key in self.optional_keys():
-			key_result = composite_key.decompose(obj)
-			if key_result is not None:
-				key, value = key_result
+			key = composite_key.key()
+			if composite_key.has_key(obj, key) is True:
+				value = composite_key.decompose(composite_key.get_key(obj, key))
 				result[key] = value
+
 		return result
 
 	@abstractmethod
 	def create_obj(self):
-		raise NotImplementedError('This method is abstract')
-
-	@abstractmethod
-	def set_key(self, obj, key, value):
 		raise NotImplementedError('This method is abstract')
 
 
@@ -177,55 +198,61 @@ class WDictComposer(WCompositeComposer):
 
 	class DictKey(WCompositeComposer.CompositeKey):
 
-		@verify_type(obj_spec=dict)
-		def compose(self, obj_spec):
-			key = self.key()
-			if key in obj_spec:
-				return key, self.basic_composer().compose(obj_spec)
-			elif self.required() is True:
-				raise TypeError('Required key not found')
+		def has_key(self, obj, key):
+			return key in obj.keys()
 
-		@verify_type(obj=dict)
-		def decompose(self, obj):
-			key = self.key()
-			if key in obj:
-				return key, self.basic_composer().decompose(obj[key])
-			elif self.required() is True:
-				raise TypeError('Required key not found')
+		def get_key(self, obj, key):
+			return obj[key]
+
+		def set_key(self, obj, key, value):
+			obj[key] = value
+			return obj
 
 	@verify_type('paranoid', composite_keys=DictKey)
 	def __init__(self, *composite_keys):
 		WCompositeComposer.__init__(self, *composite_keys)
 
-	@verify_type(composite_key=DictKey)
-	def add_key(self, composite_key):
-		WCompositeComposer.add_key(self, composite_key)
-
 	def create_obj(self):
 		return {}
 
-	def set_key(self, obj, key, value):
-		obj[key] = value
-		return obj
+	@verify_type(composite_key=DictKey)
+	def add_composite_key(self, composite_key):
+		WCompositeComposer.add_composite_key(self, composite_key)
 
 
 class WClassComposer(WCompositeComposer):
 
-	class ClassKey(WDictComposer.DictKey):
+	class ClassKey(WCompositeComposer.CompositeKey):
 
 		@verify_type('paranoid', basic_composer=WComposerProto, required=bool)
 		@verify_type(key=str)
 		@verify_value(key=lambda x: len(x) > 0)
-		def __init__(self, key, basic_composer, required=False):
-			WDictComposer.DictKey.__init__(self, key, basic_composer, required=required)
+		@verify_value(has_key_fn=lambda x: x is None or callable(x))
+		@verify_value(get_key_fn=lambda x: x is None or callable(x))
+		@verify_value(set_key_fn=lambda x: x is None or callable(x))
+		def __init__(
+			self, key, basic_composer, has_key_fn=None, get_key_fn=None, set_key_fn=None, required=False
+		):
+			WCompositeComposer.CompositeKey.__init__(self, key, basic_composer, required=required)
+			self.__get_key_fn = get_key_fn
+			self.__set_key_fn = set_key_fn
+			self.__has_key_fn = has_key_fn
 
-		@verify_type(obj=object)
-		def decompose(self, obj):
-			key = self.key()
-			if hasattr(obj, key) is True:
-				return key, self.basic_composer().decompose(getattr(obj, key))
-			elif self.required() is True:
-				raise TypeError('Required key not found')
+		def has_key(self, obj, key):
+			if self.__has_key_fn is not None:
+				return self.__has_key_fn(obj, key)
+			return hasattr(obj, key)
+
+		def get_key(self, obj, key):
+			if self.__get_key_fn is not None:
+				return self.__get_key_fn(obj, key)
+			return getattr(obj, key)
+
+		def set_key(self, obj, key, value):
+			if self.__set_key_fn is not None:
+				return self.__set_key_fn(obj, key, value)
+			setattr(obj, key, value)
+			return obj
 
 	@verify_type('paranoid', composite_keys=ClassKey)
 	@verify_type(basic_cls=type)
@@ -236,16 +263,12 @@ class WClassComposer(WCompositeComposer):
 	def basic_cls(self):
 		return self.__basic_cls
 
-	@verify_type(composite_key=ClassKey)
-	def add_key(self, composite_key):
-		WCompositeComposer.add_key(self, composite_key)
-
 	def create_obj(self):
 		return self.basic_cls()
 
-	def set_key(self, obj, key, value):
-		setattr(obj, key, value)
-		return obj
+	@verify_type(composite_key=ClassKey)
+	def add_composite_key(self, composite_key):
+		WCompositeComposer.add_composite_key(self, composite_key)
 
 
 class WComposerFactory(WComposerProto):
@@ -308,7 +331,7 @@ class WComposerFactory(WComposerProto):
 		entry_name = obj_spec[name_field]
 		entry_value = obj_spec[value_field]
 
-		if entry_name not in entries:
+		if entry_name not in entries.keys():
 			raise TypeError('Invalid class "%s" was specified' % entry_name)
 
 		entry = entries[entry_name]
@@ -318,7 +341,7 @@ class WComposerFactory(WComposerProto):
 	def decompose(self, obj):
 
 		suitable_entries = []
-		for entry in self.entries():
+		for entry in self.entries().values():
 			if isinstance(obj, entry.composer().basic_cls()) is True:
 				suitable_entries.append(entry)
 
@@ -351,4 +374,8 @@ class WComposerFactory(WComposerProto):
 			suitable_entries = reduced_subcls_entries
 
 		entry = suitable_entries[0]
-		return entry.composer().decompose(obj)
+		decompose_result = {
+			self.name_field(): entry.name(),
+			self.value_field(): entry.composer().decompose(obj)
+		}
+		return decompose_result
