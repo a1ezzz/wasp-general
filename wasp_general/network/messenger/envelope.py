@@ -94,3 +94,12 @@ class WMessengerBytesEnvelope(WMessengerEnvelope):
 	@verify_type(data=bytes, meta=(WMessengerEnvelopeProto, dict, None))
 	def __init__(self, data, meta=None):
 		WMessengerEnvelope.__init__(self, data, meta=meta)
+
+
+class WMessengerDictEnvelope(WMessengerEnvelope):
+	""" Envelope for dict-objects (dictionary objects)
+	"""
+
+	@verify_type(data=dict, meta=(WMessengerEnvelopeProto, dict, None))
+	def __init__(self, data, meta=None):
+		WMessengerEnvelope.__init__(self, data, meta=meta)
