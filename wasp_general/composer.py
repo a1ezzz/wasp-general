@@ -29,7 +29,7 @@ from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod
 
-from wasp_general.verify import verify_type, verify_value
+from wasp_general.verify import verify_type, verify_value, verify_subclass
 
 
 class WComposerProto(metaclass=ABCMeta):
@@ -45,28 +45,39 @@ class WComposerProto(metaclass=ABCMeta):
 
 class WPlainComposer(WComposerProto):
 
-	@verify_type(strict_cls=(int, float, str, None))
-	def __init__(self, strict_cls=None):
+	@verify_subclass(strict_cls=(int, float, str, None))
+	def __init__(self, strict_cls=None, permit_none=False):
 		WComposerProto.__init__(self)
 		self.__strict_cls = strict_cls
+		self.__permit_none = permit_none
 
 	def strict_cls(self):
 		return self.__strict_cls
 
-	@verify_type(obj_spec=(int, float, str))
+	def permit_none(self):
+		return self.__permit_none
+
+	@verify_type(obj_spec=(int, float, str, None))
 	def compose(self, obj_spec):
 		self.__check(obj_spec)
 		return obj_spec
 
-	@verify_type(obj_spec=(int, float, str))
+	@verify_type(obj_spec=(int, float, str, None))
 	def decompose(self, obj):
 		self.__check(obj)
 		return obj
 
 	def __check(self, obj):
-		strict_cls = self.strict_cls()
-		if strict_cls is not None and isinstance(obj, strict_cls) is False:
-			raise TypeError('Invalid type')
+		if obj is None:
+			if self.permit_none() is False:
+				raise TypeError('None value spotted')
+		else:
+			strict_cls = self.strict_cls()
+			if strict_cls is not None and isinstance(obj, strict_cls) is False:
+				raise TypeError(
+					'Invalid type ("%s" should be "%s")' %
+					(obj.__class__.__name__, strict_cls.__name__)
+				)
 
 
 # noinspection PyAbstractClass
@@ -151,9 +162,9 @@ class WCompositeComposer(WComposerProto):
 
 		@classmethod
 		def construction_pair(cls, key, *construction_pairs):
-			for constr_pair in construction_pairs:
-				if constr_pair.composite_key.key() == key:
-					return constr_pair
+			for construction_pair in construction_pairs:
+				if construction_pair.composite_key.key() == key:
+					return construction_pair
 			raise KeyError('Invalid key "%s"' % key)
 
 	@verify_type('paranoid', composite_keys=CompositeKey)
@@ -283,6 +294,17 @@ class WClassComposer(WCompositeComposer):
 			if self.__set_key_fn is not None:
 				return self.__set_key_fn(obj, self.key(), value)
 			setattr(obj, self.key(), value)
+			return obj
+
+	class GetterKey(ClassKey):
+
+		def __init__(self, key, basic_composer, required=False):
+			WClassComposer.ClassKey.__init__(self, key, basic_composer=basic_composer, required=required)
+
+		def get_key(self, obj):
+			return WClassComposer.ClassKey.get_key(self, obj)()
+
+		def set_key(self, obj, value):
 			return obj
 
 	class ClassConstructor(WCompositeComposer.InstanceConstructor):
