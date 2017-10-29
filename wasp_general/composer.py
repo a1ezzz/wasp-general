@@ -396,15 +396,15 @@ class WComposerFactory(WComposerProto):
 				i_subcls = i_entry.composer().basic_cls()
 				for j_entry in suitable_entries:
 					j_subcls = j_entry.composer().basic_cls()
-					if issubclass(i_subcls, j_subcls) is True:
+					if issubclass(i_subcls, j_subcls) is True and i_subcls != j_subcls:
 						is_subcls = True
 						break
 				if is_subcls is False:
-					reduced_subcls_entries.append(is_subcls)
+					reduced_subcls_entries.append(i_entry)
 
 			subcls_entries_count = len(reduced_subcls_entries)
 			if subcls_entries_count == 0:
-				raise RuntimeError('Internal Error')
+				raise TypeError('Unable to find suitable entry for "%s"' % obj.__class__.__name__)
 			elif subcls_entries_count > 1:
 				raise TypeError(
 					'Unable to find suitable entry for "%s" (matched two or more entries)' %
