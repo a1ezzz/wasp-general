@@ -28,8 +28,9 @@ from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod
 
-from wasp_general.verify import verify_type
+from wasp_general.verify import verify_type, verify_value
 from wasp_general.command.command import WCommandProto
+from wasp_general.composer import WComposerProto
 
 
 class WContextProto(metaclass=ABCMeta):
@@ -136,13 +137,15 @@ class WContext(WContextProto):
 		return self.__linked_context
 
 	@classmethod
-	@verify_type(context=WContextProto)
+	@verify_type(context=(WContextProto, None))
 	def export_context(cls, context):
 		""" Export the specified context to be capable context transferring
 
 		:param context: context to export
 		:return: tuple
 		"""
+		if context is None:
+			return
 		result = [(x.context_name(), x.context_value()) for x in context]
 		result.reverse()
 		return tuple(result)
@@ -174,7 +177,18 @@ class WContext(WContextProto):
 		import_data = []
 		for name in context_specs:
 			import_data.append((name, None))
-		return cls.import_context(tuple(import_data))
+		return cls.import_context(import_data)
+
+
+class WContextComposer(WComposerProto):
+
+	@verify_type('paranoid', obj_spec=(tuple, list, None))
+	def compose(self, obj_spec):
+		return WContext.import_context(obj_spec)
+
+	@verify_type('paranoid', obj=(WContextProto, None))
+	def decompose(self, obj):
+		return WContext.export_context(obj)
 
 
 class WCommandContextAdapter(metaclass=ABCMeta):
