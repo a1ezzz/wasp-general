@@ -139,7 +139,7 @@ class WCompositeComposer(WComposerProto):
 		def set_key(self, obj, value):
 			raise NotImplementedError('This method is abstract')
 
-	class ConstructionPair:
+	class KeyInstance:
 
 		def __init__(self, composite_key, value):
 			if isinstance(composite_key, WCompositeComposer.CompositeKey) is False:
@@ -148,24 +148,52 @@ class WCompositeComposer(WComposerProto):
 			self.composite_key = composite_key
 			self.value = value
 
+	class ConstructionKeys:
+
+		def __init__(self, *key_instances):
+			self.__key_instances = []
+			for instance in key_instances:
+				self.add(instance)
+
+		def add(self, key_instance):
+			if isinstance(key_instance, WCompositeComposer.KeyInstance) is False:
+				raise TypeError('Invalid construction pair type')
+			self.__key_instances.append(key_instance)
+
+		def key_instances(self):
+			return self.__key_instances.copy()
+
+		def __getitem__(self, key):
+			for instance in self.key_instances():
+				if instance.composite_key.key() == key:
+					return instance
+			raise KeyError('Invalid key: "%s"' % str(key))
+
+		def has_key(self, key):
+			for instance in self.key_instances():
+				if instance.composite_key.key() == key:
+					return True
+			return False
+
+		def __iter__(self):
+			for pair in self.key_instances():
+				yield pair
+
 	class InstanceConstructor(metaclass=ABCMeta):
 
-		def construct_obj(self, *construction_pairs):
-			result = self.create_obj(*construction_pairs)
-			for const_pair in construction_pairs:
-				const_pair.composite_key.set_key(result, const_pair.value)
+		def construct_obj(self, construction_keys):
+			if isinstance(construction_keys, WCompositeComposer.ConstructionKeys) is False:
+				raise TypeError('Invalid construction_keys type')
+
+			result = self.create_obj(construction_keys)
+			for instance in construction_keys:
+				instance.composite_key.set_key(result, instance.value)
 			return result
 
 		@abstractmethod
-		def create_obj(self, *construction_pairs):
+		def create_obj(self, construction_keys):
 			raise NotImplementedError('This method is abstract')
 
-		@classmethod
-		def construction_pair(cls, key, *construction_pairs):
-			for construction_pair in construction_pairs:
-				if construction_pair.composite_key.key() == key:
-					return construction_pair
-			raise KeyError('Invalid key "%s"' % key)
 
 	@verify_type('paranoid', composite_keys=CompositeKey)
 	@verify_type(constructor=(InstanceConstructor, None))
@@ -195,7 +223,7 @@ class WCompositeComposer(WComposerProto):
 	@verify_type(obj_spec=dict)
 	def compose(self, obj_spec):
 		obj_spec = obj_spec.copy()
-		construction_pairs = []
+		construction_keys = WCompositeComposer.ConstructionKeys()
 
 		for composite_key in self.required_keys():
 			key = composite_key.key()
@@ -203,19 +231,19 @@ class WCompositeComposer(WComposerProto):
 				raise TypeError('Required key not found')
 			value = composite_key.compose(obj_spec[key])
 			obj_spec.pop(key)
-			construction_pairs.append(WCompositeComposer.ConstructionPair(composite_key, value))
+			construction_keys.add(WCompositeComposer.KeyInstance(composite_key, value))
 
 		for composite_key in self.optional_keys():
 			key = composite_key.key()
 			if key in obj_spec.keys():
 				value = composite_key.compose(obj_spec[key])
 				obj_spec.pop(key)
-				construction_pairs.append(WCompositeComposer.ConstructionPair(composite_key, value))
+				construction_keys.add(WCompositeComposer.KeyInstance(composite_key, value))
 
 		if len(obj_spec) > 0:
 			raise TypeError('Unable to process every fields')
 
-		return self.constructor().construct_obj(*construction_pairs)
+		return self.constructor().construct_obj(construction_keys)
 
 	def decompose(self, obj):
 		result = {}
@@ -250,7 +278,7 @@ class WDictComposer(WCompositeComposer):
 
 	class DictConstructor(WCompositeComposer.InstanceConstructor):
 
-		def create_obj(self, *construction_pairs):
+		def create_obj(self, construction_keys):
 			return {}
 
 	@verify_type('paranoid', composite_keys=DictKey)
@@ -310,13 +338,17 @@ class WClassComposer(WCompositeComposer):
 	class ClassConstructor(WCompositeComposer.InstanceConstructor):
 
 		@verify_type(basic_cls=type)
-		def __init__(self, basic_cls):
+		@verify_value(create_obj_fn=(lambda x: x is None or callable(x)))
+		def __init__(self, basic_cls, create_obj_fn=None):
 			self.__basic_cls = basic_cls
+			self.__create_obj_fn = create_obj_fn
 
 		def basic_cls(self):
 			return self.__basic_cls
 
-		def create_obj(self, *construction_pairs):
+		def create_obj(self, construction_keys):
+			if self.__create_obj_fn is not None:
+				return self.__create_obj_fn(construction_keys)
 			return self.basic_cls()()
 
 	@verify_type('paranoid', composite_keys=ClassKey)
