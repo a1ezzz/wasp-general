@@ -6,7 +6,7 @@ from mako.template import Template
 from mako.lookup import TemplateCollection
 
 from wasp_general.network.template import WTemplate, WMakoTemplate, WTemplateText, WTemplateFile
-from wasp_general.network.template import WTemplateLookup
+from wasp_general.network.template import WTemplateLookup, WTemplateRenderer
 
 
 def test_abstract():
@@ -14,7 +14,7 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WTemplate.template, None)
 
 
-class TestWMakoTemplateWrapper:
+class TestWMakoTemplate:
 
 	def test_template(self):
 		t = Template(text='code')
@@ -24,7 +24,7 @@ class TestWMakoTemplateWrapper:
 		assert(wr.template() == t)
 
 
-class TestWWebTemplateText:
+class TestWTemplateText:
 
 	def test_template(self):
 		t = WTemplateText('template code')
@@ -33,7 +33,7 @@ class TestWWebTemplateText:
 		assert(t.template().render() == 'template code')
 
 
-class TestWWebTemplateFile:
+class TestWTemplateFile:
 
 	def test_template(self, tmpdir):
 		f = tmpdir.join('tmp')
@@ -45,7 +45,7 @@ class TestWWebTemplateFile:
 		assert(t.template().render() == 'template')
 
 
-class TestWWebTemplateLookup:
+class TestWTemplateLookup:
 
 	class Collection(TemplateCollection):
 
@@ -53,9 +53,26 @@ class TestWWebTemplateLookup:
 			return WTemplateText('tmpl: ' + uri)
 
 	def test_template(self):
-		collection = TestWWebTemplateLookup.Collection()
+		collection = TestWTemplateLookup.Collection()
 		t = WTemplateLookup('uri1', collection)
 
 		assert(isinstance(t, WTemplateLookup) is True)
 		assert(isinstance(t, WTemplate) is True)
 		assert(t.template().render() == 'tmpl: uri1')
+
+
+class TestWTemplateRenderer:
+
+	def test_renderer(self):
+		template = WTemplateText('test code')
+		renderer = WTemplateRenderer(template)
+		assert(renderer.template() == template.template())
+		assert(renderer.context() == {})
+		assert(renderer.render() == 'test code')
+
+		template = WTemplateText('var a is ${a}')
+		renderer = WTemplateRenderer(template, context={'a': 1})
+		assert(renderer.render() == 'var a is 1')
+
+		renderer.update_context(a='2')
+		assert(renderer.render() == 'var a is 2')

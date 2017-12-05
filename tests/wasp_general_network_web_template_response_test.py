@@ -3,7 +3,7 @@
 import pytest
 
 from wasp_general.network.web.proto import WWebResponseProto
-from wasp_general.network.template import WTemplate, WTemplateText
+from wasp_general.network.template import WTemplate, WTemplateText, WTemplateRenderer
 from wasp_general.network.web.template_response import WWebTemplateResponse
 
 
@@ -18,8 +18,6 @@ class TestWWebTemplateResponse:
 		response = WWebTemplateResponse(WTemplateText('code'))
 
 		assert(isinstance(response, WWebTemplateResponse) is True)
+		assert(isinstance(response, WTemplateRenderer) is True)
 		assert(isinstance(response, WWebResponseProto) is True)
 		assert(response.response_data() == 'code')
-
-		response = WWebTemplateResponse(TestWWebTemplateResponse.CorruptedTemplate())
-		pytest.raises(TypeError, response.response_data)

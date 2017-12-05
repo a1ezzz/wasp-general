@@ -34,28 +34,19 @@ from wasp_general.network.template import WTemplate
 
 from wasp_general.network.web.headers import WHTTPHeaders
 from wasp_general.network.web.response import WWebResponse
+from wasp_general.network.template import WTemplateRenderer
 
 
-class WWebTemplateResponse(WWebResponse):
+class WWebTemplateResponse(WTemplateRenderer, WWebResponse):
 
-	@verify_type('paranoid', status=(int, None))
-	@verify_type(template=WTemplate, context=(None, dict), headers=(WHTTPHeaders, None))
+	@verify_type('paranoid', status=(int, None), template=WTemplate, context=(None, dict))
+	@verify_type('paranoid', headers=(WHTTPHeaders, None))
 	def __init__(self, template, context=None, status=None, headers=None):
+		WTemplateRenderer.__init__(self, template, context=context)
 		WWebResponse.__init__(self, status=status, headers=(headers if headers is not None else WHTTPHeaders()))
-		self.__template = template
-		self.__context = context if context is not None else {}
+
 		if self.headers()['Content-Type'] is None:
 			self.headers().add_headers('Content-Type', 'text/html')
 
 	def response_data(self):
 		return self.render()
-
-	def render(self):
-		template = self.__template.template()
-		if isinstance(template, Template) is False:
-			raise TypeError('Invalid template type')
-
-		buffer = io.StringIO()
-		context = Context(buffer, **self.__context)
-		template.render_context(context)
-		return buffer.getvalue()

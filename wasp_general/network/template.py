@@ -28,8 +28,10 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod
+import io
 from mako.template import Template
 from mako.lookup import TemplateCollection
+from mako.runtime import Context
 
 from wasp_general.verify import verify_type, verify_value
 
@@ -84,3 +86,27 @@ class WTemplateLookup(WTemplate):
 
 	def template(self):
 		return self.__collection.get_template(self.__template_id).template()
+
+
+class WTemplateRenderer:
+
+	@verify_type(template=WTemplate, context=(None, dict))
+	def __init__(self, template, context=None):
+		self.__template = template
+		self.__context = context if context is not None else {}
+
+	def template(self):
+		return self.__template.template()
+
+	def context(self):
+		return self.__context
+
+	def update_context(self, **context_vars):
+		self.__context.update(context_vars)
+
+	def render(self):
+		template = self.template()
+		buffer = io.StringIO()
+		context = Context(buffer, **self.__context)
+		template.render_context(context)
+		return buffer.getvalue()
