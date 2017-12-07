@@ -30,11 +30,11 @@ from mako.runtime import Context
 
 from wasp_general.verify import verify_type
 
-from wasp_general.network.template import WTemplate
+from wasp_general.template import WTemplate
 
 from wasp_general.network.web.headers import WHTTPHeaders
 from wasp_general.network.web.response import WWebResponse
-from wasp_general.network.template import WTemplateRenderer
+from wasp_general.template import WTemplateRenderer
 
 
 class WWebTemplateResponse(WTemplateRenderer, WWebResponse):

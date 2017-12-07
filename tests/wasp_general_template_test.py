@@ -5,8 +5,8 @@ import pytest
 from mako.template import Template
 from mako.lookup import TemplateCollection
 
-from wasp_general.network.template import WTemplate, WMakoTemplate, WTemplateText, WTemplateFile
-from wasp_general.network.template import WTemplateLookup, WTemplateRenderer
+from wasp_general.template import WTemplate, WMakoTemplate, WTemplateText, WTemplateFile
+from wasp_general.template import WTemplateLookup, WTemplateRenderer
 
 
 def test_abstract():
@@ -50,7 +50,7 @@ class TestWTemplateLookup:
 	class Collection(TemplateCollection):
 
 		def get_template(self, uri, relativeto=None):
-			return WTemplateText('tmpl: ' + uri)
+			return WTemplateText('tmpl: ' + uri).template()
 
 	def test_template(self):
 		collection = TestWTemplateLookup.Collection()

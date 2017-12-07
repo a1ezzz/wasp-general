@@ -3,7 +3,7 @@
 import pytest
 
 from wasp_general.network.web.proto import WWebResponseProto
-from wasp_general.network.template import WTemplate, WTemplateText, WTemplateRenderer
+from wasp_general.template import WTemplate, WTemplateText, WTemplateRenderer
 from wasp_general.network.web.template_response import WWebTemplateResponse
 
 

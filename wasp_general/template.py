@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/network/template_response.py
+# wasp_general/template.py
 #
 # Copyright (C) 2017 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -85,7 +85,7 @@ class WTemplateLookup(WTemplate):
 		self.__collection = template_collection
 
 	def template(self):
-		return self.__collection.get_template(self.__template_id).template()
+		return self.__collection.get_template(self.__template_id)
 
 
 class WTemplateRenderer:
@@ -104,9 +104,11 @@ class WTemplateRenderer:
 	def update_context(self, **context_vars):
 		self.__context.update(context_vars)
 
-	def render(self):
+	def render(self, **context_vars):
 		template = self.template()
 		buffer = io.StringIO()
-		context = Context(buffer, **self.__context)
+		context = self.context()
+		context.update(context_vars)
+		context = Context(buffer, **context)
 		template.render_context(context)
 		return buffer.getvalue()
