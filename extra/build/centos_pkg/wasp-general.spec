@@ -15,9 +15,9 @@ BuildRequires:	python34-devel
 BuildRequires:	python34-setuptools
 Requires:	python34-decorator
 Requires:	python34-crypto
-Requires:	python34-magic
-Requires:	python34-zmq
-Requires:	python34-mako
+#Requires:	python34-magic
+#Requires:	python34-zmq
+#Requires:	python34-mako
 Requires:	python34-tornado
 Provides:	python34-wasp-general
 
