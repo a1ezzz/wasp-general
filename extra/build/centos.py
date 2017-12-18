@@ -30,7 +30,7 @@ if __name__ == '__main__':
 	for subdir in rpmbuild_required_directories:
 		os.makedirs(os.path.join(centos_build_dir, subdir), exist_ok=True)
 
-	specfiles = list(os.listdir(os.path.join(centos_pkg_dir, 'SPECS')))
+	specfiles = list(os.listdir(centos_pkg_dir))
 	assert(len(specfiles) == 1)
 	specfile = specfiles[0]
 	
