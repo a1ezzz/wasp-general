@@ -2,10 +2,12 @@
 
 import pytest
 
-from wasp_general.command.command import WCommandProto, WCommand, WCommandSelector
-from wasp_general.command.command import WCommandPrioritizedSelector, WCommandSet, WReduceCommand
+from wasp_general.template import WTemplateText
+
+from wasp_general.command.command import WCommandProto, WCommand, WCommandSelector, WCommandPrioritizedSelector
+from wasp_general.command.command import WCommandSet, WCommandAlias, WReduceCommand, WTemplateResultCommand
 from wasp_general.command.proto import WCommandResultProto
-from wasp_general.command.result import WPlainCommandResult
+from wasp_general.command.result import WPlainCommandResult, WCommandResultTemplate
 
 
 def test_abstract():
@@ -15,6 +17,9 @@ def test_abstract():
 
 	pytest.raises(TypeError, WCommand)
 	pytest.raises(NotImplementedError, WCommand._exec, None)
+
+	pytest.raises(TypeError, WCommandAlias)
+	pytest.raises(NotImplementedError, WCommandAlias.mutate_command_tokens, None)
 
 
 class TestWCommandProto:
@@ -143,25 +148,80 @@ class TestWCommandSet:
 		assert(command_set.var_value('sec_var') == '1')
 
 
+class TestWCommandAlias:
+
+	class Command(WCommandAlias):
+
+		def mutate_command_tokens(self, *command_tokens):
+			result = ['foo']
+			result.extend(command_tokens)
+			result.append('bar')
+			return result
+
+	def test(self):
+		command_selector = WCommandSelector()
+		cmd_alias = TestWCommandAlias.Command(command_selector)
+		assert(isinstance(cmd_alias, TestWCommandAlias.Command) is True)
+		assert(isinstance(cmd_alias, WCommandAlias) is True)
+		assert(isinstance(cmd_alias, WCommandProto) is True)
+		assert(cmd_alias.selector() == command_selector)
+		assert(cmd_alias.match('test') is False)
+
+		command_selector.add(TestWCommand.Command('test'))
+		assert(cmd_alias.match('test') is False)
+
+		command_selector.add(TestWCommand.Command('foo', 'test', 'bar'))
+		assert(cmd_alias.match('test') is True)
+
+		result = cmd_alias.exec('test')
+		assert(isinstance(result, WCommandResultProto) is True)
+		assert(str(result) == 'OK')
+
+		def mutation_error_fn(*command_tokens):
+			return
+
+		cmd_alias.mutate_command_tokens = mutation_error_fn
+		assert (cmd_alias.match('test') is False)
+		pytest.raises(RuntimeError, cmd_alias.exec, 'test')
+
+
 class TestWReduceCommand:
 
 	def test(self):
 		command_selector = WCommandSelector()
 		pytest.raises(RuntimeError, WReduceCommand, command_selector)
-		reduce_command = WReduceCommand(command_selector, 'section1')
 
-		assert(reduce_command.match('section1', 'hello') is False)
-		assert(reduce_command.match('section1', 'test') is False)
-		assert(reduce_command.match('section2', 'hello') is False)
-		pytest.raises(RuntimeError, reduce_command.exec, 'section1', 'hello')
-		pytest.raises(RuntimeError, reduce_command.exec, 'section1', 'test')
-		pytest.raises(RuntimeError, reduce_command.exec, 'section2', 'hello')
+		reduce_command = WReduceCommand(command_selector, 'section1', 'section2')
+		assert(isinstance(reduce_command, WReduceCommand) is True)
+		assert(isinstance(reduce_command, WCommandAlias) is True)
+		assert(reduce_command.reduce_tokens() == ('section1', 'section2'))
 
-		command_selector.add(TestWCommand.Command('hello'))
-		assert(reduce_command.match('section1', 'hello') is True)
-		assert(reduce_command.match('section1', 'test') is False)
-		assert(reduce_command.match('section2', 'hello') is False)
+		assert(reduce_command.mutate_command_tokens('hello') is None)
+		assert(reduce_command.mutate_command_tokens('section1', 'hello', 'world') == ('hello', 'world'))
+		assert(reduce_command.mutate_command_tokens('section2', 'hello', 'world') == ('hello', 'world'))
 
-		result = reduce_command.exec('section1', 'hello')
-		assert(isinstance(result, WCommandResultProto) is True)
-		assert(str(result) == 'OK')
+
+class TestWTemplateResultCommand:
+
+	def test(self):
+		template = WTemplateText('hello: ${var}')
+
+		template_result_cmd = WTemplateResultCommand(template, 'test')
+		assert(isinstance(template_result_cmd, WTemplateResultCommand) is True)
+		assert(isinstance(template_result_cmd, WCommand) is True)
+		assert(template_result_cmd.template() == template)
+		assert(template_result_cmd.template_context() == {})
+
+		template_result_cmd = WTemplateResultCommand(template, 'test', template_context={'var': 'world'})
+		assert(template_result_cmd.template_context() == {'var': 'world'})
+
+		result = template_result_cmd.result_template()
+		assert(isinstance(result, WCommandResultTemplate) is True)
+		assert(str(result) == 'hello: world')
+
+		assert(template_result_cmd.match('test') is True)
+		assert(template_result_cmd.match('test', 'foo') is False)
+
+		result = template_result_cmd._exec('test')
+		assert(isinstance(result, WCommandResultTemplate) is True)
+		assert(str(result) == 'hello: world')

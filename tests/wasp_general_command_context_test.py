@@ -5,8 +5,10 @@ import pytest
 from wasp_general.command.command import WCommandProto, WCommand, WCommandPrioritizedSelector
 from wasp_general.command.command import WCommandSet
 from wasp_general.command.result import WPlainCommandResult
+from wasp_general.composer import WComposerProto
 
 from wasp_general.command.context import WContextProto, WContext, WCommandContextAdapter, WCommandContext
+from wasp_general.command.context import WContextComposer
 
 
 def test_abstract():
@@ -69,6 +71,24 @@ class TestWContext:
 		c_r3 = WContext('context1', None, c_r2)
 		assert(c_r1 != c_r3)
 		assert(c_r3 != c_r1)
+
+		assert(WContext.export_context(c_r2) == (('context1', None), ('context2', 'context-value')))
+		assert(WContext.export_context(None) is None)
+
+
+class TestWContextComposer:
+
+	def test(self):
+		context1 = WContext('context1')
+		context2 = WContext('context2', 'context-value', context1)
+
+		composer = WContextComposer()
+		assert(isinstance(composer, WContextComposer) is True)
+		assert(isinstance(composer, WComposerProto) is True)
+
+		decomposed_context = composer.decompose(context2)
+		composed_context = composer.compose(decomposed_context)
+		assert(composed_context == context2)
 
 
 class TestWCommandContextAdapter:

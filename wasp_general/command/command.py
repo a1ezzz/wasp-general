@@ -28,7 +28,9 @@ from abc import ABCMeta, abstractmethod
 import shlex
 
 from wasp_general.verify import verify_type
+from wasp_general.template import WTemplate
 from wasp_general.command.proto import WCommandResultProto
+from wasp_general.command.result import WCommandResultTemplate
 
 
 class WCommandProto(metaclass=ABCMeta):
@@ -330,25 +332,19 @@ class WCommandSet:
 				self.__vars[var_name] = command_env[var_name]
 
 
-class WReduceCommand(WCommandProto):
-	""" Command that creates subsection from a command selector. The command will be matched to command tokens only
-	if the first token matches to one of reduce tokens (section name/aliases) and the command selector has command
-	for remaining tokens. Command execution works the same way. The command will be executed from the command
-	selector without the first token and only if the first token matches to one of reduce tokens.
+class WCommandAlias(WCommandProto):
+	""" Prototype for command, that doesn't do anything useful itself, but it helps to run a modified command
+	and to return its result. For getting any useful result a :class:`.WCommandSelector` object is used.
 	"""
 
-	@verify_type(selector=WCommandSelector, reduce_tokens=str)
-	def __init__(self, selector, *reduce_tokens):
-		""" Create new command
+	@verify_type(selector=WCommandSelector)
+	def __init__(self, selector):
+		""" Create new command alias
 
-		:param selector: selector to use
-		:param reduce_tokens: section names (aliases)
+		:param selector: selector that has commands, that will be run from this one
 		"""
 		WCommandProto.__init__(self)
-		if len(reduce_tokens) == 0:
-			raise RuntimeError('No reduce tokens are specified')
 		self.__selector = selector
-		self.__reduce_tokens = reduce_tokens
 
 	def selector(self):
 		""" Return original command selector
@@ -357,6 +353,57 @@ class WReduceCommand(WCommandProto):
 		"""
 		return self.__selector
 
+	@abstractmethod
+	def mutate_command_tokens(self, *command_tokens):
+		""" Modify the input command so it can be called from the command selector
+
+		:param command_tokens:
+		:return:
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@verify_type(command_tokens=str)
+	def match(self, *command_tokens, **command_env):
+		""" :meth:`.WCommandProto.match` implementation
+		"""
+		mutated_command_tokens = self.mutate_command_tokens(*command_tokens)
+		if mutated_command_tokens is None:
+			return False
+		return self.selector().select(*mutated_command_tokens, **command_env) is not None
+
+	@verify_type(command_tokens=str)
+	def exec(self, *command_tokens, **command_env):
+		""" :meth:`.WCommandProto.exec` implementation
+		"""
+		mutated_command_tokens = self.mutate_command_tokens(*command_tokens)
+		if mutated_command_tokens is not None:
+			command = self.selector().select(*mutated_command_tokens, **command_env)
+			if command is not None:
+				return command.exec(*mutated_command_tokens, **command_env)
+
+		raise RuntimeError('Command mismatch: %s' % self.join_tokens(*command_tokens))
+
+
+class WReduceCommand(WCommandAlias):
+	""" Command that creates subsection from a command selector. The command will be matched to command tokens only
+	if the first token matches to one of reduce tokens (section name/aliases) and the command selector has command
+	for remaining tokens. Command execution works the same way. The command will be executed from the command
+	selector without the first token and only if the first token matches to one of reduce tokens.
+	"""
+
+	@verify_type('paranoid', selector=WCommandSelector)
+	@verify_type(reduce_tokens=str)
+	def __init__(self, selector, *reduce_tokens):
+		""" Create new command
+
+		:param selector: selector to use
+		:param reduce_tokens: section names (aliases)
+		"""
+		WCommandAlias.__init__(self, selector)
+		if len(reduce_tokens) == 0:
+			raise RuntimeError('No reduce tokens are specified')
+		self.__reduce_tokens = reduce_tokens
+
 	def reduce_tokens(self):
 		""" Return section names (aliases)
 
@@ -364,25 +411,74 @@ class WReduceCommand(WCommandProto):
 		"""
 		return self.__reduce_tokens
 
-	@verify_type(command_tokens=str)
-	def match(self, *command_tokens, **command_env):
-		""" :meth:`.WCommandProto.match` implementation
+	def mutate_command_tokens(self, *command_tokens):
+		""" :meth:`.WCommandAlias.mutate_command_tokens` implementation
 		"""
 		if len(command_tokens) > 0:
-			first_token = command_tokens[0]
-			if first_token in self.reduce_tokens():
-				return self.selector().select(*(command_tokens[1:]), **command_env) is not None
+			if command_tokens[0] in self.reduce_tokens():
+				return command_tokens[1:]
+
+
+class WTemplateResultCommand(WCommand):
+	""" Simple command that returns "template-result", that can be "rendered" to str object later. In most time,
+	this and derived classes return static template, which result is the same. The only requirement for execution
+	of this command is to full command match. If :class:`.WTemplateResultCommand` was constructed with tokens like
+	"foo", "bar" then only "foo bar" command will be matched.  (Note. For example, if :class:`.WCommand` object
+	was constructed with tokens: "foo", "bar", then any of the following commands will be matched: "foo bar",
+	"foo bar 1", "foo bar 2 3".)
+	"""
+
+	@verify_type('paranoid', command_tokens=str)
+	@verify_type(template=WTemplate, template_context=(dict, None))
+	def __init__(self, template, *command_tokens, template_context=None):
+		""" Create new static template command
+
+		:param template: template to use as result
+		:param command_tokens: tokens that is used for command matching
+		:param template_context: context that is used for rendering the template
+		"""
+		WCommand.__init__(self, *command_tokens)
+		self.__template = template
+		self.__template_context = template_context if template_context is not None else {}
+
+	def template(self):
+		""" Return template object (that will be used in result)
+
+		:return: WTemplate
+		"""
+		return self.__template
+
+	def template_context(self):
+		""" Return context with which template will be rendered
+
+		:return: dict
+		"""
+		return self.__template_context
+
+	def result_template(self, *command_tokens, **command_env):
+		""" Generate template result. command_tokens and command_env arguments are used for template
+		detailing
+
+		:param command_tokens: same as command_tokens in :meth:`.WCommandProto.match` and \
+		:meth:`.WCommandProto.exec` methods (so as :meth:`.WCommand._exec`)
+		:param command_env: same as command_env in :meth:`.WCommandProto.match` and \
+		:meth:`.WCommandProto.exec` methods (so as :meth:`.WCommand._exec`)
+
+		:return: WCommandResultTemplate
+		"""
+		result = WCommandResultTemplate(self.template())
+		result.update_context(**self.template_context())
+		return result
+
+	def match(self, *command_tokens, **command_env):
+		""" same as :meth:`.WCommand.meth` method, but checks for extra arguments also (no extra arguments is
+		allowed)
+		"""
+		if command_tokens == self.command():
+			return True
 		return False
 
-	@verify_type(command_tokens=str)
-	def exec(self, *command_tokens, **command_env):
-		""" :meth:`.WCommandProto.exec` implementation
+	def _exec(self, *command_tokens, **command_env):
+		""" :meth:`.WCommand._exec` implementation
 		"""
-		if len(command_tokens) > 0:
-			first_token = command_tokens[0]
-			if first_token in self.reduce_tokens():
-				command = self.selector().select(*(command_tokens[1:]), **command_env)
-				if command is not None:
-					return command.exec(*(command_tokens[1:]), **command_env)
-
-		raise RuntimeError('Command mismatch: %s' % self.join_tokens(*command_tokens))
+		return self.result_template(*command_tokens, **command_env)
