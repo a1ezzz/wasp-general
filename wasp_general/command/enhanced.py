@@ -403,7 +403,7 @@ class WEnhancedCommand(WCommandProto):
 		self.__command = command
 		self.__parser = WCommandArgumentParser(*argument_descriptors, relationships=relationships)
 
-	def command(self):
+	def command_token(self):
 		return self.__command
 
 	def parser(self):
@@ -412,14 +412,14 @@ class WEnhancedCommand(WCommandProto):
 	@verify_type(command_tokens=str)
 	def match(self, *command_tokens, **command_env):
 		if len(command_tokens) > 0:
-			if command_tokens[0] == self.command():
+			if command_tokens[0] == self.command_token():
 				return True
 		return False
 
 	@verify_type(command_tokens=str)
 	def exec(self, *command_tokens, **command_env):
 		if len(command_tokens) > 0:
-			if command_tokens[0] == self.command():
+			if command_tokens[0] == self.command_token():
 				return self._exec(self.parser().parse(*command_tokens[1:]), **command_env)
 		raise RuntimeError('Invalid tokens')
 
