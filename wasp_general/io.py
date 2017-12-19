@@ -131,7 +131,7 @@ class WThrottlingIO(WIOCounter):
 	def check_rate(self):
 		current_rate = self.rate()
 		max_rate = self.throttling_to()
-		if current_rate > max_rate:
+		if max_rate is not None and current_rate > max_rate:
 			rate_delta = current_rate - max_rate
 			sleep_time = self.bytes_processed() / rate_delta
 			time.sleep(min(sleep_time, self.maximum_timeout()))
@@ -371,6 +371,26 @@ class WResponsiveReader(WBufferedIOReader, WResponsiveIO):
 		if self.stop_event().is_set():
 			raise WResponsiveIO.IOTerminated('Stop event was set')
 		return WBufferedIOReader.read_chunk(self, size)
+
+
+class WThrottlingReader(WBufferedIOReader, WThrottlingIO):
+
+	@verify_type('paranoid', throttling_to=(int, float, None), maximum_timeout=(int, float, None))
+	@verify_value('paranoid', maximum_timeout=lambda x: x is None or x > 0)
+	def __init__(self, raw, throttling_to=None, maximum_timeout=None):
+		WBufferedIOReader.__init__(self, raw)
+		WThrottlingIO.__init__(self, throttling_to=throttling_to, maximum_timeout=maximum_timeout)
+		self.start_counter()
+
+	def close(self, *args, **kwargs):
+		self.stop_counter()
+		WBufferedIOReader.close(self, *args, **kwargs)
+
+	def read_chunk(self, size):
+		self.check_rate()
+		result = WBufferedIOReader.read_chunk(self, size)
+		self.increase_counter(len(result))
+		return result
 
 
 class WReaderChainLink(WIOChainLink):
