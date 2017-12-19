@@ -9,6 +9,6 @@ Standards-Version: 3.9.5
 Package: python3-wasp-general
 Architecture: any
 Pre-Depends: dpkg (>= 1.16.1), python3.4 | python3.5 | python3.6 ${misc:Pre-Depends}
-Depends: python3-decorator, python3-crypto, python3-magic, python3-zmq, python3-mako, python3-tornado ${misc:Depends}
+Depends: python3-decorator, python3-crypto, python3-magic, python3-zmq, python3-tornado ${misc:Depends}
+Recommends: python3-mako
 Description: python library
-
