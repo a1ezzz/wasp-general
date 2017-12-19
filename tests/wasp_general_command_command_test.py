@@ -2,12 +2,10 @@
 
 import pytest
 
-from wasp_general.template import WTemplateText
-
 from wasp_general.command.command import WCommandProto, WCommand, WCommandSelector, WCommandPrioritizedSelector
-from wasp_general.command.command import WCommandSet, WCommandAlias, WReduceCommand, WTemplateResultCommand
+from wasp_general.command.command import WCommandSet, WCommandAlias, WReduceCommand
 from wasp_general.command.proto import WCommandResultProto
-from wasp_general.command.result import WPlainCommandResult, WCommandResultTemplate
+from wasp_general.command.result import WPlainCommandResult
 
 
 def test_abstract():
@@ -199,29 +197,3 @@ class TestWReduceCommand:
 		assert(reduce_command.mutate_command_tokens('hello') is None)
 		assert(reduce_command.mutate_command_tokens('section1', 'hello', 'world') == ('hello', 'world'))
 		assert(reduce_command.mutate_command_tokens('section2', 'hello', 'world') == ('hello', 'world'))
-
-
-class TestWTemplateResultCommand:
-
-	def test(self):
-		template = WTemplateText('hello: ${var}')
-
-		template_result_cmd = WTemplateResultCommand(template, 'test')
-		assert(isinstance(template_result_cmd, WTemplateResultCommand) is True)
-		assert(isinstance(template_result_cmd, WCommand) is True)
-		assert(template_result_cmd.template() == template)
-		assert(template_result_cmd.template_context() == {})
-
-		template_result_cmd = WTemplateResultCommand(template, 'test', template_context={'var': 'world'})
-		assert(template_result_cmd.template_context() == {'var': 'world'})
-
-		result = template_result_cmd.result_template()
-		assert(isinstance(result, WCommandResultTemplate) is True)
-		assert(str(result) == 'hello: world')
-
-		assert(template_result_cmd.match('test') is True)
-		assert(template_result_cmd.match('test', 'foo') is False)
-
-		result = template_result_cmd._exec('test')
-		assert(isinstance(result, WCommandResultTemplate) is True)
-		assert(str(result) == 'hello: world')
