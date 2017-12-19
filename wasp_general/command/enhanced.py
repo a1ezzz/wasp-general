@@ -27,6 +27,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
+import re
 from abc import abstractmethod
 from enum import Enum
 
@@ -123,6 +124,33 @@ class WCommandArgumentDescriptor:
 				self, casting_fn=lambda x: float(x), validate_fn=validate_fn,
 				error_message=error_message
 			)
+
+	class DataSizeArgumentHelper(ArgumentCastingHelper):
+
+		__write_rate_re__ = re.compile('^(\d+[.\d]*)([KMGT]?)$')
+
+		def __init__(self):
+			WCommandArgumentDescriptor.ArgumentCastingHelper.__init__(
+				self, casting_fn=self.cast_string
+			)
+
+		@staticmethod
+		@verify_type(value=str)
+		def cast_string(value):
+			re_rate = WCommandArgumentDescriptor.DataSizeArgumentHelper.__write_rate_re__.search(value)
+			if re_rate is None:
+				raise ValueError('Invalid write rate')
+			result = float(re_rate.group(1))
+			if re_rate.group(2) == 'K':
+				result *= (1 << 10)
+			elif re_rate.group(2) == 'M':
+				result *= (1 << 20)
+			elif re_rate.group(2) == 'G':
+				result *= (1 << 30)
+			elif re_rate.group(2) == 'T':
+				result *= (1 << 40)
+
+			return result
 
 	@verify_type(argument_name=str, required=bool, flag_mode=bool, multiple_values=bool, help_info=(str, None))
 	@verify_type(meta_var=(str, None), default_value=(str, None))
@@ -401,10 +429,18 @@ class WEnhancedCommand(WCommandProto):
 	def __init__(self, command, *argument_descriptors, relationships=None):
 		WCommandProto.__init__(self)
 		self.__command = command
-		self.__parser = WCommandArgumentParser(*argument_descriptors, relationships=relationships)
+		self.__arguments_descriptors = argument_descriptors
+		self.__relationships = relationships
+		self.__parser = WCommandArgumentParser(*self.argument_descriptors(), relationships=self.relationships())
 
 	def command_token(self):
 		return self.__command
+
+	def argument_descriptors(self):
+		return self.__arguments_descriptors
+
+	def relationships(self):
+		return self.__relationships
 
 	def parser(self):
 		return self.__parser
