@@ -27,8 +27,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from wasp_general.verify import verify_type, verify_value
-from wasp_general.template import WTemplate, WTemplateRenderer
+from wasp_general.verify import verify_type
 from wasp_general.command.proto import WCommandResultProto
 
 
@@ -81,15 +80,3 @@ class WExceptionResult(WCommandEnv):
 			'%s\nException was raised. %s\n%s' %
 			(self.message(), self.exception(), self.traceback())
 		)
-
-
-class WCommandResultTemplate(WPlainCommandResult, WTemplateRenderer):
-
-	@verify_type('paranoid', template=WTemplate)
-	def __init__(self, template, **command_env):
-		WPlainCommandResult.__init__(self, '', **command_env)
-		WTemplateRenderer.__init__(self, template)
-		self.__template = template
-
-	def __str__(self):
-		return self.render()
