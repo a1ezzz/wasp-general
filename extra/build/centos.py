@@ -21,8 +21,8 @@ rpmbuild_required_directories = ('BUILD', 'RPMS', 'SOURCES', 'SPECS', 'SRPMS', '
 
 python_interpr = 'python3'
 
-package_dir = 'wasp-general-0.0.1.3'
-package_file = 'v0.0.1.3.tar.gz'
+package_dir = 'wasp-general-0.0.2'
+package_file = 'v0.0.2.tar.gz'
 
 
 if __name__ == '__main__':
