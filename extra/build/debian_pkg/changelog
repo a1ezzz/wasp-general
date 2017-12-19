@@ -1,3 +1,9 @@
+wasp-general (0.0.2) unstable; urgency=low
+
+  * Some updates
+
+ -- Ildar Gafurov <dev@binblob.com>  Thu, 19 Dec 2017 12:00:00 +0300
+
 wasp-general (0.0.1.3) unstable; urgency=low
 
   * Initial release

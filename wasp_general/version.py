@@ -32,10 +32,10 @@ def revision():
 
 
 __author__ = "Ildar Gafurov"
-__numeric_version__ = '0.0.1.3'
+__numeric_version__ = '0.0.2'
 __version__ = ("%s.dev%s" % (__numeric_version__, revision()))
 __credits__ = ["Ildar Gafurov"]
 __license__ = "GNU Lesser General Public License v3"
-__copyright__ = "Copyright 2016, The Wasp-general"
+__copyright__ = "Copyright 2017, The Wasp-general"
 __email__ = "dev@binblob.com"
 __status__ = "Development"

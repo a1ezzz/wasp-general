@@ -2,10 +2,10 @@
 %define _topdir %(echo $PWD)
 
 Name:		wasp-general
-Version:	0.0.1.3
+Version:	0.0.2
 Release:	0
 License:	GPL
-Source:		https://github.com/a1ezzz/wasp-general/archive/v0.0.1.3.tar.gz
+Source:		https://github.com/a1ezzz/wasp-general/archive/v0.0.2.tar.gz
 URL:		https://github.com/a1ezzz/wasp-general
 Summary:	python library
 Packager:	Ildar Gafurov <dev@binblob.com>
