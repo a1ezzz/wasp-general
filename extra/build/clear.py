@@ -7,7 +7,7 @@ import shutil
 script_dir = os.path.dirname(__file__)
 root_dir = os.path.abspath(os.path.join(script_dir, '..', '..'))
 
-build_dirs = ('pypi_build', 'debian_build', 'centos_build')
+build_dirs = ('pypi_build', 'debian_build', )
 
 
 if __name__ == '__main__':
