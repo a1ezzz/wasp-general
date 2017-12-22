@@ -29,6 +29,8 @@ from wasp_general.version import __status__
 
 import io
 import time
+import gzip
+import bz2
 
 from wasp_general.verify import verify_type, verify_subclass, verify_value
 from wasp_general.crypto.aes import WAES
@@ -274,6 +276,13 @@ class WResponsiveWriter(io.BufferedWriter, WResponsiveIO):
 		return len(b)
 
 
+class WDiscardWriterResult(io.BufferedWriter):
+
+	@verify_type(b=(bytes, memoryview))
+	def write(self, b):
+		return len(b)
+
+
 class WWriterChainLink(WIOChainLink):
 
 	@verify_subclass(writer_cls=io.BufferedWriter)
@@ -294,9 +303,9 @@ class WWriterChain(WIOChain, io.BufferedWriter):
 			link.flush()
 
 	def close(self):
-		io.BufferedWriter.close(self)
 		for link in self:
 			link.close()
+		io.BufferedWriter.close(self)
 
 
 class WBufferedIOReader(io.BufferedReader):
@@ -346,6 +355,34 @@ class WDiscardReaderResult(WBufferedIOReader):
 	@classmethod
 	def append_buffer(cls, buffer, data):
 		return buffer
+
+
+class WGzipReader(WBufferedIOReader):
+
+	def __init__(self, raw):
+		WBufferedIOReader.__init__(self, raw)
+		self.__gzip = gzip.GzipFile(fileobj=raw)
+
+	def read_chunk(self, size):
+		return self.__gzip.read(size=size)
+
+	def close(self, *args, **kwargs):
+		self.__gzip.close()
+		WBufferedIOReader.close(self)
+
+
+class WBzip2Reader(WBufferedIOReader):
+
+	def __init__(self, raw):
+		WBufferedIOReader.__init__(self, raw)
+		self.__bzip2 = bz2.BZ2File(raw)
+
+	def read_chunk(self, size):
+		return self.__bzip2.read(size=size)
+
+	def close(self, *args, **kwargs):
+		self.__bzip2.close()
+		WBufferedIOReader.close(self)
 
 
 class WHashCalculationReader(WBufferedIOReader, WHashIO):
@@ -408,6 +445,6 @@ class WReaderChain(WIOChain, io.BufferedReader):
 		io.BufferedReader.__init__(self, self.first_io())
 
 	def close(self):
-		io.BufferedReader.close(self)
 		for link in self:
 			link.close()
+		io.BufferedReader.close(self)
