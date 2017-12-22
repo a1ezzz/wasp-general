@@ -31,7 +31,7 @@ import re
 from abc import abstractmethod
 from enum import Enum
 
-from wasp_general.verify import verify_type, verify_value
+from wasp_general.verify import verify_type, verify_value, verify_subclass
 from wasp_general.command.command import WCommandProto
 from wasp_general.command.proto import WCommandResultProto
 
@@ -151,6 +151,22 @@ class WCommandArgumentDescriptor:
 				result *= (1 << 40)
 
 			return result
+
+	class EnumArgumentHelper(ArgumentCastingHelper):
+
+		@verify_subclass(enum_cls=Enum)
+		def __init__(self, enum_cls):
+			WCommandArgumentDescriptor.ArgumentCastingHelper.__init__(
+				self, casting_fn=self.cast_string
+			)
+			for item in enum_cls:
+				if isinstance(item.value, str) is False:
+					raise TypeError('Enum fields must bt str type')
+			self.__enum_cls = enum_cls
+
+		@verify_type(value=str)
+		def cast_string(self, value):
+			return self.__enum_cls(value)
 
 	@verify_type(argument_name=str, required=bool, flag_mode=bool, multiple_values=bool, help_info=(str, None))
 	@verify_type(meta_var=(str, None), default_value=(str, None))
