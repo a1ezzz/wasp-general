@@ -225,9 +225,6 @@ class Verifier:
 				try:
 					checks[kw_key](kw_value)
 				except Exception as e:
-					print('!!!!!!!!!!!')
-					print(str(arg_specs))
-					print('!!!!!!!!!!!')
 					self.help_info(e, original_function, kw_key, arg_specs[kw_key])
 					raise
 
