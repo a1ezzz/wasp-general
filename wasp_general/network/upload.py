@@ -152,13 +152,29 @@ class WFTPUploader(WBasicUploader):
 
 			path = options[WUploaderProto.URLOption.path]
 			dir_name, file_name = os.path.dirname(path), os.path.basename(path)
-			ftp_client.cwd(dir_name)
+			self.__change_dir(ftp_client, dir_name)
 			ftp_client.storbinary('STOR ' + file_name, file_obj)
 			ftp_client.quit()
 		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
 			return False
 
 		return True
+
+	def __change_dir(self, ftp_client, dir_name):
+		dir_name, entry = os.path.split(dir_name)
+		dir_entries = []
+
+		while entry != '':
+			dir_entries.append(entry)
+			dir_name, entry = os.path.split(dir_name)
+
+		dir_entries.reverse()
+		ftp_client.cwd('/')
+
+		for entry in dir_entries:
+			if entry not in ftp_client.nlst():
+				ftp_client.mkd(entry)
+			ftp_client.cwd(entry)
 
 
 class WUploaderCollection(WUploaderProto):
