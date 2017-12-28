@@ -157,6 +157,8 @@ class WFTPUploader(WBasicUploader):
 			ftp_client.quit()
 		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
 			return False
+		except OSError:  # no route to host and so on
+			return False
 
 		return True
 
