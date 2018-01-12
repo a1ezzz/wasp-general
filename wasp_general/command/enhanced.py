@@ -82,17 +82,19 @@ class WCommandArgumentDescriptor:
 		def cast(self, argument_name, argument_value):
 			casting_fn = self.casting_function()
 			if casting_fn is not None:
-				argument_value = casting_fn(argument_value)
+				casted_argument_value = casting_fn(argument_value)
+			else:
+				casted_argument_value = argument_value
 			validate_fn = self.validate_function()
 			if validate_fn is not None:
-				if validate_fn(argument_value) is not True:
+				if validate_fn(casted_argument_value) is not True:
 					error_message = self.error_message()
 					if error_message is None:
 						error_message = 'Attribute "%s" has invalid value: "%s"' % (
 							argument_name, argument_value
 						)
 					raise WCommandArgumentParsingError(error_message)
-			return argument_value
+			return casted_argument_value
 
 	class StringArgumentCastingHelper(ArgumentCastingHelper):
 
@@ -167,6 +169,27 @@ class WCommandArgumentDescriptor:
 		@verify_type(value=str)
 		def cast_string(self, value):
 			return self.__enum_cls(value)
+
+	class RegExpArgumentHelper(ArgumentCastingHelper):
+
+		@verify_type(regexp=str)
+		def __init__(self, regexp):
+			WCommandArgumentDescriptor.ArgumentCastingHelper.__init__(
+				self, casting_fn=self.cast_string
+			)
+			self.__regexp = re.compile(regexp)
+
+		def re(self):
+			return self.__regexp
+
+		def validate_function(self):
+			return lambda x: x is not None
+
+		@verify_type(value=str)
+		def cast_string(self, value):
+			result = self.re().match(value)
+			if result is not None:
+				return result.groups()
 
 	@verify_type(argument_name=str, required=bool, flag_mode=bool, multiple_values=bool, help_info=(str, None))
 	@verify_type(meta_var=(str, None), default_value=(str, None))
@@ -253,6 +276,7 @@ class WCommandArgumentRelationship:
 	class Relationship(Enum):
 		conflict = 1
 		requirement = 2
+		one_of = 3
 
 	@verify_type(argument_names=str)
 	def __init__(self, relationship, *argument_names):
@@ -295,28 +319,42 @@ class WCommandArgumentParser:
 	def relationships(self):
 		return self.__relationships
 
-	def __check_conflict_relation(self, relation, parsed_result):
-		argument_found = None
+	def __select_arguments(self, relation, parsed_result):
+		result = []
 		arguments = relation.arguments()
 		for argument_name in arguments:
 			if argument_name in parsed_result.keys():
-				if argument_found is None:
-					argument_found = argument_name
-				else:
-					raise WCommandArgumentParsingError(
-						"Conflict arguments was found: %s" % (', '.join(arguments))
-					)
+				result.append(argument_name)
+		return result
+
+	def __check_conflict_relation(self, relation, parsed_result):
+		conflict_arguments = self.__select_arguments(relation, parsed_result)
+		if len(conflict_arguments) >= 1:
+			raise WCommandArgumentParsingError(
+				"Conflict arguments was found: %s" % (', '.join(conflict_arguments))
+			)
 
 	def __check_requirements_relation(self, relation, parsed_result):
-		arguments = relation.arguments()
-		arguments_found = 0
-		for argument_name in arguments:
-			if argument_name in parsed_result.keys():
-				arguments_found += 1
+		found_arguments = set(self.__select_arguments(relation, parsed_result))
+		required_arguments = set(relation.arguments())
 
-		if arguments_found > 0 and len(arguments) != arguments_found:
+		not_found_arguments = required_arguments.difference(found_arguments)
+		if len(not_found_arguments) > 0 and len(not_found_arguments) != len(required_arguments):
 			raise WCommandArgumentParsingError(
-				"Required arguments wasn't found. The next arguments have mutual requirements: %s" % (', '.join(arguments))
+				"Required arguments wasn't found: %s" % (', '.join(not_found_arguments))
+			)
+
+	def __check_one_of_relation(self, relation, parsed_result):
+		found_arguments = set(self.__select_arguments(relation, parsed_result))
+
+		if len(found_arguments) > 1:
+			raise WCommandArgumentParsingError(
+				"Conflict arguments was found: %s" % (', '.join(found_arguments))
+			)
+		elif len(found_arguments) == 0:
+			arguments = relation.arguments()
+			raise WCommandArgumentParsingError(
+				"Required arguments was not found. It should be one of: %s" % (', '.join(arguments))
 			)
 
 	@verify_type(command_tokens=str)
@@ -341,6 +379,8 @@ class WCommandArgumentParser:
 					self.__check_conflict_relation(relation, result)
 				elif relation_type == WCommandArgumentRelationship.Relationship.requirement:
 					self.__check_requirements_relation(relation, result)
+				elif relation_type == WCommandArgumentRelationship.Relationship.one_of:
+					self.__check_one_of_relation(relation, result)
 				else:
 					raise RuntimeError('Unknown relationship was specified')
 
