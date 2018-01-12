@@ -36,6 +36,7 @@ from wasp_general.network.clients.base import WBasicNetworkClientChangeDirCapabi
 from wasp_general.network.clients.base import WBasicNetworkClientMakeDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientCurrentDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientUploadFileCapability
+from wasp_general.network.clients.base import WBasicNetworkClientRemoveFileCapability
 
 
 class WFTPClient(WBasicNetworkClientProto):
@@ -134,6 +135,16 @@ class WFTPClientUploadFileCapability(WBasicNetworkClientUploadFileCapability):
 	def request(self, file_name, file_obj, *args, **kwargs):
 		try:
 			self.network_agent().ftp_client().storbinary('STOR ' + file_name, file_obj)
+			return True
+		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
+			return False
+
+
+class WFTPClientRemoveFileCapability(WBasicNetworkClientRemoveFileCapability):
+
+	def request(self, file_name, *args, **kwargs):
+		try:
+			self.network_agent().ftp_client().delete(file_name)
 			return True
 		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
 			return False

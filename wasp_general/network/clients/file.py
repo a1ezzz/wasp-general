@@ -36,6 +36,7 @@ from wasp_general.network.clients.base import WBasicNetworkClientChangeDirCapabi
 from wasp_general.network.clients.base import WBasicNetworkClientMakeDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientCurrentDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientUploadFileCapability
+from wasp_general.network.clients.base import WBasicNetworkClientRemoveFileCapability
 
 
 class WLocalFile(WBasicNetworkClientProto):
@@ -61,7 +62,8 @@ class WLocalFile(WBasicNetworkClientProto):
 		return WLocalFileListDirCapability, \
 			WLocalFileMakeDirCapability, \
 			WLocalFileChangeDirCapability, \
-			WLocalFileUploadFileCapability
+			WLocalFileUploadFileCapability, \
+			WLocalFileRemoveFileCapability
 
 
 class WLocalFileChangeDirCapability(WBasicNetworkClientChangeDirCapability):
@@ -101,4 +103,11 @@ class WLocalFileUploadFileCapability(WBasicNetworkClientUploadFileCapability):
 				f.write(chunk)
 				chunk = file_obj.read(io.DEFAULT_BUFFER_SIZE)
 
+		return True
+
+
+class WLocalFileRemoveFileCapability(WBasicNetworkClientRemoveFileCapability):
+
+	def request(self, file_name, *args, **kwargs):
+		os.unlink(os.path.join(self.network_agent().session_path(), file_name))
 		return True

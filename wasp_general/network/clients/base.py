@@ -41,6 +41,7 @@ class WCommonNetworkClientCapability(Enum):
 	list_dir = 'list_dir'
 	make_dir = 'make_dir'
 	upload_file = 'upload_file'
+	remove_file = 'remove_file'
 
 
 # noinspection PyAbstractClass
@@ -162,3 +163,11 @@ class WBasicNetworkClientUploadFileCapability(WBasicNetworkClientCapability):
 	@classmethod
 	def common_capability(cls):
 		return WCommonNetworkClientCapability.upload_file
+
+
+# noinspection PyAbstractClass
+class WBasicNetworkClientRemoveFileCapability(WBasicNetworkClientCapability):
+
+	@classmethod
+	def common_capability(cls):
+		return WCommonNetworkClientCapability.remove_file
