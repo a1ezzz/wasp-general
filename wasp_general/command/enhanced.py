@@ -33,7 +33,6 @@ from enum import Enum
 
 from wasp_general.verify import verify_type, verify_value, verify_subclass
 from wasp_general.command.command import WCommandProto
-from wasp_general.command.proto import WCommandResultProto
 
 
 class WCommandArgumentParsingError(Exception):
