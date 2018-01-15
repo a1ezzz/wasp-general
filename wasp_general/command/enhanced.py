@@ -521,3 +521,13 @@ class WEnhancedCommand(WCommandProto):
 
 	def arguments_help(self):
 		return self.parser().arguments_help()
+
+	def command_help(self):
+		arguments_help = self.arguments_help()
+		if len(arguments_help) == 0:
+			return 'Command does not have arguments\n'
+
+		info = 'Command arguments:\n'
+		for argument_name, argument_description in arguments_help:
+			info += '\t%s - %s\n' % (argument_name, argument_description)
+		return info
