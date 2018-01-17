@@ -1,8 +1,0 @@
-
-Collection of unrelated functions and classes widely used in different wasp-projects
-
-
-===========================================
-
-Documentation build tools:
-1. sphinx with graphviz, autodoc, and viewcode extensions
