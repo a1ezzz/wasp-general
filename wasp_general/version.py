@@ -33,12 +33,22 @@ def package_version():
 	result = __package_data__['numeric_version']
 	if __package_data__['dev_suffix'] is True:
 		try:
-			# check_output is function that defined in python3 and python2
-			output = subprocess.check_output(["git", "rev-parse", "HEAD"])
-			if isinstance(output, bytes) is True:  # check_output in python3 returns bytes, python2 - str
-				output = output.decode()
-			result += '.dev%s' % output[:7]
-		except subprocess.CalledProcessError:
+
+			cwd = os.getcwd()
+			try:
+				os.chdir(os.path.dirname(__file__))
+				# check_output is function that defined in python3 and python2
+				with open(os.devnull, 'w') as f:  # python2 does not have subprocess.DEVNULL
+					output = subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=f)
+
+				# check_output in python3 returns bytes, python2 - str
+				if isinstance(output, bytes) is True:
+					output = output.decode()
+				result += '.dev%s' % output[:7]
+			finally:
+				os.chdir(cwd)
+
+		except (subprocess.CalledProcessError, OSError):
 			result += '--'
 	return result
 
