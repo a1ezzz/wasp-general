@@ -2,64 +2,32 @@
 import os
 from setuptools import setup, find_packages
 
-from wasp_general.version import __numeric_version__, __author__, __email__, __license__
+from wasp_general.version import __package_data__, __license__
 
 
-class SetupPySpec:
-
-	name = "wasp-general"
-	version = __numeric_version__
-	description = "Collection of unrelated functions and classes widely used in different wasp-projects"
-	keywords = ["wasp", "cli", "network", "lvm", "threads", "validation"]
-	url = "https://github.com/a1ezzz/wasp-general"
-	classifiers = [
-		"Development Status :: 2 - Pre-Alpha",
-		"Intended Audience :: Developers",
-		"License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-		"Operating System :: OS Independent",
-		"Programming Language :: Python",
-		"Programming Language :: Python :: 3.4",
-		"Programming Language :: Python :: 3.5",
-		"Programming Language :: Python :: 3.6",
-		"Programming Language :: Python :: 3.7",
-		"Programming Language :: Python :: 3 :: Only",
-		"Topic :: Software Development :: Libraries",
-		"Topic :: Software Development :: Libraries :: Python Modules",
-	]
-	# source - http://pypi.python.org/pypi?%3Aaction=list_classifiers
-	zip_safe = False
-	scripts = []
-	extra_require = {
-		'templates': ['mako']
-	}
-
-	@staticmethod
-	def require(fname):
-		return open(fname).read().splitlines()
-
-	@staticmethod
-	def read(fname):
-		return open(os.path.join(os.path.dirname(__file__), fname)).read()
+def read(fname):
+	return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 
 if __name__ == "__main__":
 	setup(
-		name=SetupPySpec.name,
-		version=SetupPySpec.version,
-		author=__author__,
-		author_email=__email__,
-		maintainer=__author__,
-		maintainer_email=__email__,
-		description=SetupPySpec.description,
+		name=__package_data__['package'],
+		version=__package_data__['numeric_version'],
+		author=__package_data__['author'],
+		author_email=__package_data__['author_email'],
+		maintainer=__package_data__['maintainer'],
+		maintainer_email=__package_data__['maintainer_email'],
+		description=__package_data__['brief_description'],
 		license=__license__,
-		keywords=SetupPySpec.keywords,
-		url=SetupPySpec.url,
+		keywords=__package_data__['pypi']['keywords'],
+		url=__package_data__['homepage'],
 		packages=find_packages(),
 		include_package_data=True,
-		long_description=SetupPySpec.read('README'),
-		classifiers=SetupPySpec.classifiers,
-		install_requires=SetupPySpec.require('requirements.txt'),
-		zip_safe=SetupPySpec.zip_safe,
-		scripts=SetupPySpec.scripts,
-		extras_require=SetupPySpec.extra_require
+		long_description=read(__package_data__['readme_file']),
+		classifiers=__package_data__['pypi']['classifiers'],
+		install_requires=read(__package_data__['requirements.txt']).splitlines(),
+		zip_safe=__package_data__['pypi']['zip_safe'] if 'zip_safe' in __package_data__['pypi'] else False,
+		scripts=__package_data__['scripts'] if 'scripts' in __package_data__ else [],
+		extras_require= \
+			__package_data__['pypi']['extra_require'] if 'extra_require' in __package_data__['pypi'] else {}
 	)

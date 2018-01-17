@@ -19,23 +19,34 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-
+import os
+import json
 import subprocess
 
 
-def revision():
-	#return subprocess.getoutput("svnversion")
-	status, output = subprocess.getstatusoutput("git rev-parse HEAD")
-	if status == 0:
-		return output[:7]
-	return "--"
+with open(os.path.join(os.path.dirname(__file__), 'package.json'), 'r') as f:
+	__package_data__ = json.load(f)
 
 
-__author__ = "Ildar Gafurov"
-__numeric_version__ = '0.0.2'
-__version__ = ("%s.dev%s" % (__numeric_version__, revision()))
-__credits__ = ["Ildar Gafurov"]
-__license__ = "GNU Lesser General Public License v3"
-__copyright__ = "Copyright 2016-2017, The Wasp-general"
-__email__ = "dev@binblob.com"
-__status__ = "Development"
+def package_version():
+
+	result = __package_data__['numeric_version']
+	if __package_data__['dev_suffix'] is True:
+		try:
+			# check_output is function that defined in python3 and python2
+			output = subprocess.check_output(["git", "rev-parse", "HEAD"])
+			if isinstance(output, bytes) is True:  # check_output in python3 returns bytes, python2 - str
+				output = output.decode()
+			result += '.dev%s' % output[:7]
+		except subprocess.CalledProcessError:
+			result += '--'
+	return result
+
+
+__author__ = __package_data__['author']
+__email__ = __package_data__['author_email']
+__credits__ = __package_data__['credits']
+__license__ = __package_data__['license']
+__copyright__ = __package_data__['copyright']
+__status__ = __package_data__['status']
+__version__ = package_version()
