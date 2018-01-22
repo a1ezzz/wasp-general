@@ -89,7 +89,8 @@ class WFTPClient(WBasicNetworkClientProto):
 		return WFTPClientListDirCapability, \
 			WFTPClientMakeDirCapability, \
 			WFTPClientChangeDirCapability, \
-			WFTPClientUploadFileCapability
+			WFTPClientUploadFileCapability, \
+			WFTPClientRemoveFileCapability
 
 
 class WFTPClientChangeDirCapability(WBasicNetworkClientChangeDirCapability):
