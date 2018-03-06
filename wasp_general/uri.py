@@ -30,7 +30,7 @@ from enum import Enum
 from urllib.parse import urlsplit, urlunsplit
 from abc import ABCMeta, abstractclassmethod
 
-from wasp_general.verify import verify_type
+from wasp_general.verify import verify_type, verify_subclass
 
 
 class WURI:
@@ -307,6 +307,7 @@ class WSchemeCollection:
 		for handler_cls in scheme_handlers_cls:
 			self.add(handler_cls)
 
+	@verify_subclass(scheme_handler_cls=WSchemeHandler)
 	def add(self, scheme_handler_cls):
 		""" Append the specified handler to this collection
 
