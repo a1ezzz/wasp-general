@@ -83,12 +83,13 @@ class WFTPClient(WBasicNetworkClientProto):
 
 	@classmethod
 	def scheme_specification(cls):
+		# TODO: FTP class in python3.6 has port argument. But 3.4 doesn't
+		# port = WSchemeSpecification.ComponentDescriptor.optional
 		return WSchemeSpecification(
 			'ftp',
 			username=WSchemeSpecification.ComponentDescriptor.optional,
 			password=WSchemeSpecification.ComponentDescriptor.optional,
 			hostname=WSchemeSpecification.ComponentDescriptor.required,
-			port=WSchemeSpecification.ComponentDescriptor.optional,
 			path=WSchemeSpecification.ComponentDescriptor.required,
 		)
 
