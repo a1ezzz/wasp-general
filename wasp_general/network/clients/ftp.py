@@ -29,6 +29,7 @@ from wasp_general.version import __status__
 
 import ftplib
 
+from wasp_general.uri import WSchemeSpecification
 from wasp_general.network.clients.proto import WNetworkClientProto
 from wasp_general.network.clients.base import WBasicNetworkClientProto
 from wasp_general.network.clients.base import WBasicNetworkClientListDirCapability
@@ -81,8 +82,15 @@ class WFTPClient(WBasicNetworkClientProto):
 		self.__ftp_client.close()
 
 	@classmethod
-	def scheme(cls):
-		return 'ftp'
+	def scheme_specification(cls):
+		return WSchemeSpecification(
+			'ftp',
+			username=WSchemeSpecification.ComponentDescriptor.optional,
+			password=WSchemeSpecification.ComponentDescriptor.optional,
+			hostname=WSchemeSpecification.ComponentDescriptor.required,
+			port=WSchemeSpecification.ComponentDescriptor.optional,
+			path=WSchemeSpecification.ComponentDescriptor.required,
+		)
 
 	@classmethod
 	def agent_capabilities(cls):

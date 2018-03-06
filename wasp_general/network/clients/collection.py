@@ -27,39 +27,23 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
+from wasp_general.verify import verify_subclass
+
+from wasp_general.network.clients.proto import WNetworkClientProto
 from wasp_general.network.clients.ftp import WFTPClient
 from wasp_general.network.clients.file import WLocalFile
-from wasp_general.uri import WURI
+from wasp_general.uri import WSchemeCollection
 
 
-class WNetworkClientCollectionProto:
+class WNetworkClientCollectionProto(WSchemeCollection):
 
-	def __init__(self, *network_client_cls, default_scheme=None):
-		self.__client_cls = []
-		self.__default_scheme = default_scheme
-		for client_cls in network_client_cls:
-			self.add(client_cls)
-
-	def default_scheme(self):
-		return self.__default_scheme
-
-	def add(self, network_client_cls):
-		self.__client_cls.append(network_client_cls)
-
-	def client_cls(self):
-		return tuple(self.__client_cls)
-
-	def open(self, uri):
-		if uri.scheme() is None:
-			uri.component(WURI.Component.scheme, self.default_scheme())
-
-		for client_cls in self.client_cls():
-			if client_cls.scheme() == uri.scheme():
-				return client_cls.open(uri)
+	@verify_subclass(scheme_handler_cls=WNetworkClientProto)
+	def add(self, scheme_handler_cls):
+		return WSchemeCollection.add(self, scheme_handler_cls)
 
 
 __default_client_collection__ = WNetworkClientCollectionProto(
 	WLocalFile,
 	WFTPClient,
-	default_scheme=WLocalFile.scheme()
+	default_handler_cls=WLocalFile
 )

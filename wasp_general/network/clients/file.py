@@ -30,6 +30,7 @@ from wasp_general.version import __status__
 import io
 import os
 
+from wasp_general.uri import WSchemeSpecification
 from wasp_general.network.clients.base import WBasicNetworkClientProto
 from wasp_general.network.clients.base import WBasicNetworkClientListDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientChangeDirCapability
@@ -54,8 +55,8 @@ class WLocalFile(WBasicNetworkClientProto):
 		self.__session_path = None
 
 	@classmethod
-	def scheme(cls):
-		return 'file'
+	def scheme_specification(cls):
+		return WSchemeSpecification('file', path=WSchemeSpecification.ComponentDescriptor.required)
 
 	@classmethod
 	def agent_capabilities(cls):

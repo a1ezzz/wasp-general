@@ -29,8 +29,7 @@ from wasp_general.version import __status__
 
 from abc import ABCMeta, abstractmethod, abstractclassmethod
 
-from wasp_general.verify import verify_type
-from wasp_general.uri import WURI
+from wasp_general.uri import WSchemeHandler
 
 
 class WNetworkClientCapabilityProto(metaclass=ABCMeta):
@@ -50,7 +49,7 @@ class WNetworkClientCapabilityProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 
-class WNetworkClientProto(metaclass=ABCMeta):
+class WNetworkClientProto(WSchemeHandler):
 
 	class ConnectionError(Exception):
 		pass
@@ -67,21 +66,6 @@ class WNetworkClientProto(metaclass=ABCMeta):
 		:param args:
 		:param kwargs:
 		:return: anything
-		"""
-		raise NotImplementedError('This method is abstract')
-
-	@abstractclassmethod
-	def scheme(cls):
-		raise NotImplementedError('This method is abstract')
-
-	@abstractclassmethod
-	@verify_type(uri=WURI)
-	def open(cls, uri):
-		"""
-
-		:param uri:
-
-		:return: WNetworkClientProto
 		"""
 		raise NotImplementedError('This method is abstract')
 

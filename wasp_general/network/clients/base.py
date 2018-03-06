@@ -110,10 +110,7 @@ class WBasicNetworkClientProto(WNetworkClientProto):
 
 	@classmethod
 	@verify_type(uri=WURI)
-	def open(cls, uri):
-		if uri.scheme() != cls.scheme():
-			raise RuntimeError('Unsupported scheme spotted!')
-
+	def create_handler(cls, uri):
 		return cls(uri)
 
 	@abstractmethod
