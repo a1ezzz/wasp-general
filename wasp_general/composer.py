@@ -194,7 +194,6 @@ class WCompositeComposer(WComposerProto):
 		def create_obj(self, construction_keys):
 			raise NotImplementedError('This method is abstract')
 
-
 	@verify_type('paranoid', composite_keys=CompositeKey)
 	@verify_type(constructor=(InstanceConstructor, None))
 	def __init__(self, *composite_keys, constructor=None):
