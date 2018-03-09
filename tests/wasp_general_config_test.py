@@ -4,9 +4,9 @@ import pytest
 import os
 from tempfile import mktemp
 
-from configparser import ConfigParser
+from configparser import ConfigParser, NoOptionError, NoSectionError
 
-from wasp_general.config import WConfig
+from wasp_general.config import WConfig, WConfigSelection
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ class TestWConfig:
 		conf_parser = ConfigParser()
 		conf_parser.add_section('section1')
 		conf_parser.set('section1', 'option1', '1')
-		# noinspection PyUnresolvedReferences
+
 		conf.merge(conf_parser)
 		assert(conf['section1']['option1'] == '1')
 		with pytest.raises(KeyError):
@@ -52,15 +52,12 @@ class TestWConfig:
 			option3 =
 			''')
 
-		# noinspection PyUnresolvedReferences
 		conf.merge(tempfile)
 		assert (conf['section1']['option1'] == '2')
 		assert (conf['section1']['option2'] == 'foo, bar')
 		assert (conf['section1']['option3'] == '')
 
-		# noinspection PyUnresolvedReferences
 		assert(conf.split_option('section1', 'option2') == ['foo', 'bar'])
-		# noinspection PyUnresolvedReferences
 		assert(conf.split_option('section1', 'option3') == [])
 
 	def test_merge(self):
@@ -105,3 +102,38 @@ class TestWConfig:
 		assert(config1.has_section('section1.4') is True)
 
 		pytest.raises(ValueError, config1.merge_section, config2, 'section1.2')
+
+
+class TestWConfigSelection:
+
+	def test(self):
+		conf = WConfig()
+		conf.add_section('section1')
+		conf.add_section('section2')
+		conf['section1']['option1'] = 'value1'
+		conf['section1']['option1.sub-option1'] = '10'
+		conf['section1']['option2'] = 'value2'
+		conf['section2']['option2'] = 'true'
+
+		pytest.raises(NoSectionError, conf.select_options, 'section0')
+
+		conf_selection = conf.select_options('section1')
+		assert(isinstance(conf_selection, WConfigSelection) is True)
+		assert(conf_selection.config() == conf)
+		assert(conf_selection.section() == 'section1')
+		assert(conf_selection.option_prefix() == '')
+
+		pytest.raises(NoOptionError, str, conf_selection)
+		pytest.raises(NoOptionError, int, conf_selection)
+		pytest.raises(NoOptionError, float, conf_selection)
+		pytest.raises(NoOptionError, bool, conf_selection)
+
+		conf_selection = conf_selection.select_options('option1')
+		assert(isinstance(conf_selection, WConfigSelection) is True)
+		assert(str(conf_selection) == 'value1')
+		pytest.raises(ValueError, int, conf_selection)
+		pytest.raises(ValueError, float, conf_selection)
+		pytest.raises(ValueError, bool, conf_selection)
+
+		assert(int(conf_selection['.sub-option1']) == 10)
+		assert(bool(conf.select_options('section2', 'option2')) is True)
