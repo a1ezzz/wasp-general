@@ -1,9 +1,4 @@
 language: python
-python:
-# - "3.3" # ignored due to tornado requirement of python >= 3.4
-  - "3.4"
-  - "3.5"
-  - "3.6"
 
 install:
   - pip install -r dev-requirements.txt
@@ -14,11 +9,21 @@ install:
 jobs:
   include:
     - stage: PEP8 tests
+      python:
+        - "3.6"
+
       script:
         - cd tests; py.test -c pytest-pep8.ini; cd ..
 
-script:
-  - coverage run --source wasp_general -m py.test tests/
+    - stage: Unit tests and coverage test
+      python:
+      # - "3.3" # ignored due to tornado requirement of python >= 3.4
+        - "3.4"
+        - "3.5"
+        - "3.6"
 
-after_script:
-  - coveralls
+      script:
+        - coverage run --source wasp_general -m py.test tests/
+
+      after_script:
+        - coveralls
