@@ -17,12 +17,8 @@ jobs:
       script:
         - cd tests; py.test -c pytest-pep8.ini; cd ..
 
-    - stage: Unit tests (including coverage test)
-      script:
-        - coverage run --source wasp_general -m py.test tests/
-      after_script:
-        - coveralls
+script:
+  - coverage run --source wasp_general -m py.test tests/
 
-#script:
- #- coverage run --source wasp_general -m py.test tests/
-
+after_script:
+  - coveralls
