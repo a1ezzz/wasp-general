@@ -12,6 +12,7 @@ install:
 
 script:
  - cd tests && py.test -c pytest-cov.ini  -v
+ - coverage report -m
 
 after_success:
   - coveralls
