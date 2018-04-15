@@ -200,3 +200,15 @@ class WConfigSelection:
 		:return:
 		"""
 		return self.select_options(item)
+
+	@verify_type(option_name=(str, None))
+	def has_option(self, option_name=None):
+		""" Check whether configuration selection has the specified option.
+
+		:param option_name: option name to check. If no option is specified, then check is made for this option
+
+		:return: bool
+		"""
+		if option_name is None:
+			option_name = ''
+		return self.config().has_option(self.section(), self.option_prefix() + option_name)

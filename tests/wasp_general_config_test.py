@@ -130,10 +130,14 @@ class TestWConfigSelection:
 
 		conf_selection = conf_selection.select_options('option1')
 		assert(isinstance(conf_selection, WConfigSelection) is True)
+		assert(conf_selection.has_option() is True)
+		assert(conf_selection['test_option'].has_option() is False)
 		assert(str(conf_selection) == 'value1')
 		pytest.raises(ValueError, int, conf_selection)
 		pytest.raises(ValueError, float, conf_selection)
 		pytest.raises(ValueError, bool, conf_selection)
 
 		assert(int(conf_selection['.sub-option1']) == 10)
+		assert(conf_selection.has_option('.sub-option1') is True)
+		assert(conf_selection.has_option('.sub-option2') is False)
 		assert(bool(conf.select_options('section2', 'option2')) is True)
