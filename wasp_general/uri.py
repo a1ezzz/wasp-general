@@ -28,7 +28,7 @@ from wasp_general.version import __status__
 
 from enum import Enum
 from urllib.parse import urlsplit, urlunsplit
-from abc import ABCMeta, abstractclassmethod
+from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_subclass
 
@@ -246,7 +246,8 @@ class WSchemeHandler(metaclass=ABCMeta):
 	""" Handler that do some work for compatible URI
 	"""
 
-	@abstractclassmethod
+	@classmethod
+	@abstractmethod
 	def scheme_specification(cls):
 		""" Return scheme specification
 
@@ -254,10 +255,14 @@ class WSchemeHandler(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
-	@abstractclassmethod
+	@classmethod
+	@abstractmethod
 	@verify_type(uri=WURI)
-	def create_handler(cls, uri):
+	def create_handler(cls, uri, **kwargs):
 		""" Return handler instance
+
+		:param uri: original URI, that a handler is created for
+		:param kwargs: additional arguments that may be used by a handler specialization
 
 		:return: WSchemeHandler
 		"""
@@ -328,11 +333,13 @@ class WSchemeCollection:
 			if handler.scheme_specification().scheme_name() == scheme_name:
 				return handler
 
-	def open(self, uri):
+	@verify_type(uri=WURI)
+	def open(self, uri, **kwargs):
 		""" Return handler instance that matches the specified URI. WSchemeCollection.NoHandlerFound and
 		WSchemeCollection.SchemeIncompatible may be raised.
 
 		:param uri: URI to search handler for
+		:param kwargs: additional arguments that may be used by a handler specialization
 		:return: WSchemeHandler
 		"""
 		handler = self.handler(uri.scheme())
@@ -345,4 +352,4 @@ class WSchemeCollection:
 		if handler.scheme_specification().is_compatible(uri) is False:
 			raise WSchemeCollection.SchemeIncompatible(uri)
 
-		return handler.create_handler(uri)
+		return handler.create_handler(uri, **kwargs)
