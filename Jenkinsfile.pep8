@@ -1,0 +1,8 @@
+node {
+   ansiColor('xterm') {
+       stage('installing package and requirements'){
+           checkout scm
+           sh 'echo $pwd'
+       }
+   }
+}
