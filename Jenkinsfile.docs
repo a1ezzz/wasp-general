@@ -13,7 +13,7 @@ node {
 		}
 
 		stage('Building documentation'){
-			sh 'extra/sphinx.sh'
+			sh 'PATH=~/virtualenv-wasp-general-docs/bin/:$PATH extra/sphinx.sh'
 		}
 	}
 }
