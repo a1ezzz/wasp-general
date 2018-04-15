@@ -1,16 +1,28 @@
 language: python
 python:
 # - "3.3" # ignored due to tornado requirement of python >= 3.4
- - "3.4"
- - "3.5"
- - "3.6"
+  - "3.4"
+  - "3.5"
+  - "3.6"
 
 install:
- - pip install -r dev-requirements.txt
- - pip install -r requirements.txt
- - pip install coveralls
- - pip install .
+  - pip install -r dev-requirements.txt
+  - pip install -r requirements.txt
+  - pip install coveralls
+  - pip install .
 
-script:
- - coverage run --source wasp_general -m py.test tests/
- - coveralls
+jobs:
+  include:
+    - stage: PEP8 tests
+      script:
+        - cd tests; py.test -c pytest-pep8.ini; cd ..
+
+    - stage: Unit tests (including coverage test)
+      script:
+        - coverage run --source wasp_general -m py.test tests/
+      after_script:
+        - coveralls
+
+#script:
+ #- coverage run --source wasp_general -m py.test tests/
+
