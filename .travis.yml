@@ -2,9 +2,9 @@ language: python
 virtualenv:
   system_site_packages: true
 python:
- - "3.4"
+# - "3.4"
  - "3.5"
- - "3.6"
+# - "3.6"
 
 install:
  - pip install -r dev-requirements.txt
@@ -12,4 +12,4 @@ install:
  - pip install .
 
 scripts:
- - pytest -v
+ - cd tests && py.test -v
