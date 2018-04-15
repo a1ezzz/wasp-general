@@ -12,3 +12,6 @@ install:
 
 script:
  - cd tests && py.test -c pytest-cov.ini  -v
+
+after_success:
+  - coveralls
