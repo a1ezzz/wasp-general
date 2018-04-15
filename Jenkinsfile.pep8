@@ -11,5 +11,9 @@ node {
 			sh '~/virtualenv-wasp-general-pep8/bin/pip install -r dev-requirements.txt'
 			sh '~/virtualenv-wasp-general-pep8/bin/pip install .'
 		}
+
+		stage('Running py.test'){
+			sh 'cd tests; ~/virtualenv-wasp-general-pep8/bin/py.test -c pytest-pep8.ini'
+		}
 	}
 }
