@@ -248,13 +248,13 @@ class WCompositeComposer(WComposerProto):
 		result = {}
 
 		for composite_key in self.required_keys():
-			if composite_key.has_key(obj) is False:
+			if (obj in composite_key) is False:
 				raise TypeError('Required key not found')
 			value = composite_key.decompose(composite_key.get_key(obj))
 			result[composite_key.key()] = value
 
 		for composite_key in self.optional_keys():
-			if composite_key.has_key(obj) is True:
+			if (obj in composite_key) is True:
 				value = composite_key.decompose(composite_key.get_key(obj))
 				result[composite_key.key()] = value
 
