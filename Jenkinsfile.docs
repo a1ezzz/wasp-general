@@ -1,0 +1,19 @@
+node {
+	ansiColor('xterm') {
+		stage('Preparing environment'){
+			sh 'rm -rf ~/virtualenv-wasp-general-docs/'
+			sh 'virtualenv -p /usr/bin/python3 ~/virtualenv-wasp-general-docs/'
+		}
+
+		stage('Installing package and requirements'){
+			checkout scm
+			sh '~/virtualenv-wasp-general-docs/bin/pip install -r requirements.txt'
+			sh '~/virtualenv-wasp-general-docs/bin/pip install -r dev-requirements.txt'
+			sh '~/virtualenv-wasp-general-docs/bin/pip install .'
+		}
+
+		stage('Building documentation'){
+			sh 'PATH=~/virtualenv-wasp-general-docs/bin/:$PATH extra/sphinx.sh'
+		}
+	}
+}

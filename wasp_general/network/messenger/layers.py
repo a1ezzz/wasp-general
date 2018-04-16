@@ -207,5 +207,3 @@ class WMessengerOnionPackerLayerProto(WMessengerOnionModeLayerProto):
 		:return: WMessengerEnvelopeProto
 		"""
 		raise NotImplementedError('This method is abstract')
-
-

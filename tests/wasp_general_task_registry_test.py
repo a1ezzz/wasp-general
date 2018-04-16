@@ -118,7 +118,8 @@ class TestWTaskRegistryStorage:
 		registry_storage.add(T3)
 		assert(registry_storage.count() == 2)
 
-		assert(registry_storage.tags() == (1, None))
+		tags = registry_storage.tags()
+		assert(tags == (1, None) or tags == (None, 1))
 
 		assert(registry_storage.count() == 2)
 		assert(registry_storage.tasks_by_tag(1) == T3)

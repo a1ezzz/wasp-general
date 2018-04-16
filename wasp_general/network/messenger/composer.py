@@ -53,7 +53,7 @@ class WMessengerComposerLayer(WMessengerOnionLayerProto):
 
 	@verify_type('paranoid', envelope=WMessengerEnvelopeProto, session=WMessengerOnionSessionProto, mode=Mode)
 	@verify_type('paranoid', composer_factory=WComposerFactory)
-	def process(self, envelope, session, mode=None, composer_factory=None,**kwargs):
+	def process(self, envelope, session, mode=None, composer_factory=None, **kwargs):
 		""" :meth:`.WMessengerOnionLayerProto.process` implementation
 		"""
 		if mode == WMessengerComposerLayer.Mode.compose:
