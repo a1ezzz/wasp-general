@@ -81,7 +81,7 @@ class TestWHTTPCookieJar:
 		assert(str(cookie_jar['cookie2']) == 'Set-Cookie: cookie2=value2; Domain=foo.bar')
 
 	def test_import_header_text(self):
-		http_code = 'Set-Cookie: cookie1=value1; Path=/;, cookie2=value2; Domain=foo.bar\r\n'
+		http_code = 'cookie1=value1; Path=/;\r\ncookie2=value2; Domain=foo.bar\r\n'
 
 		cookie_jar = WHTTPCookieJar.import_header_text(http_code)
 		cookies = list(cookie_jar.cookies())
