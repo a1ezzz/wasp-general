@@ -132,8 +132,6 @@ class TestWUDPSocketFactoryItem:
 class TestWSocketFactory:
 
 	def test(self):
-		pytest.raises(NotImplementedError, WSocketFactory.open, None, WURI())
-
 		socket_factory = WSocketFactory()
 		assert(isinstance(socket_factory, WSocketFactory) is True)
 		assert(isinstance(socket_factory, WSchemeCollection) is True)
