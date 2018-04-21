@@ -1,6 +1,6 @@
 
 [![PyTest Status](https://travis-ci.org/a1ezzz/wasp-general.svg?branch=master)](https://travis-ci.org/a1ezzz/wasp-general)
-[![Coverage Status](https://coveralls.io/repos/github/a1ezzz/wasp-general/badge.svg?branch=travis-ci)](https://coveralls.io/github/a1ezzz/wasp-general?branch=travis-ci)
+[![Coverage Status](https://coveralls.io/repos/github/a1ezzz/wasp-general/badge.svg?branch=master)](https://coveralls.io/github/a1ezzz/wasp-general?branch=master)
 [![Python Version](https://img.shields.io/pypi/pyversions/wasp-general.svg)](https://pypi.python.org/pypi/wasp-general)
 [![Documentation Status](https://readthedocs.org/projects/wasp-general/badge/?version=latest)](http://wasp-general.readthedocs.io/en/latest/?badge=latest)
 
