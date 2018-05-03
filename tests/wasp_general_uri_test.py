@@ -2,7 +2,8 @@
 
 import pytest
 
-from wasp_general.uri import WURI, WSchemeSpecification, WSchemeHandler, WSchemeCollection
+from wasp_general.uri import WURI, WURIQuery, WStrictURIQuery, WURIComponentVerifier, WURIQueryVerifier
+from wasp_general.uri import WSchemeSpecification, WSchemeHandler, WSchemeCollection
 
 
 def test_abstract():
@@ -135,6 +136,169 @@ class TestWURI:
 
 		pytest.raises(AttributeError, "uri.zzz")
 
+		uri.reset_component('path')
+		uri.reset_component(WURI.Component.scheme)
+		assert(uri.scheme() is None)
+		assert(uri.username() is None)
+		assert(uri.password() is None)
+		assert(uri.hostname() is None)
+		assert(uri.port() is None)
+		assert(uri.path() is None)
+		assert(uri.query() is None)
+		assert(uri.fragment() is None)
+
+
+class TestWURIQuery:
+
+	def test(self):
+		query = WURIQuery()
+		assert(str(query) == '')
+		assert(list(query) == [])
+		assert(('foo' in query) is False)
+		assert(('aaa' in query) is False)
+
+		query = WURIQuery.parse('foo=bar&zzz=bar')
+		assert(str(query) in ('foo=bar&zzz=bar', 'zzz=bar&foo=bar'))
+		assert(list(query) in (['foo', 'zzz'], ['zzz', 'foo']))
+		assert(('foo' in query) is True)
+		assert(('aaa' in query) is False)
+
+		query.add_parameter('aaa')
+		assert(('aaa' in query) is True)
+		query.remove_parameter('foo')
+		assert(('foo' in query) is False)
+		assert(str(query) in ('aaa=&zzz=bar', 'zzz=bar&aaa='))
+
+		query.replace_parameter('zzz')
+		query.replace_parameter('aaa', '123')
+		assert(str(query) in ('aaa=123&zzz=', 'zzz=&aaa=123'))
+
+		query = WURIQuery.parse('foo=bar&foo=&zzz=123')
+		assert(query['foo'] in (('bar', None), (None, 'bar')))
+		assert(query['zzz'] == ('123', ))
+
+		query.add_parameter('foo', 'nnn')
+		r = query['foo']
+		assert(len(r) == 3)
+		assert('bar' in r)
+		assert('nnn' in r)
+		assert(None in r)
+
+
+class TestWStrictURIQuery:
+
+	def test_parameter_specification(self):
+		spec = WStrictURIQuery.ParameterSpecification('foo')
+		assert(spec.name() == 'foo')
+		assert(spec.nullable() is True)
+		assert(spec.multiple() is True)
+		assert(spec.optional() is False)
+		assert(spec.re_obj() is None)
+
+		spec = WStrictURIQuery.ParameterSpecification(
+			'foo', nullable=False, multiple=False, optional=True, reg_exp='^\d+$'
+		)
+		assert(spec.nullable() is False)
+		assert(spec.multiple() is False)
+		assert(spec.optional() is True)
+		assert(spec.re_obj() is not None)
+
+	def test(self):
+		base_query = WURIQuery()
+		query = WStrictURIQuery(base_query)
+		assert(isinstance(query, WURIQuery) is True)
+		assert(query.extra_parameters() is True)
+		query.add_parameter('foo')
+
+		query = WStrictURIQuery.strict_parse('foo=zzz')
+		assert(isinstance(query, WStrictURIQuery) is True)
+
+		required_foo = WStrictURIQuery.ParameterSpecification('foo')
+		pytest.raises(ValueError, WStrictURIQuery, base_query, required_foo)
+
+		optional_foo = WStrictURIQuery.ParameterSpecification('foo', optional=True, nullable=False)
+		query = WStrictURIQuery(base_query, optional_foo, extra_parameters=False)
+		assert(query.extra_parameters() is False)
+		pytest.raises(ValueError, query.add_parameter, 'bar')
+		pytest.raises(ValueError, query.replace_parameter, 'bar')
+		pytest.raises(ValueError, query.add_parameter, 'foo')
+		query.add_parameter('foo', 'zzz')
+		pytest.raises(ValueError, query.replace_parameter, 'foo')
+		query.replace_parameter('foo', '123')
+		assert(str(query) == 'foo=123')
+
+		query = WStrictURIQuery.strict_parse('foo=zzz&bar=&bar=111', required_foo)
+		pytest.raises(ValueError, query.remove_parameter, 'foo')
+		query.remove_parameter('bar')
+		assert(str(query) == 'foo=zzz')
+		query.remove_specification('foo')
+		query.remove_parameter('foo')
+		assert (str(query) == '')
+
+		single_bar = WStrictURIQuery.ParameterSpecification('bar', multiple=False)
+		query = WStrictURIQuery.strict_parse('foo=zzz&bar=', required_foo, single_bar)
+		pytest.raises(ValueError, query.add_parameter, 'bar')
+		pytest.raises(ValueError, query.add_specification, WStrictURIQuery.ParameterSpecification('bar'))
+		query.replace_specification(WStrictURIQuery.ParameterSpecification('bar'))
+		query.add_parameter('bar')
+
+		optional_bar = WStrictURIQuery.ParameterSpecification('bar', optional=True, reg_exp='^zxc|123$')
+		query = WStrictURIQuery.strict_parse('bar=', optional_bar)
+		query.replace_parameter('bar', '123')
+		pytest.raises(ValueError, query.replace_parameter, 'bar', 'zzz')
+		pytest.raises(ValueError, query.add_parameter, 'bar', 'zzz')
+		query.add_parameter('bar')
+
+
+class TestWURIComponentVerifier:
+
+	def test(self):
+		component_verifier = WURIComponentVerifier(
+			WURI.Component.hostname, WURIComponentVerifier.Requirement.required
+		)
+		assert(component_verifier.requirement() == WURIComponentVerifier.Requirement.required)
+		assert(component_verifier.re_obj() is None)
+		assert(component_verifier.component() == WURI.Component.hostname)
+
+		assert(component_verifier.validate(WURI.parse('scheme://hostname')) is True)
+		assert(component_verifier.validate(WURI.parse('scheme:///path?query=')) is False)
+
+		component_verifier = WURIComponentVerifier(
+			WURI.Component.hostname, WURIComponentVerifier.Requirement.unsupported
+		)
+		assert(component_verifier.validate(WURI.parse('scheme://hostname')) is False)
+
+		component_verifier = WURIComponentVerifier(
+			WURI.Component.hostname, WURIComponentVerifier.Requirement.required, '^host-[0-9]+$'
+		)
+		assert(component_verifier.validate(WURI.parse('scheme://hostname')) is False)
+		assert(component_verifier.validate(WURI.parse('scheme://host-5')) is True)
+
+		component_verifier = WURIComponentVerifier(
+			WURI.Component.hostname, WURIComponentVerifier.Requirement.optional, '^host-[0-9]+$'
+		)
+		assert(component_verifier.validate(WURI.parse('scheme://hostname')) is False)
+		assert(component_verifier.validate(WURI.parse('scheme://host-5')) is True)
+		assert(component_verifier.validate(WURI.parse('scheme:///path?query=')) is True)
+
+
+class TestWURIQueryVerifier:
+
+	def test(self):
+		optional_foo = WStrictURIQuery.ParameterSpecification('foo', optional=True, reg_exp='zzz|123')
+		required_bar = WStrictURIQuery.ParameterSpecification('bar', nullable=False)
+
+		verifier = WURIQueryVerifier(
+			WURIComponentVerifier.Requirement.required, optional_foo, required_bar
+		)
+		assert(isinstance(verifier, WURIComponentVerifier) is True)
+		assert(verifier.validate(WURI.parse('scheme:///')) is False)
+		assert(verifier.validate(WURI.parse('scheme:///?bar=0')) is True)
+		assert(verifier.validate(WURI.parse('scheme:///?bar=')) is False)
+		assert(verifier.validate(WURI.parse('scheme:///?foo=&bar=1')) is True)
+		assert(verifier.validate(WURI.parse('scheme:///?foo=123&bar=1')) is True)
+		assert(verifier.validate(WURI.parse('scheme:///?foo=zxc&bar=1')) is False)
+
 
 class TestWSchemeSpecification:
 
@@ -227,7 +391,7 @@ class TestWSchemeCollection:
 			self.uri = uri
 
 		@classmethod
-		def create_handler(cls, uri):
+		def create_handler(cls, uri, **kwargs):
 			return cls(uri)
 
 	class HandlerFoo(Handler):
