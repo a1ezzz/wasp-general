@@ -29,7 +29,7 @@ from wasp_general.version import __status__
 
 import ftplib
 
-from wasp_general.uri import WSchemeSpecification
+from wasp_general.uri import WSchemeSpecification, WURI, WURIComponentVerifier
 from wasp_general.network.clients.proto import WNetworkClientProto
 from wasp_general.network.clients.base import WBasicNetworkClientProto
 from wasp_general.network.clients.base import WBasicNetworkClientListDirCapability
@@ -87,10 +87,10 @@ class WFTPClient(WBasicNetworkClientProto):
 		# port = WSchemeSpecification.ComponentDescriptor.optional
 		return WSchemeSpecification(
 			'ftp',
-			username=WSchemeSpecification.ComponentDescriptor.optional,
-			password=WSchemeSpecification.ComponentDescriptor.optional,
-			hostname=WSchemeSpecification.ComponentDescriptor.required,
-			path=WSchemeSpecification.ComponentDescriptor.required,
+			WURIComponentVerifier(WURI.Component.username, WURIComponentVerifier.Requirement.optional),
+			WURIComponentVerifier(WURI.Component.password, WURIComponentVerifier.Requirement.optional),
+			WURIComponentVerifier(WURI.Component.hostname, WURIComponentVerifier.Requirement.required),
+			WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.required)
 		)
 
 	@classmethod
