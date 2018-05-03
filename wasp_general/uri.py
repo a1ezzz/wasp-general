@@ -597,35 +597,36 @@ class WSchemeSpecification:
 	""" Specification for URI, that is described by scheme-component
 	"""
 
-	class ComponentDescriptor(Enum):
-		""" Value that describes component relation to a scheme specification
-		"""
-		required = 0
-		optional = 1
-		unsupported = None
-
-	@verify_type(scheme_name=str)
-	def __init__(self, scheme_name, **descriptors):
+	@verify_type(scheme_name=str, verifiers=WURIComponentVerifier)
+	def __init__(self, scheme_name, *verifiers):
 		""" Create new scheme specification. Every component that was not described by this method is treated
 		as unsupported
 
 		:param scheme_name: URI scheme value
-		:param descriptors: component names and its descriptors
-		(:class:`.WSchemeSpecification.ComponentDescriptor`)
+		:param verifiers: list of specifications for URI components
 		"""
 		self.__scheme_name = scheme_name
 
-		self.__descriptors = {x: WSchemeSpecification.ComponentDescriptor.unsupported for x in WURI.Component}
-		self.__descriptors[WURI.Component.scheme] = WSchemeSpecification.ComponentDescriptor.required
+		self.__verifiers = {
+			WURI.Component.scheme: WURIComponentVerifier(
+				WURI.Component.scheme, WURIComponentVerifier.Requirement.required
+			)
+		}
 
-		for descriptor_name in descriptors.keys():
-			component = WURI.Component(descriptor_name)
-			if component == WURI.Component.scheme:
-				raise TypeError('Scheme name can not be specified twice')
-			descriptor = descriptors[descriptor_name]
-			if isinstance(descriptor, WSchemeSpecification.ComponentDescriptor) is False:
-				raise TypeError('Invalid "%s" descriptor type' % descriptor_name)
-			self.__descriptors[component] = descriptor
+		for verifier in verifiers:
+			component = verifier.component()
+			if component in self.__verifiers:
+				raise ValueError(
+					'Multiple verifiers were spotted for the same component: %s' % component.value
+				)
+
+			self.__verifiers[component] = verifier
+
+		for component in WURI.Component:
+			if component not in self.__verifiers:
+				self.__verifiers[component] = WURIComponentVerifier(
+					component, WURIComponentVerifier.Requirement.unsupported
+				)
 
 	def scheme_name(self):
 		""" Return scheme name that this specification is describing
@@ -635,22 +636,22 @@ class WSchemeSpecification:
 		return self.__scheme_name
 
 	@verify_type(component=WURI.Component)
-	def descriptor(self, component):
+	def verifier(self, component):
 		""" Return descriptor for the specified component
 
 		:param component: component name which descriptor should be returned
 		:return: WSchemeSpecification.ComponentDescriptor
 		"""
-		return self.__descriptors[component]
+		return self.__verifiers[component]
 
 	def __iter__(self):
 		""" Iterate over URI components. This method yields tuple of component (:class:`.WURI.Component`) and
-		its descriptor
+		its descriptor (WURIComponentVerifier)
 
 		:return: generator
 		"""
 		for component in WURI.Component:
-			yield component, self.__descriptors[component]
+			yield component, self.__verifiers[component]
 
 	@verify_type(uri=WURI)
 	def is_compatible(self, uri):
@@ -662,12 +663,8 @@ class WSchemeSpecification:
 		:return: bool
 		"""
 		for component, component_value in uri:
-			descriptor = self.descriptor(component)
-			if component_value is None:
-				if descriptor == WSchemeSpecification.ComponentDescriptor.required:
-					return False
-			elif descriptor == WSchemeSpecification.ComponentDescriptor.unsupported:
-					return False
+			if self.verifier(component).validate(uri) is False:
+				return False
 
 		return True
 

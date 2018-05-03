@@ -308,28 +308,28 @@ class TestWSchemeSpecification:
 		assert(scheme_spec.scheme_name() == 'proto')
 
 		assert(
-			[scheme_spec.descriptor(x) for x in WURI.Component] == [
-				WSchemeSpecification.ComponentDescriptor.required,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported
+			[scheme_spec.verifier(x).requirement() for x in WURI.Component] == [
+				WURIComponentVerifier.Requirement.required,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported
 			]
 		)
 
 		assert(
-			[x for x in scheme_spec] == [
-				(WURI.Component.scheme, WSchemeSpecification.ComponentDescriptor.required),
-				(WURI.Component.username, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.password, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.hostname, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.port, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.path, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.query, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.fragment, WSchemeSpecification.ComponentDescriptor.unsupported)
+			[(x[0], x[1].requirement()) for x in scheme_spec] == [
+				(WURI.Component.scheme, WURIComponentVerifier.Requirement.required),
+				(WURI.Component.username, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.password, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.hostname, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.port, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.path, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.query, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.fragment, WURIComponentVerifier.Requirement.unsupported)
 			]
 		)
 
@@ -338,33 +338,33 @@ class TestWSchemeSpecification:
 
 		scheme_spec = WSchemeSpecification(
 			'proto',
-			hostname=WSchemeSpecification.ComponentDescriptor.required,
-			port=WSchemeSpecification.ComponentDescriptor.optional
+			WURIComponentVerifier(WURI.Component.hostname, WURIComponentVerifier.Requirement.required),
+			WURIComponentVerifier(WURI.Component.port, WURIComponentVerifier.Requirement.optional)
 		)
 
 		assert(
-			[scheme_spec.descriptor(x) for x in WURI.Component] == [
-				WSchemeSpecification.ComponentDescriptor.required,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.required,
-				WSchemeSpecification.ComponentDescriptor.optional,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported,
-				WSchemeSpecification.ComponentDescriptor.unsupported
+			[scheme_spec.verifier(x).requirement() for x in WURI.Component] == [
+				WURIComponentVerifier.Requirement.required,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.required,
+				WURIComponentVerifier.Requirement.optional,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported,
+				WURIComponentVerifier.Requirement.unsupported
 			]
 		)
 
 		assert(
-			[x for x in scheme_spec] == [
-				(WURI.Component.scheme, WSchemeSpecification.ComponentDescriptor.required),
-				(WURI.Component.username, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.password, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.hostname, WSchemeSpecification.ComponentDescriptor.required),
-				(WURI.Component.port, WSchemeSpecification.ComponentDescriptor.optional),
-				(WURI.Component.path, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.query, WSchemeSpecification.ComponentDescriptor.unsupported),
-				(WURI.Component.fragment, WSchemeSpecification.ComponentDescriptor.unsupported)
+			[(x[0], x[1].requirement()) for x in scheme_spec] == [
+				(WURI.Component.scheme, WURIComponentVerifier.Requirement.required),
+				(WURI.Component.username, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.password, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.hostname, WURIComponentVerifier.Requirement.required),
+				(WURI.Component.port, WURIComponentVerifier.Requirement.optional),
+				(WURI.Component.path, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.query, WURIComponentVerifier.Requirement.unsupported),
+				(WURI.Component.fragment, WURIComponentVerifier.Requirement.unsupported)
 			]
 		)
 
@@ -374,8 +374,18 @@ class TestWSchemeSpecification:
 		assert(scheme_spec.is_compatible(WURI.parse('proto:///')) is False)
 
 		pytest.raises(
-			TypeError, WSchemeSpecification,
-			'proto', scheme=WSchemeSpecification.ComponentDescriptor.required
+			ValueError,
+			WSchemeSpecification,
+			'proto',
+			WURIComponentVerifier(WURI.Component.scheme, WURIComponentVerifier.Requirement.required)
+		)
+
+		pytest.raises(
+			ValueError,
+			WSchemeSpecification,
+			'proto',
+			WURIComponentVerifier(WURI.Component.hostname, WURIComponentVerifier.Requirement.required),
+			WURIComponentVerifier(WURI.Component.hostname, WURIComponentVerifier.Requirement.required)
 		)
 
 		pytest.raises(TypeError, WSchemeSpecification, 'proto', hostname='optional')
@@ -398,7 +408,10 @@ class TestWSchemeCollection:
 
 		@classmethod
 		def scheme_specification(cls):
-			return WSchemeSpecification('foo', path=WSchemeSpecification.ComponentDescriptor.required)
+			return WSchemeSpecification(
+				'foo',
+				WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.required)
+			)
 
 	class HandlerBar(Handler):
 
@@ -406,8 +419,8 @@ class TestWSchemeCollection:
 		def scheme_specification(cls):
 			return WSchemeSpecification(
 				'bar',
-				path=WSchemeSpecification.ComponentDescriptor.required,
-				query=WSchemeSpecification.ComponentDescriptor.optional
+				WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.required),
+				WURIComponentVerifier(WURI.Component.query, WURIComponentVerifier.Requirement.optional)
 			)
 
 	def test_exceptions(self):
