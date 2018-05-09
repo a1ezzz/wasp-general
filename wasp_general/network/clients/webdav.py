@@ -28,13 +28,17 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 from wasp_general.version import __status__
 
 import webdav3.client
+from webdav3.exceptions import WebDavException
 from abc import abstractmethod
 
-from wasp_general.uri import WSchemeSpecification, WURIQuery, WURI, WURIComponentVerifier, WURIQueryVerifier, WStrictURIQuery
+from wasp_general.verify import verify_type, verify_value
+from wasp_general.uri import WSchemeSpecification, WURIQuery, WURI, WURIComponentVerifier, WURIQueryVerifier
+from wasp_general.uri import WStrictURIQuery
 from wasp_general.network.clients.base import WBasicNetworkClientProto
 from wasp_general.network.clients.base import WBasicNetworkClientListDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientChangeDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientMakeDirCapability
+from wasp_general.network.clients.base import WBasicNetworkClientRemoveDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientCurrentDirCapability
 from wasp_general.network.clients.base import WBasicNetworkClientUploadFileCapability
 from wasp_general.network.clients.base import WBasicNetworkClientRemoveFileCapability
@@ -42,6 +46,8 @@ from wasp_general.network.clients.base import WBasicNetworkClientRemoveFileCapab
 
 class WWebDavClientBase(WBasicNetworkClientProto):
 
+	@verify_type(uri=WURI, http_protocol_scheme=str)
+	@verify_value(http_protocol_scheme=lambda x: len(x) > 0)
 	def __init__(self, uri, http_protocol_scheme):
 		WBasicNetworkClientProto.__init__(self, uri)
 
@@ -66,13 +72,14 @@ class WWebDavClientBase(WBasicNetworkClientProto):
 		query = uri.query()
 		if query is not None:
 			parsed_query = WURIQuery.parse(query)
-			self.__session_path = parsed_query['remote_path']
+			self.__session_path = parsed_query['remote_path'][0]
 
 		self.__dav_client = webdav3.client.Client(webdav_options)
 
 	def dav_client(self):
 		return self.__dav_client
 
+	@verify_type(value=(str, None))
 	def session_path(self, value=None):
 		if value is not None:
 			self.__session_path = value
@@ -96,7 +103,6 @@ class WWebDavClientBase(WBasicNetworkClientProto):
 			WURIComponentVerifier(WURI.Component.hostname, WURIComponentVerifier.Requirement.required),
 			WURIComponentVerifier(WURI.Component.port, WURIComponentVerifier.Requirement.optional),
 			WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.optional),
-			WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.optional),
 			WURIQueryVerifier(
 				WURIComponentVerifier.Requirement.optional,
 				WStrictURIQuery.ParameterSpecification(
@@ -110,6 +116,7 @@ class WWebDavClientBase(WBasicNetworkClientProto):
 	def agent_capabilities(cls):
 		return WWebDavClientListDirCapability, \
 			WWebDavClientMakeDirCapability, \
+			WWebDavClientRemoveDirCapability, \
 			WWebDavCurrentDirCapability, \
 			WWebDavChangeDirCapability, \
 			WWebDavClientUploadFileCapability, \
@@ -118,6 +125,7 @@ class WWebDavClientBase(WBasicNetworkClientProto):
 
 class WWebDavClient(WWebDavClientBase):
 
+	@verify_type('paranoid', uri=WURI)
 	def __init__(self, uri):
 		WWebDavClientBase.__init__(self, uri, 'http')
 
@@ -128,6 +136,7 @@ class WWebDavClient(WWebDavClientBase):
 
 class WWebDavsClient(WWebDavClientBase):
 
+	@verify_type('paranoid', uri=WURI)
 	def __init__(self, uri):
 		WWebDavClientBase.__init__(self, uri, 'https')
 
@@ -139,17 +148,39 @@ class WWebDavsClient(WWebDavClientBase):
 class WWebDavClientListDirCapability(WBasicNetworkClientListDirCapability):
 
 	def request(self, *args, **kwargs):
-		agent = self.network_agent()
-		client = agent.dav_client()
-		return tuple(client.list(agent.session_path()))
+		try:
+			agent = self.network_agent()
+			client = agent.dav_client()
+			return tuple(client.list(agent.session_path()))
+		except WebDavException:
+			return
 
 
 class WWebDavClientMakeDirCapability(WBasicNetworkClientMakeDirCapability):
 
 	def request(self, directory_name, *args, **kwargs):
-		agent = self.network_agent()
-		client = agent.dav_client()
-		return client.mkdir(agent.session_path() + '/' + directory_name) is True
+		try:
+			agent = self.network_agent()
+			client = agent.dav_client()
+			return client.mkdir(agent.session_path() + '/' + directory_name)
+		except WebDavException:
+			return False
+
+
+class WWebDavClientRemoveDirCapability(WBasicNetworkClientRemoveDirCapability):
+
+	def request(self, directory_name, *args, **kwargs):
+		try:
+			agent = self.network_agent()
+			client = agent.dav_client()
+			remote_path = agent.session_path() + '/' + directory_name
+
+			if client.is_dir(remote_path) is False:
+				return False
+			client.clean(remote_path)
+			return True
+		except WebDavException:
+			return False
 
 
 class WWebDavCurrentDirCapability(WBasicNetworkClientCurrentDirCapability):
@@ -161,30 +192,47 @@ class WWebDavCurrentDirCapability(WBasicNetworkClientCurrentDirCapability):
 class WWebDavChangeDirCapability(WBasicNetworkClientChangeDirCapability):
 
 	def request(self, path, *args, **kwargs):
-		agent = self.network_agent()
-		client = agent.dav_client()
-		if client.isdir(path) is True:
-			self.network_agent().session_path(path)
-			return True
-		return False
+		try:
+			agent = self.network_agent()
+			session_path = agent.session_path()
+			if path[0] != '/':
+				if session_path[-1] != '/':
+					session_path += '/'
+				path = session_path + path
+
+			agent = self.network_agent()
+			client = agent.dav_client()
+			if client.is_dir(path) is True:
+				self.network_agent().session_path(path)
+				return True
+			return False
+		except WebDavException:
+			return False
 
 
 class WWebDavClientUploadFileCapability(WBasicNetworkClientUploadFileCapability):
 
 	def request(self, file_name, file_obj, *args, **kwargs):
-		agent = self.network_agent()
-		client = agent.dav_client()
-		client.upload_to(file_obj.read(), agent.session_path() + '/' + file_name)
-		return True
+		try:
+			agent = self.network_agent()
+			client = agent.dav_client()
+			client.upload_to(file_obj.read(), agent.session_path() + '/' + file_name)
+			return True
+		except WebDavException:
+			return False
 
 
 class WWebDavClientRemoveFileCapability(WBasicNetworkClientRemoveFileCapability):
 
 	def request(self, file_name, *args, **kwargs):
-		agent = self.network_agent()
-		client = agent.dav_client()
-		remote_path = agent.session_path() + '/' + file_name
-		path_info = client.info(remote_path)
-		# check if it is a file
-		client.clean(remote_path)
-		return True
+		try:
+			agent = self.network_agent()
+			client = agent.dav_client()
+			remote_path = agent.session_path() + '/' + file_name
+
+			if client.is_dir(remote_path) is True:
+				return False
+			client.clean(remote_path)
+			return True
+		except WebDavException:
+			return False
