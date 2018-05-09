@@ -36,16 +36,19 @@ from wasp_general.uri import WURI
 
 
 class WCommonNetworkClientCapability(Enum):
+	# TODO: rename to a smaller name
 	current_dir = 'current_dir'
 	change_dir = 'change_dir'
 	list_dir = 'list_dir'
 	make_dir = 'make_dir'
+	remove_dir = 'remove_dir'
 	upload_file = 'upload_file'
 	remove_file = 'remove_file'
 
 
 # noinspection PyAbstractClass
 class WBasicNetworkClientCapability(WNetworkClientCapabilityProto):
+	# TODO: refactor - too many simple classes
 
 	def __init__(self, network_agent):
 		WNetworkClientCapabilityProto.__init__(self)
@@ -144,6 +147,14 @@ class WBasicNetworkClientMakeDirCapability(WBasicNetworkClientCapability):
 	@classmethod
 	def common_capability(cls):
 		return WCommonNetworkClientCapability.make_dir
+
+
+# noinspection PyAbstractClass
+class WBasicNetworkClientRemoveDirCapability(WBasicNetworkClientCapability):
+
+	@classmethod
+	def common_capability(cls):
+		return WCommonNetworkClientCapability.remove_dir
 
 
 # noinspection PyAbstractClass
