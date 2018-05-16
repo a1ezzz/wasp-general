@@ -15,6 +15,9 @@ class TestWCapabilitiesHolderMeta:
 
 class TestWCapabilitiesHolder:
 
+	def test_exception(self):
+		assert(issubclass(WCapabilitiesHolder.UndefinedCapabilityCall, Exception) is True)
+
 	def test(self):
 		c_h = WCapabilitiesHolder()
 		assert(c_h.__class_capabilities__ == {})
@@ -31,6 +34,12 @@ class TestWCapabilitiesHolder:
 		assert(a.capability('bar') == a.foo)
 		assert(a.foo(1, 2, 3) == [1, 2, 3])
 		assert(a.capability('bar')(1, 2, 3) == [1, 2, 3])
+		assert(a('bar', 1, 2, 3) == [1, 2, 3])
+
+		assert(a.has_capabilities('foo') is False)
+		assert(a.has_capabilities('foo', 'bar') is False)
+		assert(a.has_capabilities('bar') is True)
+		pytest.raises(WCapabilitiesHolder.UndefinedCapabilityCall, a, 'foo')
 
 		class B(WCapabilitiesHolder):
 
@@ -46,6 +55,11 @@ class TestWCapabilitiesHolder:
 		assert(b.capability('foo') == b.bar)
 		assert(b.bar(1, 2, 3) == [3, 2, 1])
 		assert(b.capability('foo')(1, 2, 3) == [3, 2, 1])
+		assert(b('foo', 1, 2, 3) == [3, 2, 1])
+
+		assert(b.has_capabilities('foo') is True)
+		assert(b.has_capabilities('foo', 'bar') is False)
+		assert(b.has_capabilities('bar') is False)
 
 		class C(A, B):
 			pass
@@ -55,10 +69,16 @@ class TestWCapabilitiesHolder:
 		assert(c.capability('bar') is not None)
 		assert(c.foo(1, 2, 3) == [1, 2, 3])
 		assert(c.capability('bar')(1, 2, 3) == [1, 2, 3])
+		assert(c('bar', 1, 2, 3) == [1, 2, 3])
 		assert(c.capability('foo') == c.bar)
 		assert(c.capability('foo') is not None)
 		assert(c.bar(1, 2, 3) == [3, 2, 1])
 		assert(c.capability('foo')(1, 2, 3) == [3, 2, 1])
+		assert(c('foo', 1, 2, 3) == [3, 2, 1])
+
+		assert(c.has_capabilities('foo') is True)
+		assert(c.has_capabilities('foo', 'bar') is True)
+		assert(c.has_capabilities('bar') is True)
 
 		class D(WCapabilitiesHolder):
 

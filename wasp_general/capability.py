@@ -78,10 +78,25 @@ class WCapabilitiesHolderMeta(ABCMeta):
 
 
 class WCapabilitiesHolder(metaclass=WCapabilitiesHolderMeta):
-	""" Class that may be used for accessing registered capabilities. There is only one assumption, "capability"
-	must be a general method (bounded method)
+	""" Class that may be used for accessing registered capabilities
 	"""
 
+	class UndefinedCapabilityCall(Exception):
+		""" Exception is raised when there was an attempt to execute an undefined "capability"
+		"""
+
+		def __init__(self, obj, cap_name):
+			""" Create new exception
+
+			:param obj: source object that was used for calling a "capability"
+			:param cap_name: name of a capability, that was called
+			"""
+			Exception.__init__(
+				self,
+				'Object "%s" does not have such capability as "%s"' % (str(obj), cap_name)
+			)
+
+	@verify_type(cap_name=str)
 	def capability(self, cap_name):
 		""" Return capability by its name
 
@@ -91,3 +106,30 @@ class WCapabilitiesHolder(metaclass=WCapabilitiesHolderMeta):
 		if cap_name in self.__class_capabilities__:
 			function_name = self.__class_capabilities__[cap_name]
 			return getattr(self, function_name)
+
+	@verify_type(cap_names=str)
+	def has_capabilities(self, *cap_names):
+		""" Check if class has all of the specified capabilities
+
+		:param cap_names: capabilities names to check
+
+		:return: bool
+		"""
+		for name in cap_names:
+			if name not in self.__class_capabilities__:
+				return False
+		return True
+
+	def __call__(self, cap_name, *args, **kwargs):
+		""" Execute a capability with arguments and return its result
+
+		:param cap_name: name of a capability to execute
+		:param args: arguments for a capability function
+		:param kwargs: keyword arguments for a capability function
+
+		:return: anything that the specified capability may return
+		"""
+		fn = self.capability(cap_name)
+		if fn is None:
+			raise WCapabilitiesHolder.UndefinedCapabilityCall(self, cap_name)
+		return fn(*args, **kwargs)
