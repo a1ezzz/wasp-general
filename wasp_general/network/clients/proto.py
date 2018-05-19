@@ -31,7 +31,7 @@ from abc import abstractmethod
 from enum import Enum
 from decorator import decorator
 
-from wasp_general.verify import verify_type
+from wasp_general.verify import verify_type, verify_value, verify_subclass
 
 from wasp_general.uri import WSchemeHandler, WURI
 from wasp_general.capability import WCapabilitiesHolder
@@ -62,6 +62,7 @@ class WNetworkClientCapabilities(Enum):
 	remove_file = 'remove_file'
 
 	@staticmethod
+	@verify_subclass(wrap_exceptions=Exception)
 	def capability(cap, *wrap_exceptions):
 		""" Return a decorator, that registers function as capability. Also, all specified exceptions are
 		caught and instead of them the :class:`.WClientCapabilityError` exception is raised
@@ -187,6 +188,8 @@ class WNetworkClientProto(WSchemeHandler, WCapabilitiesHolder):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@verify_type(path=str)
+	@verify_value(path=lambda x: len(x) > 0)
 	def change_directory(self, path, *args, **kwargs):
 		""" Change current session directory to the specified one. If the path begins with directory separator
 		then it may be treated as an absolute path
@@ -209,6 +212,8 @@ class WNetworkClientProto(WSchemeHandler, WCapabilitiesHolder):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@verify_type(directory_name=str)
+	@verify_value(directory_name=lambda x: len(x) > 0)
 	def make_directory(self, directory_name, *args, **kwargs):
 		""" Create directory. A directory is created in a current session directory. And a name must not
 		contain a directory separator
@@ -221,6 +226,8 @@ class WNetworkClientProto(WSchemeHandler, WCapabilitiesHolder):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@verify_type(directory_name=str)
+	@verify_value(directory_name=lambda x: len(x) > 0)
 	def remove_directory(self, directory_name, *args, **kwargs):
 		""" Remove directory. A directory is removed from a current session directory. And a name must not
 		contain a directory separator.
@@ -233,6 +240,8 @@ class WNetworkClientProto(WSchemeHandler, WCapabilitiesHolder):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@verify_type(file_name=str)
+	@verify_value(file_name=lambda x: len(x) > 0)
 	def upload_file(self, file_name, file_obj, *args, **kwargs):
 		""" Upload file. File will be uploaded to a current session directory. A name must not contain
 		a directory separator
@@ -246,6 +255,8 @@ class WNetworkClientProto(WSchemeHandler, WCapabilitiesHolder):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@verify_type(file_name=str)
+	@verify_value(file_name=lambda x: len(x) > 0)
 	def remove_file(self, file_name, *args, **kwargs):
 		""" Remove file. File will be removed from a current session directory. A name must not contain
 		a directory separator
