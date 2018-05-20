@@ -38,10 +38,17 @@ from wasp_general.network.clients.virtual_dir import WVirtualDirectoryClient
 
 
 class WWebDavClientBase(WVirtualDirectoryClient):
+	""" Basic WebDAV implementation of :class:`.WNetworkClientProto`
+	"""
 
 	@verify_type(uri=WURI, http_protocol_scheme=str)
-	@verify_value(http_protocol_scheme=lambda x: len(x) > 0)
+	@verify_value(http_protocol_scheme=lambda x: x.lower() in ('http', 'https'))
 	def __init__(self, uri, http_protocol_scheme):
+		""" Create new WebDAV client
+
+		:param uri: URI for a client connection
+		:param http_protocol_scheme: transport protocol name that must be used in order to connect to a server
+		"""
 		WVirtualDirectoryClient.__init__(self, uri)
 
 		webdav_uri = '%s://%s' % (http_protocol_scheme, uri.hostname())
@@ -68,24 +75,38 @@ class WWebDavClientBase(WVirtualDirectoryClient):
 		self.__dav_client = webdav3.client.Client(webdav_options)
 
 	def dav_client(self):
+		""" Return DAV-client for accessing a server (internal usage only)
+
+		:return: webdav3.client.Client
+		"""
 		return self.__dav_client
 
 	def connect(self):
+		""" :meth:`.WNetworkClientProto.connect` method implementation
+		"""
 		try:
 			self.list_directory()
 		except WClientCapabilityError as e:
 			raise WClientConnectionError('Unable to connect to the server') from e
 
 	def disconnect(self):
+		""" :meth:`.WNetworkClientProto.disconnect` method implementation
+		"""
 		self.session_path(self.directory_sep())
 
 	@classmethod
 	@abstractmethod
 	def scheme_name(cls):
+		""" Derived classes must return scheme name from configuration URI
+
+		:return: str
+		"""
 		raise NotImplementedError('This method is abstract')
 
 	@classmethod
 	def scheme_specification(cls):
+		""" :meth:`.WSchemeHandler.scheme_specification` method implementation
+		"""
 		return WSchemeSpecification(
 			cls.scheme_name(),
 
@@ -105,12 +126,16 @@ class WWebDavClientBase(WVirtualDirectoryClient):
 
 	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.current_dir)
 	def current_directory(self, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.current_directory` method implementation
+		"""
 		return self.session_path()
 
 	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.change_dir, WebDavException, ValueError)
 	@verify_type(path=str)
 	@verify_value(path=lambda x: len(x) > 0)
 	def change_directory(self, path, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.change_directory` method implementation
+		"""
 		client = self.dav_client()
 		previous_path = self.session_path()
 		try:
@@ -122,18 +147,24 @@ class WWebDavClientBase(WVirtualDirectoryClient):
 
 	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.list_dir, WebDavException)
 	def list_directory(self, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.list_directory` method implementation
+		"""
 		return tuple(self.dav_client().list(self.session_path()))
 
 	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.make_dir, WebDavException)
 	@verify_type(directory_name=str)
 	@verify_value(directory_name=lambda x: len(x) > 0)
 	def make_directory(self, directory_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.make_directory` method implementation
+		"""
 		self.dav_client().mkdir(self.join_path(self.session_path(), directory_name))
 
 	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.remove_dir, WebDavException, ValueError)
 	@verify_type(directory_name=str)
 	@verify_value(directory_name=lambda x: len(x) > 0)
 	def remove_directory(self, directory_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.remove_directory` method implementation
+		"""
 		client = self.dav_client()
 		remote_path = self.join_path(self.session_path(), directory_name)
 
@@ -145,12 +176,16 @@ class WWebDavClientBase(WVirtualDirectoryClient):
 	@verify_type(file_name=str)
 	@verify_value(file_name=lambda x: len(x) > 0)
 	def upload_file(self, file_name, file_obj, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.upload_file` method implementation
+		"""
 		self.dav_client().upload_to(file_obj, self.join_path(self.session_path(), file_name))
 
 	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.remove_file, WebDavException, ValueError)
 	@verify_type(file_name=str)
 	@verify_value(file_name=lambda x: len(x) > 0)
 	def remove_file(self, file_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.remove_file` method implementation
+		"""
 		client = self.dav_client()
 		remote_path = self.join_path(self.session_path(), file_name)
 		if client.is_dir(remote_path) is True:
@@ -159,22 +194,38 @@ class WWebDavClientBase(WVirtualDirectoryClient):
 
 
 class WWebDavClient(WWebDavClientBase):
+	""" Create DAV-client with transport over HTTP
+	"""
 
 	@verify_type('paranoid', uri=WURI)
 	def __init__(self, uri):
+		""" Create new DAV-client
+
+		:param uri: URI for a client connection
+		"""
 		WWebDavClientBase.__init__(self, uri, 'http')
 
 	@classmethod
 	def scheme_name(cls):
+		""" :meth:`.WWebDavClientBase.scheme_name` method implementation
+		"""
 		return 'dav'
 
 
 class WWebDavsClient(WWebDavClientBase):
+	""" Create DAVS-client with transport over HTTPS
+	"""
 
 	@verify_type('paranoid', uri=WURI)
 	def __init__(self, uri):
+		""" Create new DAVS-client
+
+		:param uri: URI for a client connection
+		"""
 		WWebDavClientBase.__init__(self, uri, 'https')
 
 	@classmethod
 	def scheme_name(cls):
+		""" :meth:`.WWebDavClientBase.scheme_name` method implementation
+		"""
 		return 'davs'
