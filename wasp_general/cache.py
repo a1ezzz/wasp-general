@@ -152,8 +152,8 @@ class WGlobalSingletonCacheStorage(WCacheStorage):
 		"""
 		try:
 			return self._storage[decorated_function]
-		except KeyError:
-			raise WCacheStorage.CacheMissedException('No cache record found')
+		except KeyError as e:
+			raise WCacheStorage.CacheMissedException('No cache record found') from e
 
 	@verify_value('paranoid', decorated_function=lambda x: callable(x))
 	def get_cache(self, decorated_function, *args, **kwargs):
