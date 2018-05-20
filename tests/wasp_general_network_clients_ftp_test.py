@@ -3,33 +3,24 @@
 import os
 import warnings
 import pytest
-from webdav3.client import Client
 from uuid import uuid4
 from io import BytesIO
 
 from wasp_general.uri import WURI, WURIComponentVerifier
-from wasp_general.network.clients.proto import WNetworkClientCapabilities
+from wasp_general.network.clients.proto import WNetworkClientProto, WNetworkClientCapabilities
 from wasp_general.network.clients.proto import WClientCapabilityError, WClientConnectionError
-from wasp_general.network.clients.virtual_dir import WVirtualDirectoryClient
-from wasp_general.network.clients.webdav import WWebDavClientBase, WWebDavClient, WWebDavsClient
+from wasp_general.network.clients.ftp import WFTPClient
 
 
-def test_abstract():
-	pytest.raises(TypeError, WWebDavClientBase)
-	pytest.raises(NotImplementedError, WWebDavClientBase.scheme_name)
+class TestWFTPClient:
 
+	__env_variable_name__ = 'PYTEST_FTP_URI'
 
-class TestWWebDavClientBase:
+	__invalid_uri__ = 'ftp://localhost:7227'
 
-	class Base(WWebDavClientBase):
-
-		@classmethod
-		def scheme_name(cls):
-			return 'test-dav'
-
-	def test(self):
-		scheme_spec = TestWWebDavClientBase.Base.scheme_specification()
-		assert(scheme_spec.scheme_name() == 'test-dav')
+	def test_spec(self):
+		scheme_spec = WFTPClient.scheme_specification()
+		assert(scheme_spec.scheme_name() == 'ftp')
 
 		assert(
 			[scheme_spec.verifier(x).requirement() for x in WURI.Component] == [
@@ -37,44 +28,26 @@ class TestWWebDavClientBase:
 				WURIComponentVerifier.Requirement.optional,
 				WURIComponentVerifier.Requirement.optional,
 				WURIComponentVerifier.Requirement.required,
+				WURIComponentVerifier.Requirement.unsupported,
 				WURIComponentVerifier.Requirement.optional,
-				WURIComponentVerifier.Requirement.optional,
-				WURIComponentVerifier.Requirement.optional,
+				WURIComponentVerifier.Requirement.unsupported,
 				WURIComponentVerifier.Requirement.unsupported
 			]
 		)
 
-		uri = WURI.parse('test-dav://hostname')
-		client = TestWWebDavClientBase.Base(uri, 'http')
-		assert(isinstance(client, WVirtualDirectoryClient) is True)
-		assert(isinstance(client.dav_client(), Client) is True)
-
-		assert(client.session_path() == '/')
-		client.session_path('/foo')
-		assert(client.session_path() == '/foo')
-
-		uri = WURI.parse('test-dav://user:pass@hostname:8080/?remote_path=%2Fzzz')
-		client = TestWWebDavClientBase.Base(uri, 'https')
-		assert(client.session_path() == '/zzz')
-
-
-class TestWWebDavsClient:
-
-	__env_variable_name__ = 'PYTEST_WEBDAV_URI'
-
-	__invalid_uri__ = 'davs://localhost:7227'
-
 	def test(self):
-		if TestWWebDavsClient.__env_variable_name__ not in os.environ:
+		if TestWFTPClient.__env_variable_name__ not in os.environ:
 			warnings.warn(
 				'In order to run these tests "%s" correct environment variable must be specified' %
-				TestWWebDavsClient.__env_variable_name__
+				TestWFTPClient.__env_variable_name__
 			)
 			return
 
-		uri = os.environ[TestWWebDavsClient.__env_variable_name__]
-		assert(WWebDavsClient.scheme_name() == 'davs')
-		client = WWebDavsClient(WURI.parse(uri))
+		uri = os.environ[TestWFTPClient.__env_variable_name__]
+		uri = WURI.parse(uri)
+		uri.reset_component(WURI.Component.path)  # force path to be undefined
+		client = WFTPClient(uri)
+		assert(isinstance(client, WNetworkClientProto) is True)
 
 		client.connect()
 		client(WNetworkClientCapabilities.list_dir)
@@ -106,13 +79,9 @@ class TestWWebDavsClient:
 
 		client.disconnect()
 
-		faulty_client = WWebDavsClient(WURI.parse(TestWWebDavsClient.__invalid_uri__))
+		faulty_client = WFTPClient(WURI.parse(TestWFTPClient.__invalid_uri__))
 		pytest.raises(WClientConnectionError, faulty_client.connect)
 
-
-class TestWWebDavClient:
-
-	def test(self):
-		client = WWebDavClient(WURI.parse(TestWWebDavsClient.__invalid_uri__))
-		assert(isinstance(client, WWebDavClientBase) is True)
-		assert(WWebDavClient.scheme_name() == 'dav')
+		uri.component(WURI.Component.path, value='/zzz/foo/bar')
+		faulty_client = WFTPClient(uri)
+		pytest.raises(WClientConnectionError, faulty_client.connect)

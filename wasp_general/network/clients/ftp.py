@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
@@ -31,130 +28,134 @@ import ftplib
 
 from wasp_general.uri import WSchemeSpecification, WURI, WURIComponentVerifier
 from wasp_general.network.clients.proto import WNetworkClientProto
-from wasp_general.network.clients.base import WBasicNetworkClientProto
-from wasp_general.network.clients.base import WBasicNetworkClientListDirCapability
-from wasp_general.network.clients.base import WBasicNetworkClientChangeDirCapability
-from wasp_general.network.clients.base import WBasicNetworkClientMakeDirCapability
-from wasp_general.network.clients.base import WBasicNetworkClientCurrentDirCapability
-from wasp_general.network.clients.base import WBasicNetworkClientUploadFileCapability
-from wasp_general.network.clients.base import WBasicNetworkClientRemoveFileCapability
+from wasp_general.verify import verify_type, verify_value
+
+from wasp_general.network.clients.proto import WClientConnectionError, WClientCapabilityError
+from wasp_general.network.clients.proto import WNetworkClientCapabilities
 
 
-class WFTPClient(WBasicNetworkClientProto):
+__basic_ftp_exceptions__ = (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp)
 
+
+class WFTPClient(WNetworkClientProto):
+	""" FTP-client implementation of :class:`.WNetworkClientProto`
+	"""
+
+	@verify_type('paranoid', uri=WURI)
 	def __init__(self, uri):
-		WBasicNetworkClientProto.__init__(self, uri)
+		""" Create new FTP-client
 
-		try:
-			ftp_args = {'host': uri.hostname()}
-			# TODO: FTP class in python3.6 has port argument. But 3.4 doesn't
-			'''
-			if uri.port() is not None:
-				ftp_args['port'] = uri.port()
-			'''
+		:param uri: URI for a client connection
+		"""
+		WNetworkClientProto.__init__(self, uri)
 
-			ftp_client = ftplib.FTP(**ftp_args)
+		self.__ftp_client = ftplib.FTP()
 
-			login_args = {}
-			if uri.username() is not None:
-				login_args['user'] = uri.username()
-			if uri.password():
-				login_args['passwd'] = uri.password()
-			ftp_client.login(**login_args)
+		self.__ftp_connect_args = {'host': uri.hostname()}
+		# TODO: FTP class in python3.6 has port argument. But 3.4 doesn't
+		# if uri.port() is not None: self.__ftp_connect_args['port'] = uri.port()
 
-			ftp_client.cwd(uri.path() if uri.path() is not None else '/')
+		self.__ftp_auth_args = {}
 
-			self.__ftp_client = ftp_client
-
-		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
-			raise WNetworkClientProto.ConnectionError(
-				'Unable to connect to %s' % str(uri)
-			)
-		except OSError:  # no route to host and so on
-			raise WNetworkClientProto.ConnectionError(
-				'Unable to connect to %s' % str(uri)
-			)
+		if uri.username() is not None:
+			self.__ftp_auth_args['user'] = uri.username()
+		if uri.password():
+			self.__ftp_auth_args['passwd'] = uri.password()
 
 	def ftp_client(self):
+		""" Return FTP-client for accessing a server (internal usage only)
+
+		:return: ftplib.FTP
+		"""
 		return self.__ftp_client
 
-	def _close(self):
-		self.__ftp_client.close()
+	def connect(self):
+		""" :meth:`.WNetworkClientProto.connect` method implementation
+		"""
+		exceptions = list(__basic_ftp_exceptions__)
+		exceptions.append(OSError)  # OSError for "no route to host" issue
+		exceptions.append(ConnectionRefusedError)  # for unavailable service on a host
+
+		try:
+			self.ftp_client().connect(**self.__ftp_connect_args)
+			self.ftp_client().login(**self.__ftp_auth_args)
+		except tuple(exceptions) as e:
+			raise WClientConnectionError('Unable to connect to the server') from e
+		try:
+			path = self.uri().path()
+			if path is None:
+				path = self.directory_sep()
+			self.change_directory(path)
+		except WClientCapabilityError as e:
+			raise WClientConnectionError(
+				'Unable to change current working directory to the specified one'
+			) from e
+
+	def disconnect(self):
+		""" :meth:`.WNetworkClientProto.disconnect` method implementation
+		"""
+		self.ftp_client().close()
 
 	@classmethod
 	def scheme_specification(cls):
-		# TODO: FTP class in python3.6 has port argument. But 3.4 doesn't
-		# port = WSchemeSpecification.ComponentDescriptor.optional
+		""" :meth:`.WSchemeHandler.scheme_specification` method implementation
+		"""
 		return WSchemeSpecification(
 			'ftp',
 			WURIComponentVerifier(WURI.Component.username, WURIComponentVerifier.Requirement.optional),
 			WURIComponentVerifier(WURI.Component.password, WURIComponentVerifier.Requirement.optional),
 			WURIComponentVerifier(WURI.Component.hostname, WURIComponentVerifier.Requirement.required),
-			WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.required)
+			WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.optional)
 		)
 
-	@classmethod
-	def agent_capabilities(cls):
-		return WFTPClientListDirCapability, \
-			WFTPClientMakeDirCapability, \
-			WFTPClientChangeDirCapability, \
-			WFTPClientUploadFileCapability, \
-			WFTPClientRemoveFileCapability
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.current_dir, *__basic_ftp_exceptions__)
+	def current_directory(self, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.current_directory` method implementation
+		"""
+		return self.ftp_client().pwd()
 
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.change_dir, *__basic_ftp_exceptions__)
+	@verify_type(path=str)
+	@verify_value(path=lambda x: len(x) > 0)
+	def change_directory(self, path, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.change_directory` method implementation
+		"""
+		self.ftp_client().cwd(path)
 
-class WFTPClientChangeDirCapability(WBasicNetworkClientChangeDirCapability):
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.list_dir, *__basic_ftp_exceptions__)
+	def list_directory(self, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.list_directory` method implementation
+		"""
+		return tuple(self.ftp_client().nlst())
 
-	def request(self, path, *args, exec_cmd=None, **kwargs):
-		try:
-			self.network_agent().ftp_client().cwd(path)
-			if exec_cmd is not None:
-				return self.network_agent().request(exec_cmd, *args, **kwargs)
-			return True
-		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
-			if exec_cmd is not None:
-				return
-			return False
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.make_dir, *__basic_ftp_exceptions__)
+	@verify_type(directory_name=str)
+	@verify_value(directory_name=lambda x: len(x) > 0)
+	def make_directory(self, directory_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.make_directory` method implementation
+		"""
+		self.ftp_client().mkd(directory_name)
 
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.remove_dir, *__basic_ftp_exceptions__)
+	@verify_type(directory_name=str)
+	@verify_value(directory_name=lambda x: len(x) > 0)
+	def remove_directory(self, directory_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.remove_directory` method implementation
+		"""
+		self.ftp_client().rmd(directory_name)
 
-class WFTPClientCurrentDirCapability(WBasicNetworkClientCurrentDirCapability):
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.upload_file, *__basic_ftp_exceptions__)
+	@verify_type(file_name=str)
+	@verify_value(file_name=lambda x: len(x) > 0)
+	def upload_file(self, file_name, file_obj, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.upload_file` method implementation
+		"""
+		self.ftp_client().storbinary('STOR ' + file_name, file_obj)
 
-	def request(self, *args, **kwargs):
-		return self.network_agent().ftp_client().pwd()
-
-
-class WFTPClientListDirCapability(WBasicNetworkClientListDirCapability):
-
-	def request(self, *args, **kwargs):
-		try:
-			return tuple(self.network_agent().ftp_client().nlst())
-		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
-			return
-
-
-class WFTPClientMakeDirCapability(WBasicNetworkClientMakeDirCapability):
-
-	def request(self, directory_name, *args, **kwargs):
-		try:
-			return len(self.network_agent().ftp_client().mkd(directory_name)) > 0
-		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
-			return False
-
-
-class WFTPClientUploadFileCapability(WBasicNetworkClientUploadFileCapability):
-
-	def request(self, file_name, file_obj, *args, **kwargs):
-		try:
-			self.network_agent().ftp_client().storbinary('STOR ' + file_name, file_obj)
-			return True
-		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
-			return False
-
-
-class WFTPClientRemoveFileCapability(WBasicNetworkClientRemoveFileCapability):
-
-	def request(self, file_name, *args, **kwargs):
-		try:
-			self.network_agent().ftp_client().delete(file_name)
-			return True
-		except (ftplib.error_perm, ftplib.error_proto, ftplib.error_reply, ftplib.error_temp):
-			return False
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.remove_file, *__basic_ftp_exceptions__)
+	@verify_type(file_name=str)
+	@verify_value(file_name=lambda x: len(x) > 0)
+	def remove_file(self, file_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.remove_file` method implementation
+		"""
+		self.ftp_client().delete(file_name)
