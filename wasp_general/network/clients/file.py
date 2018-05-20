@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
@@ -31,87 +28,138 @@ import io
 import os
 
 from wasp_general.uri import WSchemeSpecification, WURIComponentVerifier, WURI
-from wasp_general.network.clients.base import WBasicNetworkClientProto
-from wasp_general.network.clients.base import WBasicNetworkClientListDirCapability
-from wasp_general.network.clients.base import WBasicNetworkClientChangeDirCapability
-from wasp_general.network.clients.base import WBasicNetworkClientMakeDirCapability
-from wasp_general.network.clients.base import WBasicNetworkClientCurrentDirCapability
-from wasp_general.network.clients.base import WBasicNetworkClientUploadFileCapability
-from wasp_general.network.clients.base import WBasicNetworkClientRemoveFileCapability
+from wasp_general.network.clients.proto import WNetworkClientProto, WClientCapabilityError, WClientConnectionError
+from wasp_general.network.clients.proto import WNetworkClientCapabilities
+
+from wasp_general.network.clients.virtual_dir import WVirtualDirectoryClient
+
+from wasp_general.verify import verify_type, verify_value
 
 
-class WLocalFile(WBasicNetworkClientProto):
+__basic_file_exceptions__ = (
+	FileExistsError, PermissionError, IsADirectoryError, FileNotFoundError, NotADirectoryError, FileExistsError
+)  # exceptions that are raised during I/O operations
 
+
+class WLocalFileClient(WVirtualDirectoryClient):
+	""" FTP-client implementation of :class:`.WNetworkClientProto`
+	"""
+
+	@verify_type(uri=WURI)
 	def __init__(self, uri):
-		WBasicNetworkClientProto.__init__(self, uri)
-		self.__session_path = uri.path() if uri.path() is not None else '/'
+		"""  Create new client that interacts with local filesystem
 
-	def session_path(self, value=None):
-		if value is not None:
-			self.__session_path = value
-		return self.__session_path
+		:param uri: URI for a client connection
+		"""
+		WVirtualDirectoryClient.__init__(self, uri, start_path=uri.path())
 
-	def _close(self):
-		self.__session_path = None
+	def directory_sep(self):
+		""" :meth:`.WNetworkClientProto.directory_sep` implementation
+		"""
+		return os.path.sep
+
+	def connect(self):
+		""" :meth:`.WNetworkClientProto.connect` method implementation
+		"""
+		try:
+			self.list_directory()
+		except WClientCapabilityError as e:
+			raise WClientConnectionError(
+				'Unable to change current working directory to the specified one'
+			) from e
+
+	def disconnect(self):
+		""" :meth:`.WNetworkClientProto.disconnect` method implementation
+		"""
+		self.session_path(self.directory_sep())
 
 	@classmethod
 	def scheme_specification(cls):
+		""" :meth:`.WSchemeHandler.scheme_specification` method implementation
+		"""
 		return WSchemeSpecification(
 			'file',
-			WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.required)
+			WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.optional)
 		)
 
-	@classmethod
-	def agent_capabilities(cls):
-		return WLocalFileListDirCapability, \
-			WLocalFileMakeDirCapability, \
-			WLocalFileChangeDirCapability, \
-			WLocalFileUploadFileCapability, \
-			WLocalFileRemoveFileCapability
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.current_dir, *__basic_file_exceptions__)
+	def current_directory(self, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.current_directory` method implementation
+		"""
+		return self.session_path()
 
+	@WNetworkClientCapabilities.capability(
+		WNetworkClientCapabilities.change_dir, ValueError, *__basic_file_exceptions__
+	)
+	@verify_type(path=str)
+	@verify_value(path=lambda x: len(x) > 0)
+	def change_directory(self, path, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.change_directory` method implementation
+		"""
+		previous_path = self.session_path()
+		self.session_path(path)
+		if os.path.isdir(self.full_path()) is False:
+			self.session_path(previous_path)
+			raise ValueError('Unable to change directory. It does not exist or is not a directory')
 
-class WLocalFileChangeDirCapability(WBasicNetworkClientChangeDirCapability):
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.list_dir, *__basic_file_exceptions__)
+	def list_directory(self, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.list_directory` method implementation
+		"""
+		return tuple(os.listdir(self.full_path()))
 
-	def request(self, path, *args, exec_cmd=None, **kwargs):
-		if os.path.isdir(path) is True:
-			self.network_agent().session_path(path)
-			return True
-		return False
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.make_dir, *__basic_file_exceptions__)
+	@verify_type(directory_name=str)
+	@verify_value(directory_name=lambda x: len(x) > 0)
+	def make_directory(self, directory_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.make_directory` method implementation
+		"""
+		previous_path = self.session_path()
+		try:
+			self.session_path(directory_name)
+			os.mkdir(self.full_path())
+		finally:
+			self.session_path(previous_path)
 
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.remove_dir, *__basic_file_exceptions__)
+	@verify_type(directory_name=str)
+	@verify_value(directory_name=lambda x: len(x) > 0)
+	def remove_directory(self, directory_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.remove_directory` method implementation
+		"""
+		previous_path = self.session_path()
+		try:
+			self.session_path(directory_name)
+			os.rmdir(self.full_path())
+		finally:
+			self.session_path(previous_path)
 
-class WLocalFileCurrentDirCapability(WBasicNetworkClientCurrentDirCapability):
-
-	def request(self, *args, **kwargs):
-		return self.network_agent().session_path()
-
-
-class WLocalFileListDirCapability(WBasicNetworkClientListDirCapability):
-
-	def request(self, *args, **kwargs):
-		return tuple(os.listdir(self.network_agent().session_path()))
-
-
-class WLocalFileMakeDirCapability(WBasicNetworkClientMakeDirCapability):
-
-	def request(self, directory_name, *args, **kwargs):
-		os.mkdir(os.path.join(self.network_agent().session_path(), directory_name))
-		return True
-
-
-class WLocalFileUploadFileCapability(WBasicNetworkClientUploadFileCapability):
-
-	def request(self, file_name, file_obj, *args, **kwargs):
-		with open(os.path.join(self.network_agent().session_path(), file_name), mode='wb') as f:
-			chunk = file_obj.read(io.DEFAULT_BUFFER_SIZE)
-			while len(chunk) > 0:
-				f.write(chunk)
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.upload_file, *__basic_file_exceptions__)
+	@verify_type(file_name=str)
+	@verify_value(file_name=lambda x: len(x) > 0)
+	def upload_file(self, file_name, file_obj, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.upload_file` method implementation
+		"""
+		previous_path = self.session_path()
+		try:
+			self.session_path(file_name)
+			with open(self.full_path(), mode='wb') as f:
 				chunk = file_obj.read(io.DEFAULT_BUFFER_SIZE)
+				while len(chunk) > 0:
+					f.write(chunk)
+					chunk = file_obj.read(io.DEFAULT_BUFFER_SIZE)
+		finally:
+			self.session_path(previous_path)
 
-		return True
-
-
-class WLocalFileRemoveFileCapability(WBasicNetworkClientRemoveFileCapability):
-
-	def request(self, file_name, *args, **kwargs):
-		os.unlink(os.path.join(self.network_agent().session_path(), file_name))
-		return True
+	@WNetworkClientCapabilities.capability(WNetworkClientCapabilities.remove_file, *__basic_file_exceptions__)
+	@verify_type(file_name=str)
+	@verify_value(file_name=lambda x: len(x) > 0)
+	def remove_file(self, file_name, *args, **kwargs):
+		""" :meth:`.WNetworkClientProto.remove_file` method implementation
+		"""
+		previous_path = self.session_path()
+		try:
+			self.session_path(file_name)
+			os.unlink(self.full_path())
+		finally:
+			self.session_path(previous_path)
