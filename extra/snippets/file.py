@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # wasp_general/<FILENAME>.py
 #
-# Copyright (C) 2017 the wasp-general authors and contributors
+# Copyright (C) 2018 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
