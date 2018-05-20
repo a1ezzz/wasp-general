@@ -28,7 +28,7 @@ import io
 import os
 
 from wasp_general.uri import WSchemeSpecification, WURIComponentVerifier, WURI
-from wasp_general.network.clients.proto import WNetworkClientProto, WClientCapabilityError, WClientConnectionError
+from wasp_general.network.clients.proto import WClientCapabilityError, WClientConnectionError
 from wasp_general.network.clients.proto import WNetworkClientCapabilities
 
 from wasp_general.network.clients.virtual_dir import WVirtualDirectoryClient

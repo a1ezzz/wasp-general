@@ -1,16 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import os
-import warnings
 import pytest
-from webdav3.client import Client
 from uuid import uuid4
 from io import BytesIO
 
 from wasp_general.uri import WURI, WURIComponentVerifier
-from wasp_general.network.clients.proto import WNetworkClientProto, WNetworkClientCapabilities
+from wasp_general.network.clients.proto import WNetworkClientCapabilities
 from wasp_general.network.clients.proto import WClientCapabilityError, WClientConnectionError
-#from wasp_general.network.clients.webdav import WWebDavClientBase, WWebDavClient, WWebDavsClient
 from wasp_general.network.clients.file import WLocalFileClient
 
 
