@@ -8,11 +8,10 @@ from uuid import uuid4
 from io import BytesIO
 
 from wasp_general.uri import WURI, WURIComponentVerifier
-from wasp_general.network.clients.base import WCommonNetworkClientCapability, WBasicNetworkClientProto
+from wasp_general.network.clients.proto import WNetworkClientCapabilities
+from wasp_general.network.clients.proto import WClientCapabilityError, WClientConnectionError
+from wasp_general.network.clients.virtual_dir import WVirtualDirectoryClient
 from wasp_general.network.clients.webdav import WWebDavClientBase, WWebDavClient, WWebDavsClient
-from wasp_general.network.clients.webdav import WWebDavClientListDirCapability, WWebDavClientMakeDirCapability
-from wasp_general.network.clients.webdav import WWebDavCurrentDirCapability, WWebDavChangeDirCapability
-from wasp_general.network.clients.webdav import WWebDavClientUploadFileCapability, WWebDavClientRemoveFileCapability
 
 
 def test_abstract():
@@ -45,17 +44,9 @@ class TestWWebDavClientBase:
 			]
 		)
 
-		caps = TestWWebDavClientBase.Base.agent_capabilities()
-		assert(WWebDavClientListDirCapability in caps)
-		assert(WWebDavClientMakeDirCapability in caps)
-		assert(WWebDavCurrentDirCapability in caps)
-		assert(WWebDavChangeDirCapability in caps)
-		assert(WWebDavClientUploadFileCapability in caps)
-		assert(WWebDavClientRemoveFileCapability in caps)
-
 		uri = WURI.parse('test-dav://hostname')
 		client = TestWWebDavClientBase.Base(uri, 'proto')
-		assert(isinstance(client, WBasicNetworkClientProto) is True)
+		assert(isinstance(client, WVirtualDirectoryClient) is True)
 		assert(isinstance(client.dav_client(), Client) is True)
 
 		assert(client.session_path() == '/')
@@ -65,8 +56,6 @@ class TestWWebDavClientBase:
 		uri = WURI.parse('test-dav://user:pass@hostname:8080/?remote_path=%2Fzzz')
 		client = TestWWebDavClientBase.Base(uri, 'proto')
 		assert(client.session_path() == '/zzz')
-
-		client._close()  # this function does not do anything. check that function call gives no error
 
 
 class TestWWebDavsClient:
@@ -86,28 +75,44 @@ class TestWWebDavsClient:
 		uri = os.environ[TestWWebDavsClient.__env_variable_name__]
 		assert(WWebDavsClient.scheme_name() == 'davs')
 		client = WWebDavsClient(WURI.parse(uri))
-		assert(client.request(WCommonNetworkClientCapability.list_dir) is not None)  # just connection check
 
-		assert(client.request(WCommonNetworkClientCapability.make_dir, '/') is False)
+		client.connect()
+		client(WNetworkClientCapabilities.list_dir)
+
+		pytest.raises(WClientCapabilityError, client, WNetworkClientCapabilities.make_dir, '/')
 		test_dir = str(uuid4())
-		assert(client.request(WCommonNetworkClientCapability.make_dir, test_dir) is True)
-		assert(client.request(WCommonNetworkClientCapability.change_dir, test_dir) is True)
+		client(WNetworkClientCapabilities.make_dir, test_dir)
+		client(WNetworkClientCapabilities.change_dir, test_dir)
 
-		assert(client.request(WCommonNetworkClientCapability.current_dir) == ('/' + test_dir))
-		assert(client.request(WCommonNetworkClientCapability.list_dir) == tuple())
-		assert(client.request(WCommonNetworkClientCapability.upload_file, '/', BytesIO(b'\x00' * 32)) is False)
-		assert(client.request(WCommonNetworkClientCapability.upload_file, 'test.file', BytesIO(b'\x00' * 32)) is True)
-		assert(client.request(WCommonNetworkClientCapability.list_dir) == ('test.file', ))
-		assert(client.request(WCommonNetworkClientCapability.remove_file, '/') is False)
-		assert(client.request(WCommonNetworkClientCapability.remove_file, 'test.file111') is False)
-		assert(client.request(WCommonNetworkClientCapability.remove_dir, 'test.file') is False)
-		assert(client.request(WCommonNetworkClientCapability.change_dir, 'test.file') is False)
-		assert(client.request(WCommonNetworkClientCapability.remove_file, 'test.file') is True)
+		assert(client(WNetworkClientCapabilities.current_dir) == ('/' + test_dir))
+		assert(client(WNetworkClientCapabilities.list_dir) == tuple())
 
-		assert(client.request(WCommonNetworkClientCapability.change_dir, '/') is True)
-		assert(client.request(WCommonNetworkClientCapability.remove_dir, test_dir) is True)
-		assert(client.request(WCommonNetworkClientCapability.remove_dir, '/') is False)
-		assert(client.request(WCommonNetworkClientCapability.change_dir, '/zzz/foo/bar') is False)
+		pytest.raises(
+			WClientCapabilityError, client,
+			WNetworkClientCapabilities.upload_file, '/', BytesIO(b'\x00' * 32)
+		)
+
+		client(WNetworkClientCapabilities.upload_file, 'test.file', BytesIO(b'\x00' * 32))
+		assert(client(WNetworkClientCapabilities.list_dir) == ('test.file',))
+		pytest.raises(WClientCapabilityError, client, WNetworkClientCapabilities.remove_file, '/')
+		pytest.raises(WClientCapabilityError, client, WNetworkClientCapabilities.remove_file, 'test.file111')
+		pytest.raises(WClientCapabilityError, client, WNetworkClientCapabilities.remove_dir, 'test.file')
+		pytest.raises(WClientCapabilityError, client, WNetworkClientCapabilities.change_dir, 'test.file')
+		pytest.raises(WClientCapabilityError, client, WNetworkClientCapabilities.change_dir, '/zzz/foo/bar')
+		client(WNetworkClientCapabilities.remove_file, 'test.file')
+
+		client(WNetworkClientCapabilities.change_dir, '/')
+		client(WNetworkClientCapabilities.remove_dir, test_dir)
+
+		client.disconnect()
 
 		faulty_client = WWebDavsClient(WURI.parse(TestWWebDavsClient.__invalid_uri__))
-		assert(faulty_client.request(WCommonNetworkClientCapability.list_dir) is None)
+		pytest.raises(WClientConnectionError, faulty_client.connect)
+
+
+class TestWWebDavClient:
+
+	def test(self):
+		client = WWebDavClient(WURI.parse(TestWWebDavsClient.__invalid_uri__))
+		assert(isinstance(client, WWebDavClientBase) is True)
+		assert(WWebDavClient.scheme_name() == 'dav')
