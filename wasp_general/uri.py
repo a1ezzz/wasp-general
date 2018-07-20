@@ -181,6 +181,7 @@ class WURI:
 class WURIQuery:
 	""" Represent a query component of an URI. Any parameter may present for more then one time
 	"""
+	# TODO: add quote/ unqoute to replace %XX
 
 	def __init__(self):
 		""" Create new query component
