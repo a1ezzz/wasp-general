@@ -24,15 +24,16 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-import io
 import re
-from Crypto.Cipher import AES as pyAES
-from Crypto.Util import Counter
+from cryptography.hazmat.primitives.ciphers import Cipher, modes
+from cryptography.hazmat.primitives.ciphers.algorithms import AES
+from cryptography.hazmat.backends import default_backend
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_value
 
 from wasp_general.crypto.random import random_int
+from wasp_general.crypto.cipher import WCipherProto
 
 
 class WBlockPadding(metaclass=ABCMeta):
@@ -204,13 +205,13 @@ class WAESMode:
 	see also: https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
 	"""
 
-	__data_padding_length__ = pyAES.block_size
+	__data_padding_length__ = int(AES.block_size / 8)
 	""" Length to which data must be aligned (in bytes)
 	"""
-	__init_vector_length__ = pyAES.block_size
+	__init_vector_length__ = int(AES.block_size / 8)
 	""" Initialization vector length (in bytes)
 	"""
-	__counter_size__ = pyAES.block_size
+	__counter_size__ = int(AES.block_size / 8)
 	""" Initialization counter size (in bytes)
 	"""
 
@@ -224,14 +225,14 @@ class WAESMode:
 
 	__modes_descriptor__ = {
 		'AES-CBC': {
-			'mode_code': pyAES.MODE_CBC,
+			'mode_code': modes.CBC,
 			'requirements': {
 				'initialization_vector': True,
 				'counter': False
 			}
 		},
 		'AES-CTR': {
-			'mode_code': pyAES.MODE_CTR,
+			'mode_code': modes.CTR,
 			'requirements': {
 				'initialization_vector': False,
 				'counter': True
@@ -308,7 +309,7 @@ class WAESMode:
 				start_position += WAESMode.__init_vector_length__
 			end_position = start_position + WAESMode.__counter_size__
 			seq = self.__sequence[start_position:end_position]
-			return int.from_bytes(seq, byteorder='big')
+			return seq
 
 		def __requirements(self):
 			""" Return requirements specification (just shortcut to access specific mode requirements from
@@ -355,20 +356,16 @@ class WAESMode:
 		self.__mode = block_cipher_mode
 		self.__padding = padding
 		self.__sequence_chopper = WAESMode.SequenceChopper(key_size, block_cipher_mode, init_sequence)
-		self.__cipher_args = (self.__sequence_chopper.secret(),)
-		self.__cipher_kwargs = {}
 
-		cipher_descriptor = WAESMode.__modes_descriptor__[block_cipher_mode]
-		self.__cipher_kwargs['mode'] = cipher_descriptor['mode_code']
+		if block_cipher_mode == 'AES-CBC':
+			mode_code = modes.CBC(self.__sequence_chopper.initialization_vector())
+		elif block_cipher_mode == 'AES-CTR':
+			mode_code = modes.CTR(self.__sequence_chopper.initialization_counter_value())
+		else:
+			raise ValueError('Unknown block cipher mode spotted')
 
-		iv = self.__sequence_chopper.initialization_vector()
-		if iv is not None:
-			self.__cipher_kwargs['IV'] = iv
-		counter = self.__sequence_chopper.initialization_counter_value()
-		if counter is not None:
-			self.__cipher_kwargs['counter'] = Counter.new(
-				WAESMode.__counter_size__ * 8, initial_value=counter
-			)
+		self.__cipher_args = (AES(self.__sequence_chopper.secret()), mode_code)
+		self.__cipher_kwargs = {'backend': default_backend()}
 
 	def key_size(self):
 		""" Return cipher secret key size
@@ -405,14 +402,14 @@ class WAESMode:
 		"""
 		return self.__sequence_chopper.initialization_counter_value()
 
-	def pyaes_args(self):
+	def aes_args(self):
 		""" Generate and return position-dependent arguments, that are used in :meth:`.AES.new` method
 
 		:return: tuple
 		"""
 		return self.__cipher_args
 
-	def pyaes_kwargs(self):
+	def aes_kwargs(self):
 		""" Generate and return position-independent (named) arguments, that are used in :meth:`.AES.new` method
 
 		:return: dict
@@ -457,6 +454,24 @@ class WAES:
 	""" PyCrypto AES-encryption wrapper
 	"""
 
+	class WAESCipher(WCipherProto):
+
+		def __init__(self, aes_cipher):
+			self.__aes_cipher = aes_cipher
+			self.__encryptor = self.__aes_cipher.encryptor()
+			self.__descryptor = self.__aes_cipher.decryptor()
+
+		def block_size(self):
+			return int(self.__aes_cipher.algorithm.block_size / 8)
+
+		@verify_type(data=bytes)
+		def encrypt_block(self, data):
+			return self.__encryptor.update(data)
+
+		@verify_type(data=bytes)
+		def decrypt_block(self, data):
+			return self.__descryptor.update(data)
+
 	@verify_type(mode=WAESMode)
 	def __init__(self, mode):
 		""" Create new AES cipher with specified mode
@@ -478,8 +493,9 @@ class WAES:
 
 		:return: Crypto.Cipher.AES.AESCipher
 		"""
-		cipher = pyAES.new(*self.mode().pyaes_args(), **self.mode().pyaes_kwargs())
-		return cipher
+		#cipher = pyAES.new(*self.mode().aes_args(), **self.mode().aes_kwargs())
+		cipher = Cipher(*self.mode().aes_args(), **self.mode().aes_kwargs())
+		return WAES.WAESCipher(cipher)
 
 	@verify_type(data=(str, bytes))
 	def encrypt(self, data):
@@ -492,7 +508,8 @@ class WAES:
 		if padding is not None:
 			data = padding.pad(data, WAESMode.__data_padding_length__)
 
-		return self.cipher().encrypt(data)
+		return self.cipher().encrypt_block(data)
+		#return self.cipher().encrypt(data)
 
 	@verify_type(data=bytes, decode=bool)
 	def decrypt(self, data, decode=False):
@@ -503,7 +520,8 @@ class WAES:
 		:return: bytes or str (depends on decode flag)
 		"""
 
-		result = self.cipher().decrypt(data)
+		#result = self.cipher().decrypt(data)
+		result = self.cipher().decrypt_block(data)
 
 		padding = self.mode().padding()
 		if padding is not None:

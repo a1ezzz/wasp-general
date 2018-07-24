@@ -37,7 +37,7 @@ class WCipherProto(metaclass=ABCMeta):
 	def block_size(self):
 		""" Return a size of a block that may be encrypted or decrypted.
 
-		:return: int or None if cipher is able to encrypt/decrypt block with any length
+		:return: int (in bytes) or None if cipher is able to encrypt/decrypt block with any length
 		"""
 		raise NotImplementedError('This method is abstract')
 

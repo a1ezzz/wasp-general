@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import pytest
-import io
 
 from wasp_general.crypto.aes import WBlockPadding, WSimplePadding, WZeroPadding, WShiftPadding, WPKCS7Padding, WAESMode
 from wasp_general.crypto.aes import WAES
+from wasp_general.crypto.cipher import WCipherProto
 
 
 def test_abstract_classes():
@@ -81,13 +81,16 @@ class TestWAESMode:
 		padding = WPKCS7Padding()
 
 		cbc_mode = WAESMode(16, 'AES-CBC', init_seq_key + init_seq_iv, padding=padding)
+
 		assert(cbc_mode.key_size() == 16)
 		assert(cbc_mode.mode() == 'AES-CBC')
 		assert(cbc_mode.padding() == padding)
-		assert(cbc_mode.initialization_vector() == init_seq_iv)
 
-		assert(isinstance(cbc_mode.pyaes_args(), tuple) is True)
-		assert(isinstance(cbc_mode.pyaes_kwargs(), dict) is True)
+		assert(cbc_mode.initialization_vector() == init_seq_iv)
+		assert(cbc_mode.initialization_counter_value() is None)
+
+		assert(isinstance(cbc_mode.aes_args(), tuple) is True)
+		assert(isinstance(cbc_mode.aes_kwargs(), dict) is True)
 
 		init_seq_key = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
 		init_seq_key += b'\x10\x11\x12\x13\x14\x15\x16\x17'
@@ -97,7 +100,8 @@ class TestWAESMode:
 		assert(ctr_mode.key_size() == 24)
 		assert(ctr_mode.mode() == 'AES-CTR')
 		assert(ctr_mode.padding() is None)
-		assert (ctr_mode.initialization_counter_value() == 7)
+		assert(int.from_bytes(ctr_mode.initialization_counter_value(), byteorder='big') == 7)
+		assert(ctr_mode.initialization_vector() is None)
 
 
 @pytest.fixture
@@ -119,7 +123,6 @@ def fake_aes_mode(request):
 class TestWAES:
 
 	def test_cipher(self):
-
 		init_seq_key1 = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
 		init_seq_iv = b'\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f'
 		padding = WPKCS7Padding()
@@ -132,27 +135,30 @@ class TestWAES:
 		a1 = WAES(cbc_mode1)
 		a2 = WAES(cbc_mode2)
 
-		text_block = 'q' * a1.mode().key_size()
+		text_block = b'q' * a1.mode().key_size()
 
 		c1 = a1.cipher()
 		c2 = a2.cipher()
-		assert(c1.encrypt(text_block) != text_block.encode())
+		assert(isinstance(c1, WCipherProto) is True)
+		assert(c1.block_size() == WAESMode.__data_padding_length__)
+
+		assert(c1.encrypt_block(text_block) != text_block)
 
 		c1 = a1.cipher()
 		c2 = a2.cipher()
-		assert(c1.encrypt(text_block) != c2.encrypt(text_block))
+		assert(c1.encrypt_block(text_block) != c2.encrypt_block(text_block))
 
 		c1 = a1.cipher()
 		c2 = a1.cipher()
-		assert(c1.decrypt(c1.encrypt(text_block)) != text_block.encode())
+		assert(c1.decrypt_block(text_block) != text_block)
 
 		c1 = a1.cipher()
 		c2 = a1.cipher()
-		assert(c2.decrypt(c1.encrypt(text_block)) == text_block.encode())
+		assert(c2.decrypt_block(c1.encrypt_block(text_block)) == text_block)
 
 		c1 = a1.cipher()
 		c2 = a2.cipher()
-		assert(c2.decrypt(c1.encrypt(text_block)) != text_block.encode())
+		assert(c2.decrypt_block(c1.encrypt_block(text_block)) != text_block)
 
 		text_block = b'qwerty'
 		assert(a1.encrypt(text_block) == a1.encrypt(text_block))
@@ -162,10 +168,4 @@ class TestWAES:
 
 	@pytest.mark.usefixtures('fake_aes_mode')
 	def test_fake_mode(self):
-		init_seq_key = b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
-		init_seq_iv = b'\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f'
-		init_seq_counter = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08'
-
-		fake_mode = WAESMode(16, 'TEST-AES-MODE', init_seq_key + init_seq_iv + init_seq_counter)
-		assert(fake_mode.initialization_vector() == init_seq_iv)
-		assert(fake_mode.initialization_counter_value() == 8)
+		pytest.raises(ValueError, WAESMode, 16, 'TEST-AES-MODE', b'\x00' * (16 * 3))

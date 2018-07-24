@@ -212,7 +212,7 @@ class WAESWriter(io.BufferedWriter):
 		self.__buffer += bytes(b)
 		bytes_written = 0
 		while len(self.__buffer) >= self.__cipher_block_size:
-			io.BufferedWriter.write(self, self.__cipher.encrypt(self.__buffer[:self.__cipher_block_size]))
+			io.BufferedWriter.write(self, self.__cipher.encrypt_block(self.__buffer[:self.__cipher_block_size]))
 			self.__buffer = self.__buffer[self.__cipher_block_size:]
 			bytes_written += self.__cipher_block_size
 		return len(b)
@@ -220,7 +220,7 @@ class WAESWriter(io.BufferedWriter):
 	def flush(self):
 		if len(self.__buffer) > 0:
 			data = self.__cipher_padding.pad(self.__buffer, self.__cipher_block_size)
-			encrypted_data = self.__cipher.encrypt(data)
+			encrypted_data = self.__cipher.encrypt_block(data)
 			io.BufferedWriter.write(self, encrypted_data)
 		self.__buffer = b''
 		io.BufferedWriter.flush(self)
