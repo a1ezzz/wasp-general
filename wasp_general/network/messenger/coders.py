@@ -360,7 +360,7 @@ class WMessengerRSALayer(WMessengerOnionCoderLayerProto):
 
 		:return: WMessengerBytesEnvelope
 		"""
-		message = WRSA.encrypt(envelope.message(), hash_fn_name=hash_fn_name)
+		message = public_key.encrypt(envelope.message(), hash_fn_name=hash_fn_name)
 		return WMessengerBytesEnvelope(message, meta=envelope)
 
 	@verify_type('paranoid', session=WMessengerOnionSessionProto, private_key=WRSA, hash_fn_name=(str, None))
@@ -378,5 +378,5 @@ class WMessengerRSALayer(WMessengerOnionCoderLayerProto):
 
 		:return: WMessengerBytesEnvelope
 		"""
-		message = WRSA.decrypt(envelope.message(), hash_fn_name=hash_fn_name)
+		message = private_key.decrypt(envelope.message(), hash_fn_name=hash_fn_name)
 		return WMessengerBytesEnvelope(message, meta=envelope)
