@@ -140,7 +140,9 @@ class WRSA:
 	def import_private_key(self, pem_text, password=None):
 		""" Import a private key from data in PEM-format
 
+		:param pem_text: text with private key
 		:param password: If it is not None, then result will be decrypt with the given password
+		:return: None
 		"""
 		if isinstance(pem_text, str) is True:
 			pem_text = pem_text.encode()
@@ -154,6 +156,8 @@ class WRSA:
 	@verify_type(pem_text=(str, bytes))
 	def import_public_key(self, pem_text):
 		""" Import a public key from data in PEM-format
+		:param pem_text: text with public key
+		:return: None
 		"""
 		if isinstance(pem_text, str) is True:
 			pem_text = pem_text.encode()
