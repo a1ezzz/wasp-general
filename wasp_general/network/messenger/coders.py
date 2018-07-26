@@ -27,7 +27,7 @@ from wasp_general.version import __status__
 from base64 import b64encode, b64decode
 from enum import Enum
 
-from wasp_general.verify import verify_type
+from wasp_general.verify import verify_type, verify_value
 from wasp_general.crypto.hex import WHex, WUnHex
 from wasp_general.crypto.aes import WAES
 from wasp_general.crypto.rsa import WRSA
@@ -346,35 +346,37 @@ class WMessengerRSALayer(WMessengerOnionCoderLayerProto):
 		"""
 		WMessengerOnionCoderLayerProto.__init__(self, WMessengerRSALayer.__layer_name__)
 
-	@verify_type('paranoid', session=WMessengerOnionSessionProto, public_key=WRSA.wrapped_class, sha_digest_size=int)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto, public_key=WRSA, hash_fn_name=(str, None))
 	@verify_type(envelope=WMessengerBytesEnvelope)
-	def encode(self, envelope, session, public_key=None, sha_digest_size=32, **kwargs):
+	@verify_value(public_key=lambda x: x.has_public_key() is True)
+	def encode(self, envelope, session, public_key=None, hash_fn_name=None, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
 		:param envelope: original envelope
 		:param session: original session
 		:param public_key: public key to encrypt
-		:param sha_digest_size: SHA digest size to use
+		:param hash_fn_name: hash function name
 		:param kwargs: additional arguments
 
 		:return: WMessengerBytesEnvelope
 		"""
-		message = WRSA.encrypt(envelope.message(), public_key, sha_digest_size=sha_digest_size)
+		message = WRSA.encrypt(envelope.message(), hash_fn_name=hash_fn_name)
 		return WMessengerBytesEnvelope(message, meta=envelope)
 
-	@verify_type('paranoid', session=WMessengerOnionSessionProto, private_key=WRSA.wrapped_class)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto, private_key=WRSA, hash_fn_name=(str, None))
 	@verify_type('paranoid', sha_digest_size=int)
 	@verify_type(envelope=WMessengerBytesEnvelope)
-	def decode(self, envelope, session, private_key=None, sha_digest_size=32, **kwargs):
+	@verify_value(public_key=lambda x: x.has_private_key() is True)
+	def decode(self, envelope, session, private_key=None, hash_fn_name=None, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 
 		:param envelope: original envelope
 		:param session: original session
 		:param private_key: private key to decrypt
-		:param sha_digest_size: SHA digest size to use
+		:param hash_fn_name: hash function name
 		:param kwargs: additional arguments
 
 		:return: WMessengerBytesEnvelope
 		"""
-		message = WRSA.decrypt(envelope.message(), private_key, sha_digest_size=sha_digest_size)
+		message = WRSA.decrypt(envelope.message(), hash_fn_name=hash_fn_name)
 		return WMessengerBytesEnvelope(message, meta=envelope)

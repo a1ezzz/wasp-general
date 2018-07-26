@@ -24,47 +24,48 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from Crypto.Hash.HMAC import HMAC
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, hmac
 import re
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.crypto.hash import WHash
 
 
 class WHMAC:
-	""" Class that wraps PyCrypto HMAC implementation
+	""" Class that wraps Cryptography io HMAC implementation
 
 	see also https://en.wikipedia.org/wiki/Hash-based_message_authentication_code
 	"""
 
-	__default_generator_name__ = 'SHA512'
-	""" Default hash generator name for HMAC
+	__default_hash_fn_name__ = 'SHA512'
+	""" Default hash function name for HMAC
 	"""
 
 	__hmac_name_re__ = re.compile('HMAC[\-_]([a-zA-Z0-9]+)')
-	""" Regular expression that selects hash generator name from HMAC name
+	""" Regular expression that selects hash function name from HMAC name
 	"""
 
-	@verify_type(digest_generator=(str, None))
-	def __init__(self, digest_generator_name=None):
+	@verify_type(hash_fn_name=(str, None))
+	@verify_value(hash_fn_name=lambda x: x is None or hasattr(hashes, x))
+	def __init__(self, hash_fn_name=None):
 		""" Create new "code-authenticator"
 
-		:param digest_generator_name: name of hash function
+		:param hash_fn_name: a name of hash function
 		"""
-		if digest_generator_name is None:
-			digest_generator_name = WHMAC.__default_generator_name__
-		if digest_generator_name not in WHash.available_generators():
-			raise ValueError('Unknown hash generator: "%s"' % digest_generator_name)
-		self.__digest_generator = WHash.generator(digest_generator_name)
 
-	def digest_generator(self):
-		""" Return hash-generator
+		self.__hash_fn_name = \
+			hash_fn_name if hash_fn_name is not None else self.__class__.__default_hash_fn_name__
+		self.__digest_generator = getattr(hashes, self.__hash_fn_name)()
 
-		:return: PyCrypto class
+	def hash_function_name(self):
+		""" Return hash-generator name
+
+		:return: str
 		"""
-		return self.__digest_generator
 
-	@verify_type(key=bytes, message=(bytes, None), digest_generator=(str, None))
+		return self.__hash_fn_name
+
+	@verify_type(key=bytes, message=(bytes, None))
 	def hash(self, key, message=None):
 		""" Return digest of the given message and key
 
@@ -73,8 +74,10 @@ class WHMAC:
 
 		:return: bytes
 		"""
-		generator = self.digest_generator()
-		return HMAC(key, msg=message, digestmod=generator().pycrypto()).digest()
+		hmac_obj = hmac.HMAC(key, self.__digest_generator, backend=default_backend())
+		if message is not None:
+			hmac_obj.update(message)
+		return hmac_obj.finalize()
 
 	@classmethod
 	@verify_type(name=str)

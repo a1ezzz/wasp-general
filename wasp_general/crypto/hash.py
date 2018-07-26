@@ -24,17 +24,16 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from abc import ABCMeta, abstractmethod, abstractclassmethod
-from Crypto.Hash import SHA as SHA1, SHA224, SHA256, SHA384, SHA512, MD5
+from abc import ABCMeta, abstractmethod
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
 
 from wasp_general.verify import verify_type
 
 
 class WHashGeneratorProto(metaclass=ABCMeta):
 	""" Prototype for hash-generator.
-
-	note: there is commonly used feature that most hash generator objects have - digest_size attribute. So it is
-	better to create this attribute.
 	"""
 
 	@abstractmethod
@@ -63,7 +62,8 @@ class WHashGeneratorProto(metaclass=ABCMeta):
 		"""
 		return ''.join(["{:02x}".format(x).upper() for x in self.digest()])
 
-	@abstractclassmethod
+	@classmethod
+	@abstractmethod
 	def generator_digest_size(cls):
 		""" Return generator digest size
 
@@ -71,7 +71,8 @@ class WHashGeneratorProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
-	@abstractclassmethod
+	@classmethod
+	@abstractmethod
 	def generator_name(cls):
 		""" Return hash-function name
 
@@ -79,7 +80,8 @@ class WHashGeneratorProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
-	@abstractclassmethod
+	@classmethod
+	@abstractmethod
 	def generator_family(cls):
 		""" Return name of hash-function family (like: 'SHA')
 
@@ -87,7 +89,8 @@ class WHashGeneratorProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
-	@abstractclassmethod
+	@classmethod
+	@abstractmethod
 	@verify_type(data=(bytes, None))
 	def new(cls, data=None):
 		""" Return new generator and hash the specified data (if defined)
@@ -99,11 +102,11 @@ class WHashGeneratorProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 
-class WPyCryptoHashAdapter(WHashGeneratorProto):
-	""" Class that adapts the specified PyCrypto hashing class to WHashGeneratorProto implementation
+class WPyCryptographyHashAdapter(WHashGeneratorProto):
+	""" Class that adapts the specified Cryptography.io hashing class to WHashGeneratorProto implementation
 	"""
 
-	__pycrypto_cls__ = None
+	__py_cryptography_cls__ = None
 	""" PyCrypto class to adapt. Must be override in a derived classes
 	"""
 
@@ -120,11 +123,10 @@ class WPyCryptoHashAdapter(WHashGeneratorProto):
 		"""
 		WHashGeneratorProto.__init__(self)
 
-		if self.__class__.__pycrypto_cls__ is None:
+		if self.__class__.__py_cryptography_cls__ is None:
 			raise ValueError('"__pycrypto_cls__" must be override in a derived class')
 
-		self.__pycrypto_obj = self.__class__.__pycrypto_cls__.new()
-		self.digest_size = self.__class__.generator_digest_size()
+		self.__pycrypto_obj = hashes.Hash(self.__class__.__py_cryptography_cls__(), backend=default_backend())
 
 	@verify_type(data=bytes)
 	def update(self, data):
@@ -135,27 +137,15 @@ class WPyCryptoHashAdapter(WHashGeneratorProto):
 	def digest(self):
 		""" :meth:`.WHashGeneratorProto.digest` implementation
 		"""
-		return self.__pycrypto_obj.digest()
-
-	def pycrypto(self):
-		""" In rare cases original PyCrypto object is required. In most cases this method should be avoided,
-		as it is can be removed at any time.
-
-		One of an example of this method usage is PyCrypto HMAC (and so :class:`.WHMAC`). They require, that
-		hash-generator object must have "copy" method to be implemented. But I have not found a way to make
-		HMAC work.
-
-		:return: PyCrypto Hash object
-		"""
-		return self.__pycrypto_obj
+		return self.__pycrypto_obj.copy().finalize()
 
 	@classmethod
 	def generator_digest_size(cls):
 		""" :meth:`.WHashGeneratorProto.generator_digest_size` implementation
 		"""
-		if cls.__pycrypto_cls__ is None:
+		if cls.__py_cryptography_cls__ is None:
 			raise ValueError('"__pycrypto_cls__" must be override in a derived class')
-		return cls.__pycrypto_cls__.digest_size
+		return cls.__py_cryptography_cls__.digest_size
 
 	@classmethod
 	def generator_name(cls):
@@ -189,7 +179,7 @@ class WPyCryptoHashAdapter(WHashGeneratorProto):
 		return obj
 
 
-class WSHAFamily(WPyCryptoHashAdapter):
+class WSHAFamily(WPyCryptographyHashAdapter):
 	""" Class that represent SHA-family hash-generators
 	"""
 	__generator_family__ = 'SHA'
@@ -198,42 +188,42 @@ class WSHAFamily(WPyCryptoHashAdapter):
 class WSHA1(WSHAFamily):
 	""" SHA1 hash-generator
 	"""
-	__pycrypto_cls__ = SHA1
+	__py_cryptography_cls__ = hashes.SHA1
 	__generator_name__ = 'SHA1'
 
 
 class WSHA224(WSHAFamily):
 	""" SHA224 hash-generator
 	"""
-	__pycrypto_cls__ = SHA224
+	__py_cryptography_cls__ = hashes.SHA224
 	__generator_name__ = 'SHA224'
 
 
 class WSHA256(WSHAFamily):
 	""" SHA256 hash-generator
 	"""
-	__pycrypto_cls__ = SHA256
+	__py_cryptography_cls__ = hashes.SHA256
 	__generator_name__ = 'SHA256'
 
 
 class WSHA384(WSHAFamily):
 	""" SHA384 hash-generator
 	"""
-	__pycrypto_cls__ = SHA384
+	__py_cryptography_cls__ = hashes.SHA384
 	__generator_name__ = 'SHA384'
 
 
 class WSHA512(WSHAFamily):
 	""" SHA512 hash-generator
 	"""
-	__pycrypto_cls__ = SHA512
+	__py_cryptography_cls__ = hashes.SHA512
 	__generator_name__ = 'SHA512'
 
 
-class WMD5(WPyCryptoHashAdapter):
+class WMD5(WPyCryptographyHashAdapter):
 	""" MD5 hash-generator
 	"""
-	__pycrypto_cls__ = MD5
+	__py_cryptography_cls__ = hashes.MD5
 	__generator_name__ = 'MD5'
 
 
