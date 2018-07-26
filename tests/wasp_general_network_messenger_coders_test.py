@@ -175,7 +175,8 @@ class TestWMessengerRSALayer:
 		session = WMessengerOnionSession(onion, sf)
 		layer = WMessengerRSALayer()
 
-		rsa_pk = WRSA.generate_private(1024)
+		rsa_pk = WRSA()
+		rsa_pk.generate_private_key()
 
 		assert(isinstance(layer, WMessengerRSALayer) is True)
 		assert(isinstance(layer, WMessengerOnionCoderLayerProto) is True)
