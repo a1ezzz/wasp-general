@@ -8,6 +8,14 @@ from wasp_general.crypto.rsa import WRSA
 class TestWRSA:
 
 	def test(self):
+
+		print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+		import cryptography.hazmat.backends.openssl
+		import os
+		with open(os.path.join(os.path.dirname(cryptography.hazmat.backends.openssl.__file__), 'backend.py'), 'r') as f:
+			print(f.read())
+		print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
 		rsa = WRSA()
 		assert(rsa.has_private_key() is False)
 		assert(rsa.has_public_key() is False)
