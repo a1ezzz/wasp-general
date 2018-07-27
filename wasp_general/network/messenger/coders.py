@@ -346,37 +346,44 @@ class WMessengerRSALayer(WMessengerOnionCoderLayerProto):
 		"""
 		WMessengerOnionCoderLayerProto.__init__(self, WMessengerRSALayer.__layer_name__)
 
-	@verify_type('paranoid', session=WMessengerOnionSessionProto, public_key=WRSA, hash_fn_name=(str, None))
+	@verify_type('paranoid', session=WMessengerOnionSessionProto, public_key=WRSA, oaep_hash_fn_name=(str, None))
+	@verify_type('paranoid', mgf1_hash_fn_name=(str, None))
 	@verify_type(envelope=WMessengerBytesEnvelope)
 	@verify_value(public_key=lambda x: x.has_public_key() is True)
-	def encode(self, envelope, session, public_key=None, hash_fn_name=None, **kwargs):
+	def encode(self, envelope, session, public_key=None, oaep_hash_fn_name=None, mgf1_hash_fn_name=None, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.encode` method implementation.
 
 		:param envelope: original envelope
 		:param session: original session
 		:param public_key: public key to encrypt
-		:param hash_fn_name: hash function name
+		:param oaep_hash_fn_name: OAEP hash function name
+		:param mgf1_hash_fn_name: MGF1 hash function name
 		:param kwargs: additional arguments
 
 		:return: WMessengerBytesEnvelope
 		"""
-		message = public_key.encrypt(envelope.message(), hash_fn_name=hash_fn_name)
+		message = public_key.encrypt(
+			envelope.message(), oaep_hash_fn_name=oaep_hash_fn_name, mgf1_hash_fn_name=mgf1_hash_fn_name
+		)
 		return WMessengerBytesEnvelope(message, meta=envelope)
 
-	@verify_type('paranoid', session=WMessengerOnionSessionProto, private_key=WRSA, hash_fn_name=(str, None))
-	@verify_type('paranoid', sha_digest_size=int)
+	@verify_type('paranoid', session=WMessengerOnionSessionProto, private_key=WRSA, oaep_hash_fn_name=(str, None))
+	@verify_type('paranoid', mgf1_hash_fn_name=(str, None))
 	@verify_type(envelope=WMessengerBytesEnvelope)
 	@verify_value(public_key=lambda x: x.has_private_key() is True)
-	def decode(self, envelope, session, private_key=None, hash_fn_name=None, **kwargs):
+	def decode(self, envelope, session, private_key=None, oaep_hash_fn_name=None, mgf1_hash_fn_name=None, **kwargs):
 		""" :meth:`.WMessengerOnionCoderLayerProto.decode` method implementation.
 
 		:param envelope: original envelope
 		:param session: original session
 		:param private_key: private key to decrypt
-		:param hash_fn_name: hash function name
+		:param oaep_hash_fn_name: hash function name
+		:param mgf1_hash_fn_name: MGF1 hash function name
 		:param kwargs: additional arguments
 
 		:return: WMessengerBytesEnvelope
 		"""
-		message = private_key.decrypt(envelope.message(), hash_fn_name=hash_fn_name)
+		message = private_key.decrypt(
+			envelope.message(), oaep_hash_fn_name=oaep_hash_fn_name, mgf1_hash_fn_name=mgf1_hash_fn_name
+		)
 		return WMessengerBytesEnvelope(message, meta=envelope)

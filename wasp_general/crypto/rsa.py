@@ -35,8 +35,14 @@ class WRSA:
 	""" Wraps Cryptography io RSA implementation
 	"""
 
-	__default_hash_function_name__ = 'SHA256'
-	""" Default hash function that is used with RSA encryption/decryption
+	__default_oaep_hash_function_name__ = 'SHA512'
+	""" Default hash function that is used with RSA-OAEP encryption/decryption
+	"""
+
+	__default_mgf1_hash_function_name__ = 'SHA1'
+	""" Default hash function that is used with RSA-OAEP encryption/decryption for MGF1 padding.
+	
+	NOTE: SHA1 is used for compatibility issue. For example, on debian (travis-ci) tests will fail with pypy3.5
 	"""
 
 	def __init__(self):
@@ -165,56 +171,68 @@ class WRSA:
 			serialization.load_pem_public_key(pem_text, backend=default_backend())
 		)
 
-	@verify_type(data=bytes, hash_fn_name=(str, None))
-	@verify_value(hash_fn_name=lambda x: x is None or hasattr(hashes, x))
-	def encrypt(self, data, hash_fn_name=None):
+	@verify_type(data=bytes, oaep_hash_fn_name=(str, None), mgf1_hash_fn_name=(str, None))
+	@verify_value(oaep_hash_fn_name=lambda x: x is None or hasattr(hashes, x))
+	@verify_value(mgf1_hash_fn_name=lambda x: x is None or hasattr(hashes, x))
+	def encrypt(self, data, oaep_hash_fn_name=None, mgf1_hash_fn_name=None):
 		""" Encrypt a data with PKCS1 OAEP protocol
 
 		:param data: data to encrypt
-		:param hash_fn_name: hash function name to use
+		:param oaep_hash_fn_name: hash function name to use with OAEP
+		:param mgf1_hash_fn_name: hash function name to use with MGF1 padding
 		:return: bytes
 		"""
 
 		if self.__public_key is None:
-			raise ValueError('!')
+			raise ValueError('Unable to call this method. Public key must be set')
 
-		if hash_fn_name is None:
-			hash_fn_name = self.__class__.__default_hash_function_name__
+		if oaep_hash_fn_name is None:
+			oaep_hash_fn_name = self.__class__.__default_oaep_hash_function_name__
 
-		hash_cls = getattr(hashes, hash_fn_name)
+		if mgf1_hash_fn_name is None:
+			mgf1_hash_fn_name = self.__class__.__default_mgf1_hash_function_name__
+
+		oaep_hash_cls = getattr(hashes, oaep_hash_fn_name)
+		mgf1_hash_cls = getattr(hashes, mgf1_hash_fn_name)
 
 		return self.__public_key.encrypt(
 			data,
 			padding.OAEP(
-				mgf=padding.MGF1(algorithm=hash_cls()),
-				algorithm=hash_cls(),
+				mgf=padding.MGF1(algorithm=mgf1_hash_cls()),
+				algorithm=oaep_hash_cls(),
 				label=None
 			)
 		)
 
-	@verify_type(data=bytes, hash_fn_name=(str, None))
-	@verify_value(hash_fn_name=lambda x: x is None or hasattr(hashes, x))
-	def decrypt(self, data, hash_fn_name=None):
+	@verify_type(data=bytes, oaep_hash_fn_name=(str, None), mgf1_hash_fn_name=(str, None))
+	@verify_value(oaep_hash_fn_name=lambda x: x is None or hasattr(hashes, x))
+	@verify_value(mgf1_hash_fn_name=lambda x: x is None or hasattr(hashes, x))
+	def decrypt(self, data, oaep_hash_fn_name=None, mgf1_hash_fn_name=None):
 		""" Decrypt a data that used PKCS1 OAEP protocol
 
 		:param data: data to decrypt
-		:param hash_fn_name: hash function name to use
+		:param oaep_hash_fn_name: hash function name to use with OAEP
+		:param mgf1_hash_fn_name: hash function name to use with MGF1 padding
 		:return: bytes
 		"""
 
 		if self.__private_key is None:
-			raise ValueError('!')
+			raise ValueError('Unable to call this method. Private key must be set')
 
-		if hash_fn_name is None:
-			hash_fn_name = self.__class__.__default_hash_function_name__
+		if oaep_hash_fn_name is None:
+			oaep_hash_fn_name = self.__class__.__default_oaep_hash_function_name__
 
-		hash_cls = getattr(hashes, hash_fn_name)
+		if mgf1_hash_fn_name is None:
+			mgf1_hash_fn_name = self.__class__.__default_mgf1_hash_function_name__
+
+		oaep_hash_cls = getattr(hashes, oaep_hash_fn_name)
+		mgf1_hash_cls = getattr(hashes, mgf1_hash_fn_name)
 
 		return self.__private_key.decrypt(
 			data,
 			padding.OAEP(
-				mgf=padding.MGF1(algorithm=hash_cls()),
-				algorithm=hash_cls(),
+				mgf=padding.MGF1(algorithm=mgf1_hash_cls()),
+				algorithm=oaep_hash_cls(),
 				label=None
 			)
 		)
