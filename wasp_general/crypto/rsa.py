@@ -35,7 +35,7 @@ class WRSA:
 	""" Wraps Cryptography io RSA implementation
 	"""
 
-	__default_hash_function_name__ = 'SHA512'
+	__default_hash_function_name__ = 'SHA256'
 	""" Default hash function that is used with RSA encryption/decryption
 	"""
 
