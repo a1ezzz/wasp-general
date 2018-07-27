@@ -107,7 +107,7 @@ class WPyCryptographyHashAdapter(WHashGeneratorProto):
 	"""
 
 	__py_cryptography_cls__ = None
-	""" PyCrypto class to adapt. Must be override in a derived classes
+	""" Cryptography class to adapt. Must be override in a derived classes
 	"""
 
 	__generator_name__ = None
@@ -124,7 +124,7 @@ class WPyCryptographyHashAdapter(WHashGeneratorProto):
 		WHashGeneratorProto.__init__(self)
 
 		if self.__class__.__py_cryptography_cls__ is None:
-			raise ValueError('"__pycrypto_cls__" must be override in a derived class')
+			raise ValueError('"__py_cryptography_cls__" must be override in a derived class')
 
 		self.__pycrypto_obj = hashes.Hash(self.__class__.__py_cryptography_cls__(), backend=default_backend())
 
@@ -144,7 +144,7 @@ class WPyCryptographyHashAdapter(WHashGeneratorProto):
 		""" :meth:`.WHashGeneratorProto.generator_digest_size` implementation
 		"""
 		if cls.__py_cryptography_cls__ is None:
-			raise ValueError('"__pycrypto_cls__" must be override in a derived class')
+			raise ValueError('"__py_cryptography_cls__" must be override in a derived class')
 		return cls.__py_cryptography_cls__.digest_size
 
 	@classmethod
