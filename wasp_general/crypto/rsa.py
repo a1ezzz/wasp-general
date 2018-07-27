@@ -39,10 +39,8 @@ class WRSA:
 	""" Default hash function that is used with RSA-OAEP encryption/decryption
 	"""
 
-	__default_mgf1_hash_function_name__ = 'SHA1'
+	__default_mgf1_hash_function_name__ = 'SHA512'
 	""" Default hash function that is used with RSA-OAEP encryption/decryption for MGF1 padding.
-	
-	NOTE: SHA1 is used for compatibility issue. For example, on debian (travis-ci) tests will fail with pypy3.5
 	"""
 
 	def __init__(self):

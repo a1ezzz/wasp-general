@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import pytest
 
 from wasp_general.crypto.rsa import WRSA
@@ -26,6 +27,14 @@ class TestWRSA:
 		assert(rsa.private_key_size() == 4096)
 		rsa.generate_private_key(1024)
 		assert(rsa.private_key_size() == 1024)
+
+	@pytest.mark.skipif(
+		'TRAVIS_OS_NAME' in os.environ,
+		reason='Test fails with old Ubuntu 14.04 (current travis-ci.org OS) since '
+		'it is required "modern" openssl'
+	)
+	def test_encryption(self):
+		rsa = WRSA()
 
 		rsa.generate_private_key()
 		private_key_pem_var1 = rsa.export_private_key()
