@@ -24,26 +24,33 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-
-from Crypto.Random.random import getrandbits
+import os
+import sys
 import math
 
 from wasp_general.verify import verify_type, verify_value
 
 
 @verify_type(bits_count=int)
-@verify_value(bits_count=lambda x: x >= 0)
+@verify_value(bits_count=lambda x: x > 0)
 def random_bits(bits_count):
 	""" Random generator (PyCrypto getrandbits wrapper). The result is a non-negative value.
 
 	:param bits_count: random bits to generate
 	:return: int
 	"""
-	return getrandbits(bits_count)
+	bytes_count = int(math.ceil(bits_count / 8))
+	random_value = int.from_bytes(os.urandom(bytes_count), byteorder=sys.byteorder)
+	result_bits = bytes_count * 8
+
+	if result_bits > bits_count:
+		random_value = (random_value >> (result_bits - bits_count))
+
+	return random_value
 
 
 @verify_type(maximum_value=int)
-@verify_value(maximum_value=lambda x: x >= 0)
+@verify_value(maximum_value=lambda x: x > 0)
 def random_int(maximum_value):
 	""" Random generator (PyCrypto getrandbits wrapper). The result is a non-negative value.
 
@@ -69,4 +76,4 @@ def random_bytes(bytes_count):
 	:return: bytes
 	"""
 
-	return bytes([getrandbits(8) for x in range(bytes_count)])
+	return bytes([random_bits(8) for x in range(bytes_count)])

@@ -175,14 +175,15 @@ class TestWMessengerRSALayer:
 		session = WMessengerOnionSession(onion, sf)
 		layer = WMessengerRSALayer()
 
-		rsa_pk = WRSA.generate_private(1024)
+		rsa_pk = WRSA()
+		rsa_pk.generate_private_key(2048)
 
 		assert(isinstance(layer, WMessengerRSALayer) is True)
 		assert(isinstance(layer, WMessengerOnionCoderLayerProto) is True)
 
 		result = layer.encode(WMessengerBytesEnvelope(b'msg1'), session, public_key=rsa_pk)
 		assert(isinstance(result, WMessengerBytesEnvelope) is True)
-		assert(len(result.message()) == (1024 / 8))
+		assert(len(result.message()) == (2048 / 8))
 
 		result = layer.decode(result, session, private_key=rsa_pk)
 		assert(isinstance(result, WMessengerBytesEnvelope) is True)

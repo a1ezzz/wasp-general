@@ -7,13 +7,11 @@ from wasp_general.crypto.random import random_bits, random_int, random_bytes
 
 def test_random_bits():
 	assert(isinstance(random_bits(3), int) is True)
-	assert(random_bits(0) == 0)
 	assert(random_bits(10) != random_bits(10))
 
 
 def test_random_int():
 	assert(isinstance(random_int(10), int) is True)
-	assert(random_int(0) == 0)
 	assert(random_int(1000) != random_int(1000))
 	assert(random_int(10) <= 10)
 

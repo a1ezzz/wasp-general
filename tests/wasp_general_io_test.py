@@ -28,6 +28,11 @@ class TestWAESWriter:
 		result = b'[C\xf0-\x9c\x98\x07-q\xc2?\xd8\xdeXLsn\x9cz\x00;\xa6b\x9b&_,\xfd\x91\xbe'
 		result += b'\x03{\x91r(\xb0\xe7:\x81X\xf4\xe8(\x84\x9aM\x10\xc5\xf4\x01\xa9G\'\x04;`\r2\x17\x11'
 		result += b'\x1b\xaf\xb4\x83'
+
+		# result value may be decoded by openssl command
+		# openssl aes-128-cbc -d -in <file with 'result' value> -out <file with decoded data > \
+		# -K "01010101020202020303030304040404" -nosalt -iv "05050505060606060707070708080808" -nopad
+
 		assert(bytes_io.read() == result)
 		io.BytesIO.close(bytes_io)
 
