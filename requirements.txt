@@ -1,5 +1,4 @@
 decorator
-pycrypto
 cryptography
 python_magic
 pyzmq
