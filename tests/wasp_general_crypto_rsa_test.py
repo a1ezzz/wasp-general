@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import os
+import platform
 import pytest
 
 from wasp_general.crypto.rsa import WRSA
@@ -8,6 +10,7 @@ from wasp_general.crypto.rsa import WRSA
 class TestWRSA:
 
 	def test(self):
+
 		rsa = WRSA()
 		assert(rsa.has_private_key() is False)
 		assert(rsa.has_public_key() is False)
@@ -25,6 +28,14 @@ class TestWRSA:
 		assert(rsa.private_key_size() == 4096)
 		rsa.generate_private_key(1024)
 		assert(rsa.private_key_size() == 1024)
+
+	@pytest.mark.skipif(
+		('TRAVIS_OS_NAME' in os.environ) and (platform.python_implementation() == 'PyPy'),
+		reason='travis-ci.org uses an old OS (Ubuntu 14.04) when building with pypy. And RSA with OAEP'
+		'requires "modern" openssl'
+	)
+	def test_encryption(self):
+		rsa = WRSA()
 
 		rsa.generate_private_key()
 		private_key_pem_var1 = rsa.export_private_key()

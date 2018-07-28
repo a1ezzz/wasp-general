@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import os
+import platform
 import pytest
 
 from wasp_general.crypto.aes import WAES, WAESMode, WPKCS7Padding
@@ -168,6 +170,11 @@ class TestWMessengerAESLayer:
 
 class TestWMessengerRSALayer:
 
+	@pytest.mark.skipif(
+		('TRAVIS_OS_NAME' in os.environ) and (platform.python_implementation() == 'PyPy'),
+		reason='travis-ci.org uses an old OS (Ubuntu 14.04) when building with pypy. And RSA with OAEP'
+		'requires "modern" openssl'
+	)
 	def test_layer(self):
 
 		onion = WMessengerOnion()
