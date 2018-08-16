@@ -6,3 +6,4 @@ mako
 tornado
 pytz
 webdavclient3
+atomic
