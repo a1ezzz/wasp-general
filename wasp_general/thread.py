@@ -19,14 +19,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
+# TODO: switch WAtomicCounter.__counter class from AtomicLong to AtomicULongLong after the moment when the pull
+# request to atomic project will be accepted
 
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
+from atomic import AtomicLong
 from threading import Lock
 from decorator import decorator
 
@@ -34,13 +35,25 @@ from wasp_general.verify import verify_type, verify_value
 
 
 class WCriticalSectionError(Exception):
+	""" An exception that may be raised if a lock for a critical section could not be acquire
+	"""
 	pass
 
 
 @verify_type(blocking=bool, timeout=(int, float, None), raise_exception=bool)
 @verify_value(lock_fn=lambda x: callable(x))
 @verify_value(timeout=lambda x: x is None or x > 0)
-def critical_section_dynamic_lock(lock_fn=None, blocking=True, timeout=None, raise_exception=True):
+def critical_section_dynamic_lock(lock_fn, blocking=True, timeout=None, raise_exception=True):
+	""" Protect a function with a lock, that was get from the specified function. If a lock can not be acquire, then
+	no function call will be made
+
+	:param lock_fn: callable that returns a lock, with which a function may be protected
+	:param blocking: whenever to block operations with lock acquiring
+	:param timeout: timeout with which a lock acquiring will be made
+	:param raise_exception: whenever to raise an WCriticalSectionError exception if lock can not be acquired
+
+	:return: decorator with which a target function may be protected
+	"""
 
 	if blocking is False or timeout is None:
 		timeout = -1
@@ -55,16 +68,26 @@ def critical_section_dynamic_lock(lock_fn=None, blocking=True, timeout=None, rai
 				finally:
 					lock.release()
 			elif raise_exception is True:
-				WCriticalSectionError('Unable to lock critical section\n')
+				raise WCriticalSectionError('Unable to lock critical section\n')
 
 		return decorator(second_level_decorator)(decorated_function)
 	return first_level_decorator
 
 
-@verify_type('paranoid', lock=Lock().__class__, blocking=bool, timeout=(int, float, None), raise_exception=bool)
+@verify_type('paranoid', blocking=bool, timeout=(int, float, None), raise_exception=bool)
 @verify_value('paranoid', timeout=lambda x: x is None or x > 0)
 @verify_type(lock=Lock().__class__)
 def critical_section_lock(lock=None, blocking=True, timeout=None, raise_exception=True):
+	""" An a wrapper for :func:`.critical_section_dynamic_lock` function call, but uses a static lock object
+	instead of a function that returns a lock with which a function protection will be made
+
+	:param lock: lock with which a function will be protected
+	:param blocking: same as blocking in :func:`.critical_section_dynamic_lock` function
+	:param timeout: same as timeout in :func:`.critical_section_dynamic_lock` function
+	:param raise_exception: same as raise_exception in :func:`.critical_section_dynamic_lock` function
+
+	:return: decorator with which a target function may be protected
+	"""
 
 	def lock_getter(*args, **kwargs):
 		return lock
@@ -75,11 +98,21 @@ def critical_section_lock(lock=None, blocking=True, timeout=None, raise_exceptio
 
 
 class WCriticalResource:
+	""" Class for simplifying thread safety for a shared object. Each class instance holds its own lock object
+	that :meth:`.WCriticalResource.critical_section` method will be used to protect bounded methods.
+	The only assumption is only simple bounded methods are allowed to be protected by this class
+	"""
 
 	def __init__(self):
+		""" Create lock and return new object
+		"""
 		self.__lock = Lock()
 
 	def thread_lock(self):
+		""" Return lock with which a bounded methods may be protected
+
+		:return: threading.Lock
+		"""
 		return self.__lock
 
 	@staticmethod
@@ -98,3 +131,44 @@ class WCriticalResource:
 		return critical_section_dynamic_lock(
 			lock_fn=lock_getter, blocking=blocking, timeout=timeout, raise_exception=raise_exception
 		)
+
+
+class WAtomicCounter:
+	""" Represent atomic counter ('long' as c-type) which guarantees atomic updates (increases) to its value.
+	A maximum supported value of 'long' type depends on a platform that runs this software.
+	For x86 it will be ((2 ** 31) - 1), but for x86-64 it will be ((2 ** 63) - 1).
+
+	Since Python does not have limits on int class, but this class have - OverflowError exception will be raised if
+	the specified value can not be stored internally
+	"""
+
+	@verify_type(value=(int, None))
+	@verify_value(value=lambda x: x is None or x >= 0)
+	def __init__(self, value=None):
+		""" Create new :class:`.WAtomicCounter`
+
+		:param value: initial counter value
+		"""
+		self.__counter = AtomicLong(value if value is not None else 0)
+
+	def counter_value(self):
+		""" Return counter value
+
+		:return: int
+		"""
+		return self.__counter.value
+
+	@verify_type(delta=(int, None))
+	@verify_value(delta=lambda x: x is None or x >= 0)
+	def increase_counter(self, delta=None):
+		""" Increase counter with the specified value and return a result
+
+		:param delta: value with which counter must be increased. If it is not defined, then 1 is used
+
+		:return: int
+		"""
+		if delta is None:
+			self.__counter += 1
+		else:
+			self.__counter += delta
+		return self.__counter.value
