@@ -46,7 +46,7 @@ __test_environment__ = {
 	'sends_count': 20,
 	'signals_names': [('test_signal_%i' % x) for x in range(20)],
 
-        'blinker_senders_impl': [],
+	'blinker_senders_impl': [],
 	'wasp_senders_impl': [],
 
 	'connection_matrix_one': WSignalConnectionMatrix(),
@@ -100,7 +100,7 @@ class TestSignals:
 				receivers.append(r)
 
 		def send_signals_fn():
-			for i in range(int(__test_environment__['sends_count']/ 2)):
+			for i in range(int(__test_environment__['sends_count'] / 2)):
 				for sender in senders:
 					for signal_name in __test_environment__['signals_names']:
 						sender.send_signal(signal_name)
