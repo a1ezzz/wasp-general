@@ -19,15 +19,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: switch WAtomicCounter.__counter class from AtomicLong to AtomicULongLong after the moment when the pull
-# request to atomic project will be accepted
-
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from atomic import AtomicLong
 from threading import Lock
 from decorator import decorator
 
