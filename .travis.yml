@@ -14,7 +14,7 @@ install:
 
 script:
   - cd tests
-  - coverage run --source ../wasp_general -m py.test
+  - coverage run --source wasp_general -m py.test
 
 after_script:
   - coveralls
