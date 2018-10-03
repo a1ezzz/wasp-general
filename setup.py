@@ -1,6 +1,6 @@
 
 import os
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 
 from wasp_general.version import __package_data__
 
@@ -10,6 +10,7 @@ def read(fname):
 
 
 __pypi_data__ = __package_data__['pypi']
+__extension__ = __package_data__['extensions'] if 'extensions' in __package_data__ else None
 
 
 if __name__ == "__main__":
@@ -32,5 +33,15 @@ if __name__ == "__main__":
 		install_requires=read('requirements.txt').splitlines(),
 		zip_safe=__pypi_data__['zip_safe'] if 'zip_safe' in __pypi_data__ else False,
 		scripts=__package_data__['scripts'] if 'scripts' in __package_data__ else [],
-		extras_require=__pypi_data__['extra_require'] if 'extra_require' in __pypi_data__ else {}
+		extras_require=__pypi_data__['extra_require'] if 'extra_require' in __pypi_data__ else {},
+		ext_modules=[Extension(
+			x['module_name'],
+			x['sources'],
+			include_dirs=x['include_dirs'] if 'include_dirs' in x else None,
+			libraries=x['libraries'] if 'libraries' in x else None,
+			library_dirs=x['library_dirs'] if 'library_dirs' in x else None,
+			define_macros=[
+				tuple(y) for y in x['define_macros']
+			] if 'define_macros' in x else None,
+		) for x in __extension__] if __extension__ is not None else None
 	)

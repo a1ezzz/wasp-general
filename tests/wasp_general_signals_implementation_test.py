@@ -5,18 +5,18 @@ import gc
 import time
 import weakref
 
-from wasp_general.signals.proto import WSignalSenderProto, WSignalReceiverProto
+from wasp_general.signals.proto import WSignalSourceProto, WSignalReceiverProto
 
-from wasp_general.thread import WAtomicCounter
+from wasp_general.atomic import WAtomicCounter
 
-from wasp_general.signals.implementation import WSignalSenderProtoImplProto, WSignalConnectionMatrixProto
+from wasp_general.signals.implementation import WSignalSourceProtoImplProto, WSignalConnectionMatrixProto
 from wasp_general.signals.implementation import WROCounterReference, WLinkedSignalCounter, WSignalStorage
-from wasp_general.signals.implementation import WSignalSender, WSignalConnectionMatrix
+from wasp_general.signals.implementation import WSignalSource, WSignalConnectionMatrix
 
 
 def test_abstract():
 
-	class S(WSignalSenderProtoImplProto):
+	class S(WSignalSourceProtoImplProto):
 
 		def send_signal(self, signal):
 			pass
@@ -24,10 +24,7 @@ def test_abstract():
 		def signals(self):
 			pass
 
-		def connect(self, signal_name, receiver):
-			pass
-
-		def disconnect(self, signal_name, receiver):
+		def connection_matrix(self):
 			pass
 
 		def signals_counters(self, *signals_names):
@@ -41,16 +38,15 @@ def test_abstract():
 
 	class R(WSignalReceiverProto):
 
-		def receive_signal(self, signal, signal_source):
+		def receive_signal(self, signal, signal_source, signal_count):
 			pass
 
-	assert(issubclass(WSignalSenderProtoImplProto, WSignalSenderProto) is True)
-	pytest.raises(TypeError, WSignalSenderProtoImplProto)
-	pytest.raises(NotImplementedError, WSignalSenderProtoImplProto.signals_counters, None)
-	pytest.raises(NotImplementedError, WSignalSenderProtoImplProto.linked_counters, None)
-	pytest.raises(NotImplementedError, WSignalSenderProtoImplProto.source_counter, None)
+	assert(issubclass(WSignalSourceProtoImplProto, WSignalSourceProto) is True)
+	pytest.raises(TypeError, WSignalSourceProtoImplProto)
+	pytest.raises(NotImplementedError, WSignalSourceProtoImplProto.signals_counters, None)
+	pytest.raises(NotImplementedError, WSignalSourceProtoImplProto.linked_counters, None)
+	pytest.raises(NotImplementedError, WSignalSourceProtoImplProto.source_counter, None)
 
-	assert(issubclass(WSignalConnectionMatrixProto, WAtomicCounter) is True)
 	pytest.raises(TypeError, WSignalConnectionMatrixProto)
 	pytest.raises(NotImplementedError, WSignalConnectionMatrixProto.connect, None, S(), '', R())
 	pytest.raises(NotImplementedError, WSignalConnectionMatrixProto.disconnect, None, S(), '', R())
@@ -61,14 +57,14 @@ class TestWROCounterReference:
 	def test(self):
 		c = WAtomicCounter()
 		ro_c = WROCounterReference(c)
-		assert(ro_c.counter_value() == 0)
+		assert(ro_c.__int__() == 0)
 
-		c.increase_counter(delta=10)
-		assert(ro_c.counter_value() == 10)
+		c.increase_counter(10)
+		assert(ro_c.__int__() == 10)
 
 		c = None
 		gc.collect()
-		assert(ro_c.counter_value() is None)
+		assert(ro_c.__int__() is None)
 
 
 class TestWLinkedSignalCounter:
@@ -78,20 +74,20 @@ class TestWLinkedSignalCounter:
 		lc = WLinkedSignalCounter(c)
 		assert(isinstance(lc, WAtomicCounter) is True)
 		assert(isinstance(lc.original_counter(), WROCounterReference) is True)
-		assert(lc.original_counter().counter_value() == 10)
-		assert(lc.counter_value() == 10)
+		assert(lc.original_counter().__int__() == 10)
+		assert(lc.__int__() == 10)
 
-		c.increase_counter()
-		assert(c.counter_value() == 11)
-		assert(lc.counter_value() == 10)
+		c.increase_counter(1)
+		assert(c.__int__() == 11)
+		assert(lc.__int__() == 10)
 
-		lc.increase_counter()
-		assert(c.counter_value() == 11)
-		assert(lc.counter_value() == 11)
+		lc.increase_counter(1)
+		assert(c.__int__() == 11)
+		assert(lc.__int__() == 11)
 
-		lc.increase_counter()
-		assert(c.counter_value() == 11)
-		assert(lc.counter_value() == 12)
+		lc.increase_counter(1)
+		assert(c.__int__() == 11)
+		assert(lc.__int__() == 12)
 
 
 class TestWSignalStorage:
@@ -119,11 +115,11 @@ class TestWSignalStorage:
 		assert(isinstance(lc[TestWSignalStorage.__signal1_name__], WLinkedSignalCounter) is True)
 
 		lc = s.linked_counters(TestWSignalStorage.__signal1_name__)
-		assert(s.counter_value() == 0)
-		assert(lc[TestWSignalStorage.__signal1_name__].counter_value() == 0)
+		assert(s.__int__() == 0)
+		assert(lc[TestWSignalStorage.__signal1_name__].__int__() == 0)
 		s.emit(TestWSignalStorage.__signal1_name__)
-		assert(s.counter_value() == 1)
-		assert(lc[TestWSignalStorage.__signal1_name__].counter_value() == 0)  # watcher did not commit a signal
+		assert(s.__int__() == 1)
+		assert(lc[TestWSignalStorage.__signal1_name__].__int__() == 0)  # watcher did not commit a signal
 
 		s_c = s.signals_counters(
 			TestWSignalStorage.__signal1_name__, TestWSignalStorage.__signal2_name__
@@ -142,10 +138,11 @@ class TestWSignalSender:
 	__watch_threads__ = 50
 	__sleep_timeout__ = 0.1
 
-	class CMatrix(WSignalConnectionMatrixProto):
+	class CMatrix(WSignalConnectionMatrixProto, WAtomicCounter):
 
 		def __init__(self):
 			WSignalConnectionMatrixProto.__init__(self)
+			WAtomicCounter.__init__(self)
 			self.connections = []
 
 		def connect(self, signal_sender, signal_name, receiver):
@@ -160,14 +157,15 @@ class TestWSignalSender:
 			WSignalReceiverProto.__init__(self)
 			self.counter = 0
 
-		def receive_signal(self, signal, signal_source):
-			self.counter += 1
+		def receive_signal(self, signal, signal_source, signal_count):
+			self.counter += signal_count
 
 	def test(self):
 		c_matrix = TestWSignalSender.CMatrix()
-		s = WSignalSender(c_matrix, TestWSignalStorage.__signal1_name__, TestWSignalStorage.__signal2_name__)
-		assert(isinstance(s, WSignalSenderProto) is True)
+		s = WSignalSource(c_matrix, TestWSignalStorage.__signal1_name__, TestWSignalStorage.__signal2_name__)
+		assert(isinstance(s, WSignalSourceProto) is True)
 		assert(s.source_counter() == 0)
+		assert(s.connection_matrix() == c_matrix)
 
 		signals = s.signals()
 		assert(len(signals) == 2)
@@ -215,21 +213,21 @@ class TestWSignalSender:
 		assert(len(lc) == 1)
 		assert(isinstance(lc[TestWSignalStorage.__signal1_name__], WLinkedSignalCounter) is True)
 
-		r = TestWSignalSender.Receiver()
-		assert((s, TestWSignalStorage.__signal2_name__, r) not in c_matrix.connections)
-		s.connect(TestWSignalStorage.__signal2_name__, r)
-		assert((s, TestWSignalStorage.__signal2_name__, r) in c_matrix.connections)
-		s.disconnect(TestWSignalStorage.__signal2_name__, r)
-		assert((s, TestWSignalStorage.__signal2_name__, r) not in c_matrix.connections)
+		# r = TestWSignalSender.Receiver()
+		# assert((s, TestWSignalStorage.__signal2_name__, r) not in c_matrix.connections)
+		# s.connect(TestWSignalStorage.__signal2_name__, r)
+		# assert((s, TestWSignalStorage.__signal2_name__, r) in c_matrix.connections)
+		# s.disconnect(TestWSignalStorage.__signal2_name__, r)
+		# assert((s, TestWSignalStorage.__signal2_name__, r) not in c_matrix.connections)
 
 	def test_multi_threading(self):
-		s = WSignalSender(
+		s = WSignalSource(
 			TestWSignalSender.CMatrix(),
 			TestWSignalStorage.__signal1_name__,
 			TestWSignalStorage.__signal2_name__
 		)
 		lc = s.linked_counters(TestWSignalStorage.__signal1_name__)[TestWSignalStorage.__signal1_name__]
-		assert(lc.counter_value() == 0)
+		assert(lc.__int__() == 0)
 
 		total_calls = TestWSignalSender.__test_counters__ * TestWSignalSender.__emit_threads__
 
@@ -246,10 +244,10 @@ class TestWSignalSender:
 
 				# NOTE: In a real world an exception may be raised!
 
-				current_value = lc.original_counter().counter_value()
+				current_value = lc.original_counter().__int__()
 
-				while lc.counter_value() < current_value:
-					lc.increase_counter(delta=current_value - lc.counter_value())
+				while lc.__int__() < current_value:
+					lc.increase_counter(current_value - lc.__int__())
 
 			while test_status['stop_flag'] is False:
 				check_fn()
@@ -278,7 +276,7 @@ class TestWSignalSender:
 		counters = s.signals_counters(TestWSignalStorage.__signal1_name__, TestWSignalStorage.__signal2_name__)
 		assert(counters[TestWSignalStorage.__signal1_name__] == total_calls)
 		assert(counters[TestWSignalStorage.__signal2_name__] == 0)
-		assert(lc.counter_value() == total_calls)
+		assert(lc.__int__() == total_calls)
 
 
 class TestWSignalConnectionMatrix:
@@ -291,8 +289,8 @@ class TestWSignalConnectionMatrix:
 			WSignalReceiverProto.__init__(self)
 			self.counter = WAtomicCounter()
 
-		def receive_signal(self, signal, signal_source):
-			self.counter.increase_counter()
+		def receive_signal(self, signal, signal_source, signal_count):
+			self.counter.increase_counter(signal_count)
 
 	def test_cache(self):
 
@@ -346,8 +344,8 @@ class TestWSignalConnectionMatrix:
 		assert(cm.polling_timeout() == TestWSignalConnectionMatrix.poll_timeout)
 		assert(list(cm) == [])
 
-		sender1 = WSignalSender(cm, 'signal1', 'signal2')
-		sender2 = WSignalSender(cm, 'signal2', 'signal3')
+		sender1 = WSignalSource(cm, 'signal1', 'signal2')
+		sender2 = WSignalSource(cm, 'signal2', 'signal3')
 		receiver1 = TestWSignalConnectionMatrix.Receiver()
 		receiver2 = TestWSignalConnectionMatrix.Receiver()
 
@@ -376,8 +374,8 @@ class TestWSignalConnectionMatrix:
 		list(cm.__iter__(commit_changes=True))
 		assert(list(cm) == [])
 
-		assert(receiver1.counter.counter_value() == 0)
-		assert(receiver2.counter.counter_value() == 0)
+		assert(receiver1.counter.__int__() == 0)
+		assert(receiver2.counter.__int__() == 0)
 
 		sender1.send_signal('signal1')
 		sender1.send_signal('signal1')
@@ -389,8 +387,8 @@ class TestWSignalConnectionMatrix:
 
 		cm.process_signals()
 
-		assert(receiver1.counter.counter_value() == 0)
-		assert(receiver2.counter.counter_value() == 3)
+		assert(receiver1.counter.__int__() == 0)
+		assert(receiver2.counter.__int__() == 3)
 
 		worker = threading.Thread(target=cm.start)
 		worker.start()
@@ -406,8 +404,8 @@ class TestWSignalConnectionMatrix:
 		cm.stop()
 		worker.join()
 
-		assert(receiver1.counter.counter_value() == 0)
-		assert(receiver2.counter.counter_value() == 5)
+		assert(receiver1.counter.__int__() == 0)
+		assert(receiver2.counter.__int__() == 5)
 
 		assert(list(cm) == [])
 		sender2.send_signal('signal2')
