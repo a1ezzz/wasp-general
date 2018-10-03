@@ -13,7 +13,8 @@ install:
   - pip install -v .
 
 script:
-  - coverage run --source wasp_general -m py.test tests/
+  - cd tests
+  - coverage run --source ../wasp_general -m py.test
 
 after_script:
   - coveralls
