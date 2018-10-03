@@ -7,9 +7,9 @@ python:
   - "pypy3.5"
 
 install:
-  - pip install -v -r dev-requirements.txt
-  - pip install -v -r requirements.txt
-  - pip install -v coveralls
+  - pip install -r dev-requirements.txt
+  - pip install -r requirements.txt
+  - pip install coveralls
   - pip install -v .
 
 script:
