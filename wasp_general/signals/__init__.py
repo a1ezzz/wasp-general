@@ -24,5 +24,5 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from wasp_general.signals.proto import WSignalSenderProto, WSignalReceiverProto, WSignalSourceProto
-from wasp_general.signals.implementation import WSignalSender, WSignalConnectionMatrix
+from wasp_general.signals.proto import WSignalReceiverProto, WSignalSourceProto, WSignalConnectionMatrixProto
+from wasp_general.signals.implementation import WSignalSource, WSignalConnectionMatrix

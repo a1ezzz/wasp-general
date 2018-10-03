@@ -35,5 +35,16 @@
 		"extra_require": {
 			"templates": ["mako"]
 		}
-	}
+	},
+
+	"extensions": [
+		{
+			"module_name": "wasp_general.atomic",
+			"sources": ["wasp_general/_atomic/atomic.c"],
+			"define_macros": [
+				["__MODULE_NAME__", "\"wasp_general.atomic\""],
+				["__ATOMIC_COUNTER_NAME__", "\"WAtomicCounter\""]
+			]
+		}
+	]
 }

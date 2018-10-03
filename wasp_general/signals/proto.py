@@ -36,7 +36,7 @@ class WSignalSourceProto(metaclass=ABCMeta):
 	@abstractmethod
 	@verify_type(signal_name=str)
 	def send_signal(self, signal_name):
-		""" Send a signal with this object as a signal source
+		""" Send a signal and this object wil be a signal source
 
 		:param signal_name: name of a signal to send
 		:return: None
@@ -51,6 +51,14 @@ class WSignalSourceProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@abstractmethod
+	def connection_matrix(self):
+		""" Return object that is able to connect this signal source with a receiver
+
+		:return: WSignalConnectionMatrixProto
+		"""
+		raise NotImplementedError('This method is abstract')
+
 
 class WSignalReceiverProto(metaclass=ABCMeta):
 	""" A class that may receive signals
@@ -58,25 +66,27 @@ class WSignalReceiverProto(metaclass=ABCMeta):
 
 	@abstractmethod
 	@verify_type(signal_name=str, signal_source=WSignalSourceProto)
-	def receive_signal(self, signal_name, signal_source):
+	def receive_signal(self, signal_name, signal_source, signal_count):
 		""" A callback that will be called on a signal sending
 
 		:param signal_name: name of a signal that was send
 		:param signal_source: origin of a signal
+		:param signal_count: number of signals that were send since last receiver call
 		:return: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 
-class WSignalSenderProto(WSignalSourceProto):
-	""" Class of an object that is able to link this sender with a receiver
+class WSignalConnectionMatrixProto(metaclass=ABCMeta):
+	""" Class of an object that is able to connect (link) a sender with a receiver
 	"""
 
 	@abstractmethod
 	@verify_type(signal_name=str, receiver=WSignalReceiverProto)
-	def connect(self, signal_name, receiver):
+	def connect(self, signal_sender, signal_name, receiver):
 		""" Link the given receiver with a specific signal and this sender
 
+		:param signal_sender: signal origin
 		:param signal_name: name of a signal that will be linked
 		:param receiver: a "callback" that will be called when a signal sends
 		:return: None
@@ -85,9 +95,10 @@ class WSignalSenderProto(WSignalSourceProto):
 
 	@abstractmethod
 	@verify_type(signal_name=str, receiver=WSignalReceiverProto)
-	def disconnect(self, signal_name, receiver):
+	def disconnect(self, signal_sender, signal_name, receiver):
 		""" Unlink the given receiver from a specific signal and this sender
 
+		:param signal_sender: signal origin
 		:param signal_name: name of a signal that should be unlinked
 		:param receiver: a "callback" that should be unlinked
 		:return: None

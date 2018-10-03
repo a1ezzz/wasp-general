@@ -19,9 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: document the code
-# TODO: write tests for the code
-
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
 # noinspection PyUnresolvedReferences
@@ -29,11 +26,12 @@ from wasp_general.version import __status__
 
 import weakref
 import time
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.thread import WCriticalResource, WAtomicCounter
-from wasp_general.signals.proto import WSignalSenderProto, WSignalReceiverProto
+from wasp_general.thread import WCriticalResource
+from wasp_general.atomic import WAtomicCounter
+from wasp_general.signals.proto import WSignalSourceProto, WSignalReceiverProto, WSignalConnectionMatrixProto
 
 
 class WROCounterReference:
@@ -48,7 +46,7 @@ class WROCounterReference:
 		"""
 		self.__counter_ref = weakref.ref(original_counter)
 
-	def counter_value(self):
+	def __int__(self):
 		""" Return current counter value
 
 		:return: int or None (if the referenced object was discarded)
@@ -57,7 +55,7 @@ class WROCounterReference:
 		if obj is None:
 			return None
 
-		return obj.counter_value()
+		return obj.__int__()
 
 
 class WLinkedSignalCounter(WAtomicCounter):
@@ -71,7 +69,7 @@ class WLinkedSignalCounter(WAtomicCounter):
 
 		:param original_counter: counter that this object is "linked" to
 		"""
-		WAtomicCounter.__init__(self, value=original_counter.counter_value())
+		WAtomicCounter.__init__(self, value=original_counter.__int__())
 		self.__original_counter = WROCounterReference(original_counter)
 
 	def original_counter(self):
@@ -83,7 +81,7 @@ class WLinkedSignalCounter(WAtomicCounter):
 
 
 # noinspection PyAbstractClass
-class WSignalSenderProtoImplProto(WSignalSenderProto):
+class WSignalSourceProtoImplProto(WSignalSourceProto):
 	""" Detailed abstract class that will be used in this implementation. A core idea is to use integer atomic
 	counters which is used as a sign of a committed signal. One counter is used for a total number of signals
 	that was sent by this object. Others - for specific signals.
@@ -120,52 +118,6 @@ class WSignalSenderProtoImplProto(WSignalSenderProto):
 		raise NotImplementedError('This method is abstract')
 
 
-class WSignalConnectionMatrixProto(WAtomicCounter, metaclass=ABCMeta):
-	""" Abstract class that stores information about connection between senders and receivers and calls
-	a receiver when signal is sent.
-
-	This class is inherited from :class:`.WAtomicCounter` because it should count every signal that were sent. And
-	it may be required that related :class:`.WSignalSenderProtoImplProto` objects increase this counter every
-	time signal is sending
-
-	Note: :class:`.WSignalConnectionMatrix` class is a currently used implementation of this class (and the only one
-	implementation) and it strongly requires that this counter is increased each time signal is sending.
-	"""
-
-	def __init__(self):
-		""" Create new connection matrix
-		"""
-		WAtomicCounter.__init__(self)
-
-	@abstractmethod
-	@verify_type(signal_sender=WSignalSenderProtoImplProto, signal_name=str, receiver=WSignalReceiverProto)
-	def connect(self, signal_sender, signal_name, receiver):
-		""" Connect a sender and a receiver in order to call the receiver every time the specified signal is
-		sent by the sender object
-
-		:param signal_sender: signal source that will send a signal
-		:param signal_name: name of a signal that will be sent
-		:param receiver: receiver that will be called
-
-		:return: None
-		"""
-		raise NotImplementedError('This method is abstract')
-
-	@abstractmethod
-	@verify_type(signal_sender=WSignalSenderProtoImplProto, signal_name=str, receiver=WSignalReceiverProto)
-	def disconnect(self, signal_sender, signal_name, receiver):
-		""" Disconnect a receiver from a sender so the receiver will not be called when the specified signal is
-		sent by the sender object
-
-		:param signal_sender: signal source that will send a signal
-		:param signal_name: name of a signal that will be sent
-		:param receiver: receiver to disconnect
-
-		:return: None
-		"""
-		raise NotImplementedError('This method is abstract')
-
-
 class WSignalStorage(WAtomicCounter):
 	""" This storage counts how many times signals were sent. It counts each signal that was sent and inherits
 	a :class:`.WAtomicCounter` class to represent a total number of signals that were sent
@@ -188,8 +140,8 @@ class WSignalStorage(WAtomicCounter):
 
 		:return: None
 		"""
-		self.__signals[signal_name].increase_counter()
-		WAtomicCounter.increase_counter(self)
+		self.__signals[signal_name].increase_counter(1)
+		WAtomicCounter.increase_counter(self, 1)
 
 	def increase_counter(self, delta=None):
 		""" This is the inherited method :meth:`.WAtomicCounter.increase_counter` that must not be called
@@ -212,7 +164,7 @@ class WSignalStorage(WAtomicCounter):
 		:param signals_names: name of signals which counters should be returned
 		:return: dict, where key is a signal name (str) and a value is a corresponding counter value (int)
 		"""
-		return {x: self.__signals[x].counter_value() for x in signals_names}
+		return {x: self.__signals[x].__int__() for x in signals_names}
 
 	@verify_type(signals_names=str)
 	def linked_counters(self, *signals_names):
@@ -230,7 +182,7 @@ class WSignalStorage(WAtomicCounter):
 		return counters
 
 
-class WSignalSender(WSignalSenderProtoImplProto):
+class WSignalSource(WSignalSourceProtoImplProto):
 	""" A signal source that sends signals via :class:`.WSignalConnectionMatrixProto` object
 	"""
 
@@ -243,7 +195,7 @@ class WSignalSender(WSignalSenderProtoImplProto):
 		signals also
 		:param signals_names: Names of signals that this object is capable to send
 		"""
-		WSignalSenderProtoImplProto.__init__(self)
+		WSignalSourceProtoImplProto.__init__(self)
 		self.__storage = WSignalStorage(*signals_names)
 		self.__con_matrix = con_matrix
 
@@ -254,7 +206,7 @@ class WSignalSender(WSignalSenderProtoImplProto):
 		if signal_name not in self.signals():
 			raise ValueError('An invalid signal name was specified')
 		self.__storage.emit(signal_name)
-		self.__con_matrix.increase_counter()
+		self.__con_matrix.increase_counter(1)
 
 	def signals(self):
 		""" :meth:`.WSignalSourceProto.signals` method implementation
@@ -262,36 +214,27 @@ class WSignalSender(WSignalSenderProtoImplProto):
 		return self.__storage.signals_names()
 
 	def source_counter(self):
-		""" :meth:`.WSignalSenderProtoImplProto.source_counter` method implementation
+		""" :meth:`.WSignalSourceProtoImplProto.source_counter` method implementation
 		"""
-		return self.__storage.counter_value()
+		return self.__storage.__int__()
 
 	@verify_type('paranoid', signals_names=str)
 	def signals_counters(self, *signals_names):
-		""" :meth:`.WSignalSenderProtoImplProto.signals_counters` method implementation
+		""" :meth:`.WSignalSourceProtoImplProto.signals_counters` method implementation
 		"""
 		return self.__storage.signals_counters(*signals_names)
 
 	@verify_type('paranoid', signal_names=str)
 	def linked_counters(self, *signal_names):
-		""" :meth:`.WSignalSenderProtoImplProto.linked_counters` method implementation
+		""" :meth:`.WSignalSourceProtoImplProto.linked_counters` method implementation
 		"""
 		return self.__storage.linked_counters(*signal_names)
 
-	@verify_type('paranoid', signal_name=str, receiver=WSignalReceiverProto)
-	def connect(self, signal_name, receiver):
-		""" :meth:`.WSignalSenderProto.connect` method implementation
-		"""
-		self.__con_matrix.connect(self, signal_name, receiver)
-
-	@verify_type('paranoid', signal_name=str, receiver=WSignalReceiverProto)
-	def disconnect(self, signal_name, receiver):
-		""" :meth:`.WSignalSenderProto.disconnect` method implementation
-		"""
-		self.__con_matrix.disconnect(self, signal_name, receiver)
+	def connection_matrix(self):
+		return self.__con_matrix
 
 
-class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WCriticalResource):
+class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WAtomicCounter, WCriticalResource):
 	""" :class:`.WSignalConnectionMatrixProto` implementation. In order to process signals, this object
 	should be started via :meth:`.WSignalConnectionMatrix.start` method call
 	"""
@@ -337,6 +280,7 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WCriticalResource):
 		:param polling_timeout: timeout that will occur between signals processing
 		"""
 		WSignalConnectionMatrixProto.__init__(self)
+		WAtomicCounter.__init__(self)
 		WCriticalResource.__init__(self)
 
 		self.__connections = WSignalConnectionMatrix.CacheEntries(weak=True)
@@ -351,7 +295,7 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WCriticalResource):
 		"""
 		return self.__polling_timeout
 
-	@verify_type(signal_sender=WSignalSenderProtoImplProto, signal_name=str, receiver=WSignalReceiverProto)
+	@verify_type(signal_sender=WSignalSourceProtoImplProto, signal_name=str, receiver=WSignalReceiverProto)
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def disconnect(self, signal_sender, signal_name, receiver):
 		""" :meth:`.WSignalConnectionMatrix.disconnect` method implementation
@@ -378,7 +322,7 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WCriticalResource):
 		if signal_disconnected is False:
 			raise ValueError('Already disconnected')
 
-	@verify_type(signal_sender=WSignalSenderProtoImplProto, signal_name=str, receiver=WSignalReceiverProto)
+	@verify_type(signal_sender=WSignalSourceProtoImplProto, signal_name=str, receiver=WSignalReceiverProto)
 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
 	def connect(self, signal_sender, signal_name, receiver):
 		""" :meth:`.WSignalConnectionMatrix.connect` method implementation
@@ -423,7 +367,7 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WCriticalResource):
 	def __iter__(self, commit_changes=False):
 		""" Iterate over signals that are awaiting to be processed. tuple object will be yielded, this object
 		consists of "delta" (int - how many signals were received after the last commit),
-		signal_source (:class:`.WSignalSenderProtoImplProto` - source signal object), signal_name (name of
+		signal_source (:class:`.WSignalSourceProtoImplProto` - source signal object), signal_name (name of
 		a signal that was sent), receiver (:class:`.WSignalReceiverProto` - a receiver that is awaiting for a
 		signal).
 
@@ -432,7 +376,7 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WCriticalResource):
 
 		:return: None
 		"""
-		signals_emitted = self.counter_value()
+		signals_emitted = self.__int__()
 		if signals_emitted > self.__connections.cached_value:
 
 			for signal_source, source_entry in self.__connections.entries_items():
@@ -452,7 +396,7 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WCriticalResource):
 								yield delta, signal_source, signal_name, receiver
 
 								if commit_changes is True:
-									linked_counter.increase_counter(delta=delta)
+									linked_counter.increase_counter(delta)
 
 						if commit_changes is True:
 							signal_entry.cached_value = signal_state
@@ -470,5 +414,4 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WCriticalResource):
 		"""
 		for delta, signal_source, signal_name, receiver in self.__iter__(commit_changes=True):
 			if delta > 0:
-				for i in range(delta):
-					receiver.receive_signal(signal_source, signal_name)
+				receiver.receive_signal(signal_source, signal_name, delta)

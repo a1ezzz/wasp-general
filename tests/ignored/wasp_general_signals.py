@@ -4,8 +4,9 @@ from blinker import signal
 from time import time
 import resource
 
-from wasp_general.thread import WAtomicCounter
-from wasp_general.signals import WSignalReceiverProto, WSignalSenderProto, WSignalConnectionMatrix, WSignalSender
+from wasp_general.atomic import WAtomicCounter
+from wasp_general.signals import WSignalReceiverProto, WSignalSourceProto, WSignalConnectionMatrix, WSignalSource
+from wasp_general.signals import WSignalConnectionMatrixProto
 
 from threading import Thread
 
@@ -18,14 +19,25 @@ class CheckSignalReceiver(WSignalReceiverProto):
 		WSignalReceiverProto.__init__(self)
 		self.counter = WAtomicCounter()
 
-	def receive_signal(self, signal, signal_source):
-		self.counter.increase_counter()
+	def receive_signal(self, signal, signal_source, signal_count):
+		self.counter.increase_counter(signal_count)
 
 	def __call__(self, *args, **kwargs):
-		self.receive_signal(None, None)
+		self.receive_signal(None, None, 1)
 
 
-class CheckBlinkerSignalSender(WSignalSenderProto):
+class CheckBlinkerConnectionMatrix(WSignalConnectionMatrixProto):
+
+	@classmethod
+	def connect(cls, signal_sender, signal_name, receiver):
+		signal(signal_name).connect(receiver, sender=signal_sender)
+
+	@classmethod
+	def disconnect(cls, signal_sender, signal_name, receiver):
+		signal(signal_name).disconnect(receiver)
+
+
+class CheckBlinkerSignalSender(WSignalSourceProto):
 
 	def send_signal(self, signal_name):
 		signal(signal_name).send(self)
@@ -33,11 +45,8 @@ class CheckBlinkerSignalSender(WSignalSenderProto):
 	def signals(self):
 		pass
 
-	def connect(self, signal_name, receiver):
-		signal(signal_name).connect(receiver, sender=self)
-
-	def disconnect(self, signal_name, receiver):
-		signal(signal_name).disconnect(receiver)
+	def connection_matrix(self):
+		return CheckBlinkerConnectionMatrix
 
 
 __test_environment__ = {
@@ -58,14 +67,14 @@ __test_environment__['blinker_senders_impl'].extend([
 ])
 
 __test_environment__['wasp_senders_impl'].extend([
-	WSignalSender(
+	WSignalSource(
 		__test_environment__['connection_matrix_one'],
 		*__test_environment__['signals_names']
 	) for x in range(int(__test_environment__['senders_count'] / 2))
 ])
 
 __test_environment__['wasp_senders_impl'].extend([
-	WSignalSender(
+	WSignalSource(
 		__test_environment__['connection_matrix_two'],
 		*__test_environment__['signals_names']
 	) for x in range(int(__test_environment__['senders_count'] / 2))
@@ -84,7 +93,18 @@ class TestSignals:
 			__test_environment__['wasp_senders_impl'],
 			True,
 			"wasp"
+		),
+		(
+			__test_environment__['blinker_senders_impl'],
+			False,
+			"blinker"
+		),
+		(
+			__test_environment__['wasp_senders_impl'],
+			True,
+			"wasp"
 		)
+
 	]
 
 	@pytest.mark.parametrize("senders, use_con_matrix, impl_name", __implementations__)
@@ -96,7 +116,8 @@ class TestSignals:
 			r = CheckSignalReceiver()
 			for s in senders:
 				for signal_name in __test_environment__['signals_names']:
-					s.connect(signal_name, r)
+					con_matrix = s.connection_matrix()
+					con_matrix.connect(s, signal_name, r)
 				receivers.append(r)
 
 		def send_signals_fn():
@@ -141,7 +162,7 @@ class TestSignals:
 
 		for r in receivers:
 			assert(
-				r.counter.counter_value() == (
+				r.counter.__int__() == (
 					__test_environment__['sends_count'] *
 					__test_environment__['senders_count'] *
 					len(__test_environment__['signals_names'])
