@@ -15,3 +15,4 @@ PEP8 compliance (except W191 E266 E265 E731 and maximum length - 119):
 # wasp-general
 
 Collection of unrelated functions and classes widely used in different wasp-projects
+
