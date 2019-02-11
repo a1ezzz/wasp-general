@@ -30,7 +30,7 @@ from abc import abstractmethod
 
 from wasp_general.verify import verify_type, verify_value
 from wasp_general.thread import WCriticalResource
-from wasp_general.atomic import WAtomicCounter
+from wasp_c_extensions.threads import WAtomicCounter
 from wasp_general.signals.proto import WSignalSourceProto, WSignalReceiverProto, WSignalConnectionMatrixProto
 
 
@@ -60,7 +60,7 @@ class WROCounterReference:
 
 class WLinkedSignalCounter(WAtomicCounter):
 	""" Represent a counter which also has a linked reference to other counter. May be useful when it is required to
-	compare to values
+	compare two values
 	"""
 
 	@verify_type(original_counter=WAtomicCounter)
@@ -288,6 +288,21 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WAtomicCounter, WCri
 		self.__polling_timeout = \
 			polling_timeout if polling_timeout is not None else self.__default_polling_timeout__
 
+		# import mmap
+		# self.__mmap_obj = mmap.mmap(-1, 20)
+
+	# def __loop(self):
+	# 	while self.__running is True:
+	# 		x = yield
+
+	# def increase_counter(self, delta):
+	# 	WAtomicCounter.increase_counter(self, delta)
+	# 	self.__mmap_obj.seek(0)
+	# 	self.__mmap_obj.write(1)
+	#
+	#
+	# 	# self.__loop_gen.send(delta)
+
 	def polling_timeout(self):
 		""" Return timeout that will occur between signals processing
 
@@ -350,11 +365,25 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WAtomicCounter, WCri
 		:return: None
 		"""
 		self.__running = True
-		pt = self.polling_timeout()
 
+		pt = self.polling_timeout()
 		while self.__running is True:
 			self.process_signals()
 			time.sleep(pt)
+
+		# while self.__running is True:
+		# 	self.__mmap_obj.
+		# 	self.process_signals()
+
+
+		# pt = self.polling_timeout()
+		#
+		# self.__loop_gen = self.__loop()
+		# next(self.__loop_gen)
+		#
+		# while self.__running is True:
+		# 	self.process_signals()
+		# 	time.sleep(pt)
 
 	def stop(self):
 		""" Stop processing signals
@@ -362,6 +391,10 @@ class WSignalConnectionMatrix(WSignalConnectionMatrixProto, WAtomicCounter, WCri
 		:return: None
 		"""
 		self.__running = False
+		# try:
+		# 	self.__loop_gen.send(-1)
+		# except StopIteration:
+		# 	pass
 
 	@verify_type(commit_changes=bool)
 	def __iter__(self, commit_changes=False):
