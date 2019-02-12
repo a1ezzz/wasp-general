@@ -108,7 +108,7 @@ class WTaskDependencyRegistryStorage(WTaskRegistryStorage):
 		WTaskRegistryStorage.__init__(self)
 		self.__started = []
 
-	@verify_type('paranoid', task_cls=WDependentTask)
+	@verify_type(task_cls=WDependentTask)
 	def add(self, task_cls):
 		""" Add task to this storage. Multiple tasks with the same tag are not allowed
 

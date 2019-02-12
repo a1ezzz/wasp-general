@@ -11,8 +11,8 @@ from wasp_general.verify import verify_type, verify_subclass, verify_value
 @pytest.fixture
 def verifier_env(request):
 	def fin():
-		if Verifier.__default_environment_var__ in os.environ:
-			del os.environ[Verifier.__default_environment_var__]
+		if Verifier.__environment_var__ in os.environ:
+			del os.environ[Verifier.__environment_var__]
 	request.addfinalizer(fin)
 
 
@@ -38,28 +38,38 @@ class TestVerifier:
 
 	def test_decorate_disabled(self):
 
-		pytest.raises(KeyError, 'os.environ[Verifier.__default_environment_var__]')
+		pytest.raises(KeyError, 'os.environ[Verifier.__environment_var__]')
 
+		assert(Verifier().decorate_disabled() is False)
+		assert(Verifier('test_tag1').decorate_disabled() is True)
+		assert(Verifier('test_tag1', 'test_tag2').decorate_disabled() is True)
+
+		os.environ[Verifier.__environment_var__] = 'foo:bar:test_tag1:value3'
 		assert(Verifier().decorate_disabled() is False)
 		assert(Verifier('test_tag1').decorate_disabled() is False)
 		assert(Verifier('test_tag1', 'test_tag2').decorate_disabled() is False)
 
-		os.environ[Verifier.__default_environment_var__] = 'foo:bar:test_tag1:value3'
+		os.environ[Verifier.__environment_var__] = 'foo:bar:test_tag1:value3:test_tag2'
 		assert(Verifier().decorate_disabled() is False)
-		assert(Verifier('test_tag1').decorate_disabled() is True)
+		assert(Verifier('test_tag1').decorate_disabled() is False)
 		assert(Verifier('test_tag1', 'test_tag2').decorate_disabled() is False)
 
-		os.environ[Verifier.__default_environment_var__] = 'foo:bar:test_tag1:value3:test_tag2'
+		os.environ[Verifier.__environment_var__] = 'foo:bar:value3'
 		assert(Verifier().decorate_disabled() is False)
 		assert(Verifier('test_tag1').decorate_disabled() is True)
 		assert(Verifier('test_tag1', 'test_tag2').decorate_disabled() is True)
+
+		os.environ[Verifier.__environment_var__] = 'foo:bar:*:value3'
+		assert(Verifier().decorate_disabled() is False)
+		assert(Verifier('test_tag1').decorate_disabled() is False)
+		assert(Verifier('test_tag1', 'test_tag2').decorate_disabled() is False)
 
 	def test_check(self):
 		check = Verifier().check(None, '', lambda x: None)
 		assert(isfunction(check) is True)
 
 	def test_decorator(self):
-		pytest.raises(KeyError, 'os.environ[Verifier.__default_environment_var__]')
+		pytest.raises(KeyError, 'os.environ[Verifier.__environment_var__]')
 
 		def foo(a, b, c, d=None, **kwargs):
 			'''

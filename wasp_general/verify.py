@@ -39,7 +39,7 @@ class Verifier:
 	its own syntax for check declaration (see :meth:`.Verifier.check`).
 
 	Same checks can be grouped into one sentence if they are used for different arguments. Each statement can
-	be marked by tag or tags for runtime disabling. If statement doesn't have tag then it always run checks.
+	be marked by tag or tags for runtime enabling. If statement doesn't have tag then it always run checks.
 
 	Checks can be simple (implemented by lambda-statements) or complex
 	(implemented by standalone functions or classes). Because target function is decorated for checking it is
@@ -55,42 +55,52 @@ class Verifier:
 			pass
 	"""
 
-	__default_environment_var__ = 'WASP_VERIFIER_DISABLE_CHECKS'
-	""" Default environment variable name that is used for check bypassing. Variable must contain tags separated by \
-	:attr:`.Verifier.__tags_delimiter__`. To bypass certain check all of its tags must be defined in variable.
+	__environment_var__ = 'WASP_ENABLE_CHECKS'
+	""" Environment variable name that is used for checks enabling. Variable must contain tags separated by \
+	:attr:`.Verifier.__tags_delimiter__`. To enable certain tagged check one tag from it will be enough
 
 	Currently used values:
 		'paranoid' - for excess checks, like that test parameters, that doesn't processed by the specific
 		function or is passing them to other function that has checks
+		'strict' - checks that function parameters are suited and guaranteed to work. For example, function
+		expects that its parameter is iterable. 'strict' check may test that parameter is list, tuple or set.
+		'*' - enable all checks    
 	"""
 
 	__tags_delimiter__ = ':'
-	""" String that is used for tag separation :attr:`.Verifier.__default_environment_var__`"""
+	""" String that is used for tag separation :attr:`.Verifier.__environment_var__`"""
 
 	def __init__(self, *tags, env_var=None, silent_checks=False):
 		"""Construct a new :class:`.Verifier`
 
-		:param tags: Tags to mark this checks. Now only strings are suitable.
+		:param tags: Tags to mark this checks. Only strings are supported
 		:param env_var: Environment variable name that is used for check bypassing. If is None, then default  \
-		value is used :attr:`.Verifier.__default_environment_var__`
+		value is used :attr:`.Verifier.__environment_var__`
 		:param silent_checks: If it is not True, then debug information will be printed to stderr.
 		"""
 		self._tags = list(tags)
-		self._env_var = env_var if env_var is not None else self.__class__.__default_environment_var__
+		self._env_var = env_var if env_var is not None else self.__class__.__environment_var__
 		self._silent_checks = silent_checks
 
 	def decorate_disabled(self):
 		""" Return True if this decoration must be omitted, otherwise - False.
 		This class searches for tags values in environment variable
-		(:attr:`.Verifier.__default_environment_var__`), Derived class can implement any logic
+		(:attr:`.Verifier.__environment_var__`), Derived class can implement any logic
 
 		:return: bool
 		"""
-		if self._env_var not in os.environ or len(self._tags) == 0:
+		if len(self._tags) == 0:
 			return False
-		env = os.environ[self._env_var].split(self.__class__.__tags_delimiter__)
+
+		if self._env_var not in os.environ:
+			return True
+
+		env_tags = os.environ[self._env_var].split(self.__class__.__tags_delimiter__)
+		if '*' in env_tags:
+			return False
+
 		for tag in self._tags:
-			if tag not in env:
+			if tag in env_tags:
 				return False
 		return True
 
