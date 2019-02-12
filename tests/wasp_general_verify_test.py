@@ -10,9 +10,16 @@ from wasp_general.verify import verify_type, verify_subclass, verify_value
 
 @pytest.fixture
 def verifier_env(request):
+	env_value = os.environ[Verifier.__environment_var__] if Verifier.__environment_var__ in os.environ else None
+	if Verifier.__environment_var__ in os.environ:
+		del os.environ[Verifier.__environment_var__]
+
 	def fin():
-		if Verifier.__environment_var__ in os.environ:
+		if env_value is None and Verifier.__environment_var__ in os.environ:
 			del os.environ[Verifier.__environment_var__]
+		elif env_value is not None:
+			os.environ[Verifier.__environment_var__] = env_value
+
 	request.addfinalizer(fin)
 
 
