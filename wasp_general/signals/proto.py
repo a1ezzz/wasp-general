@@ -19,11 +19,45 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: write tests for the code
-
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_value
+
+
+class WSignalWatcherProto(metaclass=ABCMeta):
+	""" Objects of this class are able to wait for unhandled signals. Such objects are returned by
+	:meth:`.WSignalSourceProto.watch` method. They are also implemented in :class:`.WSignalProxyProto` classes.
+	"""
+
+	@abstractmethod
+	@verify_type('strict', timeout=(int, float, None))
+	@verify_value(timeout=lambda x: x is None or x >= 0)
+	def wait(self, timeout=None):
+		""" Return True if there is an unhandled signal. False - otherwise
+
+		:param timeout: If it is specified it means a period to wait for a new signal. If it is not
+		set then this method will wait "forever"
+
+		:rtype: bool
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def has_next(self):
+		""" Check if there is unhandled signal already
+
+		:return: True if there is at least one unhandled signal, False - otherwise
+		:rtype: bool
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def next(self):
+		""" Return next unhandled signal. If there is no unhandled signal then an exception will be raised
+
+		:rtype: any
+		"""
+		raise NotImplementedError('This method is abstract')
 
 
 class WSignalSourceProto(metaclass=ABCMeta):
@@ -32,33 +66,16 @@ class WSignalSourceProto(metaclass=ABCMeta):
 	references
 	"""
 
-	class WatcherProto(metaclass=ABCMeta):
-		""" A class that will be returned by :meth:`.WSignalSourceProto.watch` method. With this object
-		it is possible to wait for the next unhandled signal
-		"""
-
-		@abstractmethod
-		@verify_type('strict', timeout=(int, float, None))
-		@verify_value(timeout=lambda x: x is None or x >= 0)
-		def wait(self, timeout=None):
-			""" Return True if there is an unhandled signal. False - otherwise
-
-			:param timeout: If it is specified it means a period to wait for a new signal. If it is not
-			set then this method will wait "forever"
-
-			:rtype: bool
-			"""
-			raise NotImplementedError('This method is abstract')
-
 	@abstractmethod
 	@verify_type('strict', signal_name=str)
-	def send_signal(self, signal_name, signal_args=None):
+	def send_signal(self, signal_name, signal_arg=None):
 		""" Send a signal from this object
 
 		:param signal_name: a name of a signal to send
 		:type signal_name: str
-		:param signal_args: a signal argument that may be send with a signal
-		:type signal_args: any
+
+		:param signal_arg: a signal argument that may be send with a signal
+		:type signal_arg: any
 
 		:rtype: None
 		"""
@@ -73,31 +90,24 @@ class WSignalSourceProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', signal_name=str, watcher=(WatcherProto, None))
-	def watch(self, signal_name, watcher=None):
+	@verify_type('strict', signal_name=str)
+	def watch(self, signal_name):
 		""" Create a "watcher" that helps to wait for a new (unhandled) signal
 
 		:param signal_name: signal to wait
 		:type signal_name: str
 
-		:param watcher: if it is specified then this watcher will be used instead of creating a new one. With
-		this parameter it is much easier to create a single watcher that waits for multiple signals
-		:type watcher: WSignalSourceProto.WatcherProto | None
-
-		:rtype: WSignalSourceProto.WatcherProto
+		:rtype: WSignalWatcherProto
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', signal_name=str, watcher=WatcherProto)
-	def remove_watcher(self, signal_name, watcher):
+	@verify_type('strict', watcher=WSignalWatcherProto)
+	def remove_watcher(self, watcher):
 		""" Unregister the specified watcher and prevent it to be notified when new signal is sent
 
-		:param signal_name: signal that will trigger a watcher
-		:type signal_name: str
-
 		:param watcher: watcher that should be unregistered
-		:type watcher: WSignalSourceProto.WatcherProto
+		:type watcher: WSignalWatcherProto
 
 		:rtype: None
 		"""
@@ -141,16 +151,104 @@ class WSignalCallbackProto(metaclass=ABCMeta):
 	"""
 
 	@abstractmethod
-	@verify_type('strict', signal_name=str, signal_source=WSignalSourceProto)
-	def __call__(self, signal_name, signal_source, signal_args=None):
+	@verify_type('strict', signal_source=WSignalSourceProto, signal_name=str)
+	def __call__(self, signal_source, signal_name, signal_arg=None):  # TODO: args order changed - check tests
 		""" A callback that will be called when a signal is sent
-
-		:param signal_name: name of a signal that was send
-		:type signal_name: str
 
 		:param signal_source: origin of a signal
 		:type signal_source: WSignalSourceProto
 
+		:param signal_name: name of a signal that was send
+		:type signal_name: str
+
+		:param signal_arg: any argument that you want to pass with the specified signal. A specific signal
+		may relay on this argument and may raise an exception if unsupported value is spotted
+		:type signal_arg: any
+
 		:rtype: None
 		"""
 		raise NotImplementedError('This method is abstract')
+
+
+class WSignalProxyProto(WSignalWatcherProto):
+	""" With this class it is possible to wait for several signals (even from different signal sources) with
+	a signal wait call
+	"""
+
+	class ProxiedMessageProto(metaclass=ABCMeta):
+		""" This class represent proxied signal. Besides signal_arg that is passed with a sending call it will
+		have information about signal origin
+		"""
+
+		@abstractmethod
+		def is_weak(self):
+			""" Return True if :meth:`.WSignalProxyProto.ProxiedMessageProto.signal_source` will
+			return weak reference to an object, False - otherwise
+
+			:rtype: bool
+			"""
+			raise NotImplementedError('This method is abstract')
+
+		@abstractmethod
+		def signal_source(self):
+			""" Return signal source object
+
+			:rtype: WSignalSourceProto or weak reference to WSignalSourceProto
+			"""
+			raise NotImplementedError('This method is abstract')
+
+		@abstractmethod
+		def signal_name(self):
+			""" Return signal name that causes this message
+
+			:rtype: str
+			"""
+			raise NotImplementedError('This method is abstract')
+
+		@abstractmethod
+		def signal_arg(self):
+			""" Return signal argument that was passed with a signal
+
+			:rtype: any
+			"""
+			raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str, weak_ref=bool)
+	def watch(self, signal_source, *signal_names, weak_ref=False):
+		""" Start proxying new signals
+
+		:param signal_source: signal origin to proxy
+		:type signal_source: WSignalSourceProto
+
+		:param signal_names: names of signals to proxy
+		:type signal_names: str
+
+		:param weak_ref: whether signal origin will be stored as is or as a weak reference
+		:type weak_ref: bool
+
+		:rtype: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str)
+	def remove_watcher(self, signal_source, *signal_names):
+		""" Stop proxying signals
+
+		:param signal_source: signal origin to stop proxying
+		:type signal_source: WSignalSourceProto
+
+		:param signal_names: names of signals that should not be proxied
+		:type signal_names: str
+
+		:rtype: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+
+class WUnknownSignalException(Exception):
+	""" This exception may be raised if there was a request to signal source with unsupported signal name. Usually it
+	means that signal source is not able to send such signal.
+	"""
+	pass
