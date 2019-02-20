@@ -59,7 +59,7 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WSignalSourceProto.remove_callback, None, 'signal', C())
 
 	pytest.raises(TypeError, WSignalCallbackProto)
-	pytest.raises(NotImplementedError, WSignalCallbackProto.__call__, None, 'signal', S(), 1)
+	pytest.raises(NotImplementedError, WSignalCallbackProto.__call__, None, S(), 'signal', 1)
 
 	pytest.raises(TypeError, WSignalProxyProto.ProxiedMessageProto)
 	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedMessageProto.is_weak, None)
