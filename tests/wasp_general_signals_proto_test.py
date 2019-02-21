@@ -62,7 +62,6 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WSignalCallbackProto.__call__, None, S(), 'signal', 1)
 
 	pytest.raises(TypeError, WSignalProxyProto.ProxiedMessageProto)
-	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedMessageProto.is_weak, None)
 	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedMessageProto.signal_source, None)
 	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedMessageProto.signal_name, None)
 	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedMessageProto.signal_arg, None)
@@ -70,8 +69,8 @@ def test_abstract():
 	pytest.raises(TypeError, WSignalProxyProto)
 	assert(issubclass(WSignalProxyProto, WSignalWatcherProto) is True)
 
-	pytest.raises(NotImplementedError, WSignalProxyProto.watch, None, S(), 'signal')
-	pytest.raises(NotImplementedError, WSignalProxyProto.remove_watcher, None, S(), 'signal')
+	pytest.raises(NotImplementedError, WSignalProxyProto.proxy, None, S(), 'signal')
+	pytest.raises(NotImplementedError, WSignalProxyProto.stop_proxying, None, S(), 'signal')
 	pytest.raises(NotImplementedError, WSignalProxyProto.wait, None)
 	pytest.raises(NotImplementedError, WSignalProxyProto.wait, None, 1)
 	pytest.raises(NotImplementedError, WSignalProxyProto.has_next, None)

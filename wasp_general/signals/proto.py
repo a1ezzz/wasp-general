@@ -152,7 +152,7 @@ class WSignalCallbackProto(metaclass=ABCMeta):
 
 	@abstractmethod
 	@verify_type('strict', signal_source=WSignalSourceProto, signal_name=str)
-	def __call__(self, signal_source, signal_name, signal_arg=None):  # TODO: args order changed - check tests
+	def __call__(self, signal_source, signal_name, signal_arg=None):
 		""" A callback that will be called when a signal is sent
 
 		:param signal_source: origin of a signal
@@ -181,15 +181,6 @@ class WSignalProxyProto(WSignalWatcherProto):
 		"""
 
 		@abstractmethod
-		def is_weak(self):
-			""" Return True if :meth:`.WSignalProxyProto.ProxiedMessageProto.signal_source` will
-			return weak reference to an object, False - otherwise
-
-			:rtype: bool
-			"""
-			raise NotImplementedError('This method is abstract')
-
-		@abstractmethod
 		def signal_source(self):
 			""" Return signal source object
 
@@ -215,7 +206,7 @@ class WSignalProxyProto(WSignalWatcherProto):
 
 	@abstractmethod
 	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str, weak_ref=bool)
-	def watch(self, signal_source, *signal_names, weak_ref=False):
+	def proxy(self, signal_source, *signal_names, weak_ref=False):
 		""" Start proxying new signals
 
 		:param signal_source: signal origin to proxy
@@ -232,8 +223,8 @@ class WSignalProxyProto(WSignalWatcherProto):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str)
-	def remove_watcher(self, signal_source, *signal_names):
+	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str, weak_ref=bool)
+	def stop_proxying(self, signal_source, *signal_names, weak_ref=False):
 		""" Stop proxying signals
 
 		:param signal_source: signal origin to stop proxying
@@ -241,6 +232,9 @@ class WSignalProxyProto(WSignalWatcherProto):
 
 		:param signal_names: names of signals that should not be proxied
 		:type signal_names: str
+
+		:param weak_ref: whether signal origin was requested as weak ref or as a ordinary object
+		:type weak_ref: bool
 
 		:rtype: None
 		"""
