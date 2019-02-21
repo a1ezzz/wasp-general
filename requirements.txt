@@ -1,4 +1,4 @@
-wasp-c-extensions; platform_system == "Linux"
+wasp-c-extensions
 decorator
 cryptography
 python_magic
