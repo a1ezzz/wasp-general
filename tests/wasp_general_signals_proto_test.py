@@ -1,35 +1,77 @@
 
 import pytest
 
-from wasp_general.signals.proto import WSignalSourceProto, WSignalReceiverProto, WSignalConnectionMatrixProto
+from wasp_general.signals.proto import WSignalWatcherProto, WSignalSourceProto, WSignalCallbackProto
+from wasp_general.signals.proto import WSignalProxyProto
 
 
 def test_abstract():
 
+	class W(WSignalWatcherProto):
+
+		def wait(self, timeout=None):
+			pass
+
+		def has_next(self):
+			pass
+
+		def next(self):
+			pass
+
+	class C(WSignalCallbackProto):
+
+		def __call__(self, signal_name, signal_source, signal_args=None):
+			pass
+
 	class S(WSignalSourceProto):
 
-		def send_signal(self, signal):
+		def send_signal(self, signal_name, signal_args=None):
 			pass
 
 		def signals(self):
 			pass
 
-		def connection_matrix(self):
+		def watch(self, signal_name, watcher=None):
 			pass
 
-	class R(WSignalReceiverProto):
-
-		def receive_signal(self, signal, signal_source, count):
+		def remove_watcher(self, watcher):
 			pass
+
+		def callback(self, signal_name, callback):
+			pass
+
+		def remove_callback(self, signal_name, callback):
+			pass
+
+	pytest.raises(TypeError, WSignalWatcherProto)
+	pytest.raises(NotImplementedError, WSignalWatcherProto.wait, None)
+	pytest.raises(NotImplementedError, WSignalWatcherProto.wait, None, 1)
+	pytest.raises(NotImplementedError, WSignalWatcherProto.has_next, None)
+	pytest.raises(NotImplementedError, WSignalWatcherProto.next, None)
 
 	pytest.raises(TypeError, WSignalSourceProto)
-	pytest.raises(NotImplementedError, WSignalSourceProto.send_signal, None, '')
+	pytest.raises(NotImplementedError, WSignalSourceProto.send_signal, None, 'signal')
+	pytest.raises(NotImplementedError, WSignalSourceProto.send_signal, None, 'signal', 1)
 	pytest.raises(NotImplementedError, WSignalSourceProto.signals, None)
-	pytest.raises(NotImplementedError, WSignalSourceProto.connection_matrix, None)
+	pytest.raises(NotImplementedError, WSignalSourceProto.watch, None, 'signal')
+	pytest.raises(NotImplementedError, WSignalSourceProto.remove_watcher, None, W())
+	pytest.raises(NotImplementedError, WSignalSourceProto.callback, None, 'signal', C())
+	pytest.raises(NotImplementedError, WSignalSourceProto.remove_callback, None, 'signal', C())
 
-	pytest.raises(TypeError, WSignalReceiverProto)
-	pytest.raises(NotImplementedError, WSignalReceiverProto.receive_signal, None, '', S(), 1)
+	pytest.raises(TypeError, WSignalCallbackProto)
+	pytest.raises(NotImplementedError, WSignalCallbackProto.__call__, None, S(), 'signal', 1)
 
-	pytest.raises(TypeError, WSignalConnectionMatrixProto)
-	pytest.raises(NotImplementedError, WSignalConnectionMatrixProto.connect, None, S(), '', R())
-	pytest.raises(NotImplementedError, WSignalConnectionMatrixProto.disconnect, None, S(), '', R())
+	pytest.raises(TypeError, WSignalProxyProto.ProxiedSignalProto)
+	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedSignalProto.signal_source, None)
+	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedSignalProto.signal_name, None)
+	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedSignalProto.signal_arg, None)
+
+	pytest.raises(TypeError, WSignalProxyProto)
+	assert(issubclass(WSignalProxyProto, WSignalWatcherProto) is True)
+
+	pytest.raises(NotImplementedError, WSignalProxyProto.proxy, None, S(), 'signal')
+	pytest.raises(NotImplementedError, WSignalProxyProto.stop_proxying, None, S(), 'signal')
+	pytest.raises(NotImplementedError, WSignalProxyProto.wait, None)
+	pytest.raises(NotImplementedError, WSignalProxyProto.wait, None, 1)
+	pytest.raises(NotImplementedError, WSignalProxyProto.has_next, None)
+	pytest.raises(NotImplementedError, WSignalProxyProto.next, None)

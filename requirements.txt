@@ -1,3 +1,4 @@
+wasp-c-extensions
 decorator
 cryptography
 python_magic
