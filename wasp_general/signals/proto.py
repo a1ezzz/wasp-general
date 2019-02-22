@@ -172,10 +172,15 @@ class WSignalCallbackProto(metaclass=ABCMeta):
 
 class WSignalProxyProto(WSignalWatcherProto):
 	""" With this class it is possible to wait for several signals (even from different signal sources) with
-	a signal wait call
+	a signal wait call.
+
+	Since this class is a subclass of :class:`.WSignalWatcherProto` this class has methods such as
+	:meth:`.WSignalWatcherProto.wait`, :meth:`.WSignalWatcherProto.has_next`,
+	:meth:`.WSignalWatcherProto.next`. With such methods it is possible to wait for a new signals and
+	postpone signals handling
 	"""
 
-	class ProxiedMessageProto(metaclass=ABCMeta):
+	class ProxiedSignalProto(metaclass=ABCMeta):
 		""" This class represent proxied signal. Besides signal_arg that is passed with a sending call it will
 		have information about signal origin
 		"""

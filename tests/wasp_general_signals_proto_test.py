@@ -61,10 +61,10 @@ def test_abstract():
 	pytest.raises(TypeError, WSignalCallbackProto)
 	pytest.raises(NotImplementedError, WSignalCallbackProto.__call__, None, S(), 'signal', 1)
 
-	pytest.raises(TypeError, WSignalProxyProto.ProxiedMessageProto)
-	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedMessageProto.signal_source, None)
-	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedMessageProto.signal_name, None)
-	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedMessageProto.signal_arg, None)
+	pytest.raises(TypeError, WSignalProxyProto.ProxiedSignalProto)
+	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedSignalProto.signal_source, None)
+	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedSignalProto.signal_name, None)
+	pytest.raises(NotImplementedError, WSignalProxyProto.ProxiedSignalProto.signal_arg, None)
 
 	pytest.raises(TypeError, WSignalProxyProto)
 	assert(issubclass(WSignalProxyProto, WSignalWatcherProto) is True)
