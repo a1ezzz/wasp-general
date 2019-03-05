@@ -55,19 +55,22 @@ class WURI:
 
 		:param components: components that must be set for this URI. Keys - components names as they
 		defined in :class:`.WURI.Component`, values - corresponding values
+		:type components: str|int
 		"""
 		self.__components = {x: None for x in WURI.Component}
 
 		for component_name, component_value in components.items():
 			self.component(component_name, component_value)
 
-	@verify_type(item=str)
+	@verify_type('strict', item=str)
 	def __getattr__(self, item):
 		""" Return component value by its name
 
 		:param item: component name
+		:type item: str
 
-		:return: in case of component name - function, that returns str or None
+		:return: in case of component name - function, that returns str, int or None
+		:rtype: () -> (str|int|None)
 		"""
 		try:
 			components_fn = object.__getattribute__(self, WURI.component.__name__)
@@ -81,7 +84,7 @@ class WURI:
 	def __str__(self):
 		""" Return string that represents this URI
 
-		:return: str
+		:rtype: str
 		"""
 		netloc = ''
 
@@ -117,40 +120,49 @@ class WURI:
 			self.fragment()
 		))
 
-	@verify_type(component=(str, Component))
+	@verify_type('strict', component=(str, Component), value=(str, int, None))
 	def component(self, component, value=None):
 		""" Set and/or get component value.
 
 		:param component: component name to return
+		:type component: str | WURI.Component
 		:param value: if value is not None, this value will be set as a component value
-		:return: str
+		:type value: str | int | None
+
+		:rtype: str
 		"""
 		if isinstance(component, str) is True:
 			component = WURI.Component(component)
 		if value is not None:
+			if isinstance(value, int) is True and component != WURI.Component.port:
+				raise ValueError('"int" type is suitable for "WURI.Component.port" component only')
+
 			self.__components[component] = value
 			return value
 		return self.__components[component]
 
-	@verify_type(component=(str, Component))
+	@verify_type('strict', component=(str, Component))
 	def reset_component(self, component):
 		""" Unset component in this URI
 
 		:param component: component name (or component type) to reset
+		:type component: str | WURI.Component
 
-		:return: None
+		:rtype: None
 		"""
 		if isinstance(component, str) is True:
 			component = WURI.Component(component)
 		self.__components[component] = None
 
 	@classmethod
-	@verify_type(uri=str)
+	@verify_type('strict', uri=str)
 	def parse(cls, uri):
 		""" Parse URI-string and return WURI object
 
 		:param uri: string to parse
-		:return: WURI
+		:type uri: str
+
+		:rtype: WURI
 		"""
 		uri_components = urlsplit(uri)
 		adapter_fn = lambda x: x if x is not None and (isinstance(x, str) is False or len(x)) > 0 else None
@@ -169,7 +181,7 @@ class WURI:
 	def __iter__(self):
 		""" Iterate over URI components. This method yields tuple of component name and its value
 
-		:return: generator
+		:rtype: generator
 		"""
 		for component in WURI.Component:
 			component_name = component.value
@@ -187,81 +199,96 @@ class WURIQuery:
 		"""
 		self.__query = {}
 
-	@verify_type(name=str, value=(str, None))
+	@verify_type('strict', name=str, value=(str, None))
 	def replace_parameter(self, name, value=None):
 		""" Replace parameter in this query. All previously added values will be discarded
 
 		:param name: parameter name to replace
+		:type name: str
+
 		:param value: parameter value to set (None to set null-value)
-		:return: None
+		:type value: str | None
+
+		:rtype: None
 		"""
 		self.__query[name] = [value]
 
-	@verify_type(name=str, value=(str, None))
+	@verify_type('strict', name=str, value=(str, None))
 	def add_parameter(self, name, value=None):
 		""" Add new parameter value to this query. New value will be appended to previously added values.
 
 		:param name: parameter name
+		:type name: str
+
 		:param value: value to add (None to set null-value)
-		:return: None
+		:type value: str | None
+
+		:rtype: None
 		"""
 		if name not in self.__query:
 			self.__query[name] = [value]
 		else:
 			self.__query[name].append(value)
 
-	@verify_type(name=str)
+	@verify_type('strict', name=str)
 	def remove_parameter(self, name):
 		""" Remove the specified parameter from this query
 
 		:param name: name of a parameter to remove
-		:return: None
+		:type name: str
+
+		:rtype: None
 		"""
 		if name in self.__query:
 			self.__query.pop(name)
 
-	@verify_type(item=str)
+	@verify_type('strict', item=str)
 	def __contains__(self, item):
 		""" Check if this query has the specified parameter
 
 		:param item: parameter name to check
-		:return: bool
+		:type item: str
+
+		:rtype: bool
 		"""
 		return item in self.__query
 
 	def __str__(self):
 		""" Encode parameters from this query, so it can be use in URI
 
-		:return: str
+		:rtype: str
 		"""
 		parameters = {x: [y if y is not None else '' for y in self.__query[x]] for x in self.__query}
 		return urlencode(parameters, True)
 
-	@verify_type(item=str)
+	@verify_type('strict', item=str)
 	def __getitem__(self, item):
 		""" Return all parameters values
 
 		:param item: parameter name to retrieve
+		:rtype item: str
 
-		:return: tuple of str and None
+		:rtype: (str, None)
 		"""
 		return tuple(self.__query[item])
 
 	def __iter__(self):
 		""" Iterate over parameters names
 
-		:return: str
+		:rtype: generator
 		"""
 		for name in self.__query:
 			yield name
 
 	@classmethod
-	@verify_type(query_str=str)
+	@verify_type('strict', query_str=str)
 	def parse(cls, query_str):
 		""" Parse string that represent query component from URI
 
 		:param query_str: string without '?'-sign
-		:return: WURIQuery
+		:type query_str: str
+
+		:rtype: WURIQuery
 		"""
 		parsed_query = parse_qs(query_str, keep_blank_values=True, strict_parsing=True)
 		result = cls()
@@ -283,15 +310,24 @@ class WStrictURIQuery(WURIQuery):
 		parameter
 		"""
 
-		@verify_type(name=str, nullable=bool, multiple=bool, optional=bool, reg_exp=(str, None))
+		@verify_type('strict', name=str, nullable=bool, multiple=bool, optional=bool, reg_exp=(str, None))
 		def __init__(self, name, nullable=True, multiple=True, optional=False, reg_exp=None):
 			""" Create new parameter specification.
 
 			:param name: parameter name
+			:rtype name: str
+
 			:param nullable: whether parameter may have empty (null) value or not
+			:rtype nullable: bool
+
 			:param multiple: whether parameter may be specified more then one time or not
+			:rtype multiple: bool
+
 			:param optional: whether parameter must be specified at least one time or not
+			:rtype optional: bool
+
 			:param reg_exp: regular expression that all non-nullable values must match
+			:rtype reg_exp: str
 			"""
 			self.__name = name
 			self.__nullable = nullable
@@ -302,28 +338,28 @@ class WStrictURIQuery(WURIQuery):
 		def name(self):
 			""" Return parameter name
 
-			:return: str
+			:rtype: str
 			"""
 			return self.__name
 
 		def nullable(self):
 			""" Return whether a parameter may have empty (null) value or not
 
-			:return: bool
+			:rtype: bool
 			"""
 			return self.__nullable
 
 		def multiple(self):
 			""" Return whether a parameter may be specified more then one time or not
 
-			:return: bool
+			:rtype: bool
 			"""
 			return self.__multiple
 
 		def optional(self):
 			""" Return whether a parameter must be specified at least one time or not
 
-			:return: bool
+			:rtype: bool
 			"""
 			return self.__optional
 
@@ -331,17 +367,22 @@ class WStrictURIQuery(WURIQuery):
 			""" Return re module object for the specified regular expression, that all non-nullable values
 			must match, or None if regular expression is not defined
 
-			:return: re object or None
+			:rtype: re object | None
 			"""
 			return self.__re_obj
 
-	@verify_type(base_query=WURIQuery, specs=ParameterSpecification, extra_parameters=bool)
+	@verify_type('strict', base_query=WURIQuery, specs=ParameterSpecification, extra_parameters=bool)
 	def __init__(self, base_query, *specs, extra_parameters=True):
 		""" Create new strict query
 
 		:param base_query: base query, that must match all of the specifications
+		:rtype base_query: WURIQuery
+
 		:param specs: list of parameters specifications
+		:rtype specs: WStrictURIQuery.ParameterSpecification
+
 		:param extra_parameters: whether parameters that was not specified in "specs" are allowed
+		:rtype extra_parameters: bool
 		"""
 		WURIQuery.__init__(self)
 		self.__specs = {}
@@ -361,53 +402,63 @@ class WStrictURIQuery(WURIQuery):
 	def extra_parameters(self):
 		""" Return flag, whether query parameters that was not specified in "specs" are allowed
 
-		:return: bool
+		:rtype: bool
 		"""
 		return self.__extra_parameters
 
-	@verify_type(specification=ParameterSpecification)
+	@verify_type('strict', specification=ParameterSpecification)
 	def replace_specification(self, specification):
 		""" Replace current query parameter specification or add new one. No checks for the specified or any
 		parameter are made regarding specification replacement
 
 		:param specification: new specification that will replace specification for the corresponding parameter
-		:return: None
+		:type specification: WStrictURIQuery.ParameterSpecification
+
+		:rtype: None
 		"""
 		self.__specs[specification.name()] = specification
 
-	@verify_type(specification=ParameterSpecification)
+	@verify_type('strict', specification=ParameterSpecification)
 	def add_specification(self, specification):
 		""" Add a new query parameter specification. If this object already has a specification for the
 		specified parameter - exception is raised. No checks for the specified or any parameter are made
 		regarding specification appending
 
 		:param specification: new specification that will be added
-		:return: None
+		:type specification: WStrictURIQuery.ParameterSpecification
+
+		:rtype: None
 		"""
 		name = specification.name()
 		if name in self.__specs:
 			raise ValueError('WStrictURIQuery object already has specification for parameter "%s" ' % name)
 		self.__specs[name] = specification
 
-	@verify_type(name=str)
+	@verify_type('strict', name=str)
 	def remove_specification(self, name):
 		""" Remove a specification that matches a query parameter. No checks for the specified or any parameter
 		are made regarding specification removing
 
 		:param name: parameter name to remove
-		:return: None
+		:type name: str
+
+		:rtype: None
 		"""
 		if name in self.__specs:
 			self.__specs.pop(name)
 
-	@verify_type(name=str, value=(str, None))
+	@verify_type('strict', name=str, value=(str, None))
 	def replace_parameter(self, name, value=None):
 		""" Replace a query parameter values with a new value. If a new value does not match current
 		specifications, then exception is raised
 
 		:param name: parameter name to replace
+		:type name: str
+
 		:param value: new parameter value. None is for empty (null) value
-		:return: None
+		:type value: str | None
+
+		:rtype: None
 		"""
 		spec = self.__specs[name] if name in self.__specs else None
 		if self.extra_parameters() is False and spec is None:
@@ -423,14 +474,18 @@ class WStrictURIQuery(WURIQuery):
 
 		WURIQuery.replace_parameter(self, name, value=value)
 
-	@verify_type(name=str, value=(str, None))
+	@verify_type('strict', name=str, value=(str, None))
 	def add_parameter(self, name, value=None):
 		""" Add a query parameter and its value. If this query already has a parameter, or a new value does
 		not match current specifications, then exception is raised
 
 		:param name: parameter name to add
+		:type name: str
+
 		:param value: parameter value. None is for empty (null) value
-		:return: None
+		:type value: str | None
+
+		:rtype: None
 		"""
 		spec = self.__specs[name] if name in self.__specs else None
 		if self.extra_parameters() is False and spec is None:
@@ -449,12 +504,14 @@ class WStrictURIQuery(WURIQuery):
 
 		WURIQuery.add_parameter(self, name, value=value)
 
-	@verify_type(name=str)
+	@verify_type('strict', name=str)
 	def remove_parameter(self, name):
 		""" Remove parameter from this query. If a parameter is mandatory, then exception is raised
 
 		:param name: parameter name to remove
-		:return: None
+		:type name: str
+
+		:rtype: None
 		"""
 		spec = self.__specs[name] if name in self.__specs else None
 		if spec is not None and spec.optional() is False:
@@ -463,24 +520,32 @@ class WStrictURIQuery(WURIQuery):
 		WURIQuery.remove_parameter(self, name)
 
 	@classmethod
-	@verify_type(query_name=str)
+	@verify_type('strict', query_name=str)
 	def parse(cls, query_str):
 		""" :meth:`.WURIQuery.parse` method implementation. Returns :class:`.WURIQuery instead of
 		:class:`.WStrictURIQuery`
 
-		:return: WURIQuery
+		:type query_str: str
+
+		:rtype: WURIQuery
 		"""
 		return WURIQuery.parse(query_str)
 
 	@classmethod
-	@verify_type(query_str=str, specs=ParameterSpecification, extra_parameters=bool)
+	@verify_type('strict', query_str=str, specs=ParameterSpecification, extra_parameters=bool)
 	def strict_parse(cls, query_str, *specs, extra_parameters=True):
 		""" Parse query and return :class:`.WStrictURIQuery` object
 
 		:param query_str: query component of URI to parse
+		:type query_str: str
+
 		:param specs: list of parameters specifications
+		:type specs: WStrictURIQuery.ParameterSpecification
+
 		:param extra_parameters: whether parameters that was not specified in "specs" are allowed
-		:return: WStrictURIQuery
+		:type extra_parameters: bool
+
+		:rtype: WStrictURIQuery
 		"""
 		plain_result = cls.parse(query_str)
 		return WStrictURIQuery(plain_result, *specs, extra_parameters=extra_parameters)
@@ -498,13 +563,18 @@ class WURIComponentVerifier:
 		optional = 1  # URI component may present in an URI
 		unsupported = None  # URI component is unavailable and it must be excluded from an URI
 
-	@verify_type(component=WURI.Component, requirement=Requirement, reg_exp=(str, None))
+	@verify_type('strict', component=WURI.Component, requirement=Requirement, reg_exp=(str, None))
 	def __init__(self, component, requirement, reg_exp=None):
 		""" Create new URI component descriptor
 
-		:param component: URI component, that
+		:param component: URI component, that should be verified
+		:type component: WURI.Component
+
 		:param requirement: URI component necessity
+		:type requirement: WURIComponentVerifier.Requirement
+
 		:param reg_exp: If specified - a regular expression, which URI component value (if defined) must match
+		:type reg_exp: str | None
 		"""
 		self.__component = component
 		self.__requirement = requirement
@@ -513,14 +583,14 @@ class WURIComponentVerifier:
 	def component(self):
 		""" Return an URI component, that this specification is describing
 
-		:return: WURI.Component
+		:rtype: WURI.Component
 		"""
 		return self.__component
 
 	def requirement(self):
 		""" Return an URI component necessity
 
-		:return: WURIComponentVerifier.Requirement
+		:rtype: WURIComponentVerifier.Requirement
 		"""
 		return self.__requirement
 
@@ -528,17 +598,18 @@ class WURIComponentVerifier:
 		""" If it was specified in a constructor, return regular expression object, that may be used for
 		matching
 
-		:return: re module object or None
+		:rtype: re object | None
 		"""
 		return self.__re_obj
 
-	@verify_type(uri=WURI)
+	@verify_type('strict', uri=WURI)
 	def validate(self, uri):
 		""" Check an URI for compatibility with this specification. Return True if the URI is compatible.
 
 		:param uri: an URI to check
+		:type uri: WURI
 
-		:return: bool
+		:rtype: bool
 		"""
 		requirement = self.requirement()
 		uri_component = uri.component(self.component())
@@ -559,13 +630,18 @@ class WURIQueryVerifier(WURIComponentVerifier):
 	"""
 
 	@verify_type('paranoid', requirement=WURIComponentVerifier.Requirement)
-	@verify_type(specs=WStrictURIQuery.ParameterSpecification, extra_parameters=bool)
+	@verify_type('strict', specs=WStrictURIQuery.ParameterSpecification, extra_parameters=bool)
 	def __init__(self, requirement, *specs, extra_parameters=True):
 		""" Create new query descriptor
 
 		:param requirement: same as 'requirement' in :meth:`.WURIComponentVerifier.__init__`
+		:type requirement: WURIComponentVerifier.Requirement
+
 		:param specs: list of parameters specifications
+		:type specs: WStrictURIQuery.ParameterSpecification
+
 		:param extra_parameters: whether parameters that was not specified in "specs" are allowed
+		:rtype extra_parameters: bool
 		"""
 		WURIComponentVerifier.__init__(self, WURI.Component.query, requirement)
 		self.__specs = specs
@@ -577,17 +653,20 @@ class WURIQueryVerifier(WURIComponentVerifier):
 		compatible.
 
 		:param uri: an URI to check
+		:type uri: WURI
 
-		:return: bool
+		:rtype: bool
 		"""
 		if WURIComponentVerifier.validate(self, uri) is False:
 			return False
 		try:
-			WStrictURIQuery(
-				WURIQuery.parse(uri.component(self.component())),
-				*self.__specs,
-				extra_parameters=self.__extra_parameters
-			)
+			value = uri.component(self.component())
+			if value is not None:
+				WStrictURIQuery(
+					WURIQuery.parse(value),
+					*self.__specs,
+					extra_parameters=self.__extra_parameters
+				)
 		except ValueError:
 			return False
 		return True
@@ -597,13 +676,16 @@ class WSchemeSpecification:
 	""" Specification for URI, that is described by scheme-component
 	"""
 
-	@verify_type(scheme_name=str, verifiers=WURIComponentVerifier)
+	@verify_type('strict', scheme_name=str, verifiers=WURIComponentVerifier)
 	def __init__(self, scheme_name, *verifiers):
 		""" Create new scheme specification. Every component that was not described by this method is treated
 		as unsupported
 
 		:param scheme_name: URI scheme value
+		:type scheme_name: str
+
 		:param verifiers: list of specifications for URI components
+		:type verifiers: WURIComponentVerifier
 		"""
 		self.__scheme_name = scheme_name
 
@@ -631,16 +713,18 @@ class WSchemeSpecification:
 	def scheme_name(self):
 		""" Return scheme name that this specification is describing
 
-		:return: str
+		:rtype: str
 		"""
 		return self.__scheme_name
 
-	@verify_type(component=WURI.Component)
+	@verify_type('strict', component=WURI.Component)
 	def verifier(self, component):
 		""" Return descriptor for the specified component
 
 		:param component: component name which descriptor should be returned
-		:return: WSchemeSpecification.ComponentDescriptor
+		:rtype component: WURI.Component
+
+		:rtype: WSchemeSpecification.ComponentDescriptor
 		"""
 		return self.__verifiers[component]
 
@@ -648,19 +732,21 @@ class WSchemeSpecification:
 		""" Iterate over URI components. This method yields tuple of component (:class:`.WURI.Component`) and
 		its descriptor (WURIComponentVerifier)
 
-		:return: generator
+		:rtype: generator
 		"""
 		for component in WURI.Component:
 			yield component, self.__verifiers[component]
 
-	@verify_type(uri=WURI)
+	@verify_type('strict', uri=WURI)
 	def is_compatible(self, uri):
 		""" Check if URI is compatible with this specification. Compatible URI has scheme name that matches
 		specification scheme name, has all of the required components, does not have unsupported components
 		and may have optional components
 
 		:param uri: URI to check
-		:return: bool
+		:type uri: WURI
+
+		:rtype: bool
 		"""
 		for component, component_value in uri:
 			if self.verifier(component).validate(uri) is False:
@@ -684,14 +770,16 @@ class WSchemeHandler(metaclass=ABCMeta):
 
 	@classmethod
 	@abstractmethod
-	@verify_type(uri=WURI)
+	@verify_type('strict', uri=WURI)
 	def create_handler(cls, uri, **kwargs):
 		""" Return handler instance
 
 		:param uri: original URI, that a handler is created for
+		:type uri: WURI
+
 		:param kwargs: additional arguments that may be used by a handler specialization
 
-		:return: WSchemeHandler
+		:rtype: WSchemeHandler
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -709,6 +797,7 @@ class WSchemeCollection:
 			""" Create new exception object
 
 			:param uri: URI which scheme does not have a corresponding handler
+			:type uri: WURI
 			"""
 			Exception.__init__(self, 'No handler was found for the specified URI: %s' % str(uri))
 
@@ -721,6 +810,7 @@ class WSchemeCollection:
 			""" Create new exception object
 
 			:param uri: URI that does not comply a handler specification (:class:`.WSchemeSpecification`)
+			:type uri: WURI
 			"""
 			Exception.__init__(
 				self,
@@ -728,31 +818,42 @@ class WSchemeCollection:
 				'But URI has not required components or has unsupported components: %s' % str(uri)
 			)
 
+	@verify_subclass('paranoid', scheme_handler_cls=WSchemeHandler)
+	@verify_subclass('strict', default_handler_cls=(WSchemeHandler, None))
 	def __init__(self, *scheme_handlers_cls, default_handler_cls=None):
 		""" Create new collection
 
 		:param scheme_handlers_cls: handlers to add to this collection
+		:type scheme_handlers_cls: type
+
 		:param default_handler: handler that must be called for a URI that does not have scheme component
+		:type default_handler_cls: type
 		"""
 		self.__handlers_cls = []
 		self.__default_handler_cls = default_handler_cls
 		for handler_cls in scheme_handlers_cls:
 			self.add(handler_cls)
 
-	@verify_subclass(scheme_handler_cls=WSchemeHandler)
+	@verify_subclass('strict', scheme_handler_cls=WSchemeHandler)
 	def add(self, scheme_handler_cls):
 		""" Append the specified handler to this collection
 
 		:param scheme_handler_cls: handler that should be added
-		:return: None
+		:type scheme_handler_cls: type
+
+		:rtype: None
 		"""
 		self.__handlers_cls.append(scheme_handler_cls)
 
+	@verify_type('strict', scheme_name=(str, None))
 	def handler(self, scheme_name=None):
 		""" Return handler which scheme name matches the specified one
 
 		:param scheme_name: scheme name to search for
+		:type scheme_name: str | None
+
 		:return: WSchemeHandler class or None (if matching handler was not found)
+		:rtype: WSchemeHandler | None
 		"""
 		if scheme_name is None:
 			return self.__default_handler_cls
@@ -760,14 +861,17 @@ class WSchemeCollection:
 			if handler.scheme_specification().scheme_name() == scheme_name:
 				return handler
 
-	@verify_type(uri=WURI)
+	@verify_type('strict', uri=WURI)
 	def open(self, uri, **kwargs):
 		""" Return handler instance that matches the specified URI. WSchemeCollection.NoHandlerFound and
 		WSchemeCollection.SchemeIncompatible may be raised.
 
 		:param uri: URI to search handler for
+		:type uri: WURI
+
 		:param kwargs: additional arguments that may be used by a handler specialization
-		:return: WSchemeHandler
+
+		:rtype: WSchemeHandler
 		"""
 		handler = self.handler(uri.scheme())
 		if handler is None:
