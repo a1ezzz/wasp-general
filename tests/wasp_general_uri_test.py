@@ -134,7 +134,8 @@ class TestWURI:
 		assert(uri.query() is None)
 		assert(uri.fragment() is None)
 
-		pytest.raises(AttributeError, "uri.zzz")
+		with pytest.raises(AttributeError):
+			v = uri.zzz
 
 		uri.reset_component('path')
 		uri.reset_component(WURI.Component.scheme)
@@ -196,7 +197,7 @@ class TestWStrictURIQuery:
 		assert(spec.re_obj() is None)
 
 		spec = WStrictURIQuery.ParameterSpecification(
-			'foo', nullable=False, multiple=False, optional=True, reg_exp='^\d+$'
+			'foo', nullable=False, multiple=False, optional=True, reg_exp='^\\d+$'
 		)
 		assert(spec.nullable() is False)
 		assert(spec.multiple() is False)
@@ -293,6 +294,16 @@ class TestWURIQueryVerifier:
 		)
 		assert(isinstance(verifier, WURIComponentVerifier) is True)
 		assert(verifier.validate(WURI.parse('scheme:///')) is False)
+		assert(verifier.validate(WURI.parse('scheme:///?bar=0')) is True)
+		assert(verifier.validate(WURI.parse('scheme:///?bar=')) is False)
+		assert(verifier.validate(WURI.parse('scheme:///?foo=&bar=1')) is True)
+		assert(verifier.validate(WURI.parse('scheme:///?foo=123&bar=1')) is True)
+		assert(verifier.validate(WURI.parse('scheme:///?foo=zxc&bar=1')) is False)
+
+		verifier = WURIQueryVerifier(
+			WURIComponentVerifier.Requirement.optional, optional_foo, required_bar
+		)
+		assert(verifier.validate(WURI.parse('scheme:///')) is True)
 		assert(verifier.validate(WURI.parse('scheme:///?bar=0')) is True)
 		assert(verifier.validate(WURI.parse('scheme:///?bar=')) is False)
 		assert(verifier.validate(WURI.parse('scheme:///?foo=&bar=1')) is True)
