@@ -79,7 +79,7 @@ class TestWTCPSocketHandler:
 		s2 = h2.socket()
 
 		s1.bind((uri.hostname(), uri.port()))
-		s1.listen()
+		s1.listen(0)
 
 		s2.connect((uri.hostname(), uri.port()))
 		s2.send(self.__message__)
@@ -118,7 +118,7 @@ class TestWUnixSocketHandler:
 		s2 = h2.socket()
 
 		s1.bind(p)
-		s1.listen()
+		s1.listen(0)
 
 		s2.connect(p)
 		s2.send(self.__message__)
