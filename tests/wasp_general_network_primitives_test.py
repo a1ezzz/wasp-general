@@ -83,9 +83,7 @@ class TestWNetworkIPV4:
 		assert(isinstance(WNetworkIPV4(WIPV4Address('192.168.0.0'), 24), WNetworkIPV4) is True)
 		assert(isinstance(WNetworkIPV4('192.168.0.0', 24), WNetworkIPV4) is True)
 		assert(isinstance(WNetworkIPV4.from_string('10.0.0.0/24'), WNetworkIPV4) is True)
-		pytest.raises(ValueError, WNetworkIPV4, '10.0.0.0', 33)
 		assert(isinstance(WNetworkIPV4.from_string('0.0.0.0/0'), WNetworkIPV4) is True)
-		pytest.raises(ValueError, WNetworkIPV4.from_string, '10.0.0.0/-1')
 		pytest.raises(ValueError, WNetworkIPV4.from_string, '10.0.0.1/24')
 		assert(isinstance(WNetworkIPV4.from_string('10.0.0.1/24', network_address=False), WNetworkIPV4) is True)
 
@@ -173,9 +171,6 @@ class TestWFQDN:
 class TestWIPPort:
 
 	def test_port(self):
-		pytest.raises(ValueError, WIPPort, 0)
-		pytest.raises(ValueError, WIPPort, 70000)
-
 		assert(int(WIPPort(70)) == 70)
 		assert(str(WIPPort(70)) == "70")
 
