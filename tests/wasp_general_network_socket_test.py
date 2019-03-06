@@ -108,7 +108,7 @@ class TestWUnixSocketHandler:
 		assert(isinstance(s, socket.socket) is True)
 
 	def test_stream_connection(self, tmpdir):
-		p = os.path.join(tmpdir.dirpath(), 'test.stream.socket')
+		p = os.path.join(str(tmpdir.dirpath()), 'test.stream.socket')
 
 		uri = WURI.parse("unix:///" + p)
 		h1 = WUnixSocketHandler.create_handler(uri)
@@ -132,7 +132,7 @@ class TestWUnixSocketHandler:
 		s2.close()
 
 	def test_datagram_connection(self, tmpdir):
-		p = os.path.join(tmpdir.dirpath(), 'test.datagram.socket')
+		p = os.path.join(str(tmpdir.dirpath()), 'test.datagram.socket')
 
 		uri = WURI.parse("unix:///%s?type=datagram" % p)
 		h1 = WUnixSocketHandler.create_handler(uri)
