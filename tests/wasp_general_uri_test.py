@@ -148,6 +148,11 @@ class TestWURI:
 		assert(uri.query() is None)
 		assert(uri.fragment() is None)
 
+		pytest.raises(ValueError, uri.component, WURI.Component.port, '80')
+		pytest.raises(ValueError, uri.component, WURI.Component.hostname, 80)
+		uri.component(WURI.Component.port, 80)
+		assert(uri.port() == 80)
+
 
 class TestWURIQuery:
 
@@ -475,6 +480,12 @@ class TestWSchemeCollection:
 		pytest.raises(WSchemeCollection.NoHandlerFound, collection.open, uri3)
 		pytest.raises(WSchemeCollection.NoHandlerFound, collection.open, uri4)
 		pytest.raises(WSchemeCollection.SchemeIncompatible, collection.open, uri5)
+
+		assert(isinstance(collection.open('/path'), TestWSchemeCollection.HandlerBar) is True)
+		assert(isinstance(collection.open('foo:///path'), TestWSchemeCollection.HandlerFoo) is True)
+		pytest.raises(WSchemeCollection.NoHandlerFound, collection.open, 'bar:///path')
+		pytest.raises(WSchemeCollection.NoHandlerFound, collection.open, 'bar:///path?test=foo')
+		pytest.raises(WSchemeCollection.SchemeIncompatible, collection.open, 'foo:///path?test=foo')
 
 		collection.add(TestWSchemeCollection.HandlerBar)
 		assert(isinstance(collection.open(uri1), TestWSchemeCollection.HandlerBar) is True)

@@ -135,8 +135,11 @@ class WURI:
 		if isinstance(component, str) is True:
 			component = WURI.Component(component)
 		if value is not None:
-			if isinstance(value, int) is True and component != WURI.Component.port:
-				raise ValueError('"int" type is suitable for "WURI.Component.port" component only')
+			if isinstance(value, int) is True:
+				if component != WURI.Component.port:
+					raise ValueError('"int" type is suitable for "WURI.Component.port" component only')
+			elif component == WURI.Component.port:
+				raise ValueError('"WURI.Component.port" value must be "int" type')
 
 			self.__components[component] = value
 			return value
@@ -862,18 +865,21 @@ class WSchemeCollection:
 			if handler.scheme_specification().scheme_name() == scheme_name:
 				return handler
 
-	@verify_type('strict', uri=WURI)
+	@verify_type('strict', uri=(WURI, str))
 	def open(self, uri, **kwargs):
 		""" Return handler instance that matches the specified URI. WSchemeCollection.NoHandlerFound and
 		WSchemeCollection.SchemeIncompatible may be raised.
 
 		:param uri: URI to search handler for
-		:type uri: WURI
+		:type uri: WURI | str
 
 		:param kwargs: additional arguments that may be used by a handler specialization
 
 		:rtype: WSchemeHandler
 		"""
+		if isinstance(uri, str) is True:
+			uri = WURI.parse(uri)
+
 		handler = self.handler(uri.scheme())
 		if handler is None:
 			raise WSchemeCollection.NoHandlerFound(uri)
