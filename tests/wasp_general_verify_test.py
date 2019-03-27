@@ -45,7 +45,8 @@ class TestVerifier:
 
 	def test_decorate_disabled(self):
 
-		pytest.raises(KeyError, 'os.environ[Verifier.__environment_var__]')
+		with pytest.raises(KeyError):
+			a = os.environ[Verifier.__environment_var__]
 
 		assert(Verifier().decorate_disabled() is False)
 		assert(Verifier('test_tag1').decorate_disabled() is True)
@@ -76,7 +77,8 @@ class TestVerifier:
 		assert(isfunction(check) is True)
 
 	def test_decorator(self):
-		pytest.raises(KeyError, 'os.environ[Verifier.__environment_var__]')
+		with pytest.raises(KeyError):
+			a = os.environ[Verifier.__environment_var__]
 
 		def foo(a, b, c, d=None, **kwargs):
 			'''
@@ -131,19 +133,26 @@ class TestTypeVerifier:
 			pass
 
 		verifier = TypeVerifier()
-		pytest.raises(RuntimeError, 'verifier.decorator(a=None)(foo)')
-		pytest.raises(RuntimeError, 'verifier.decorator(a=(str, None, 1))(foo)')
+		with pytest.raises(RuntimeError):
+			verifier.decorator(a=None)(foo)
+		with pytest.raises(RuntimeError):
+			verifier.decorator(a=(str, None, 1))(foo)
 
 		decorated_foo = verifier.decorator(a=int, b=(str, None), c=[str, int], d=(str, int, None), e=float)(foo)
 		decorated_foo(1, None, 'f')
 		decorated_foo(1, None, 1, d='o')
 		decorated_foo(1, None, 'o', d=5, e=.1)
 
-		pytest.raises(TypeError, "decorated_foo('b', None, 'f')")
-		pytest.raises(TypeError, "decorated_foo(1, 4, 'o')")
-		pytest.raises(TypeError, "decorated_foo(1, None, None)")
-		pytest.raises(TypeError, "decorated_foo(1, None, 'o', d=.1)")
-		pytest.raises(TypeError, "decorated_foo(1, None, 'b', e='a')")
+		with pytest.raises(TypeError):
+			decorated_foo('b', None, 'f')
+		with pytest.raises(TypeError):
+			decorated_foo(1, 4, 'o')
+		with pytest.raises(TypeError):
+			decorated_foo(1, None, None)
+		with pytest.raises(TypeError):
+			decorated_foo(1, None, 'o', d=.1)
+		with pytest.raises(TypeError):
+			decorated_foo(1, None, 'b', e='a')
 
 		def foo(*args):
 			pass
@@ -175,8 +184,10 @@ class TestSubclassVerifier:
 			pass
 
 		verifier = SubclassVerifier()
-		pytest.raises(RuntimeError, 'verifier.decorator(a=None)(foo)')
-		pytest.raises(RuntimeError, 'verifier.decorator(a=(str, None, 1))(foo)')
+		with pytest.raises(RuntimeError):
+			verifier.decorator(a=None)(foo)
+		with pytest.raises(RuntimeError):
+			verifier.decorator(a=(str, None, 1))(foo)
 
 		class A:
 			pass
@@ -197,11 +208,16 @@ class TestSubclassVerifier:
 		decorated_foo(A, None, C, d=B)
 		decorated_foo(A, None, B, d=None, e=C)
 
-		pytest.raises(TypeError, "decorated_foo(D, None, B)")
-		pytest.raises(TypeError, "decorated_foo(A, None, A)")
-		pytest.raises(TypeError, "decorated_foo(A, None, None)")
-		pytest.raises(TypeError, "decorated_foo(A, None, B, d=C)")
-		pytest.raises(TypeError, "decorated_foo(A, None, B, d=B, e=A)")
+		with pytest.raises(TypeError):
+			decorated_foo(D, None, B)
+		with pytest.raises(TypeError):
+			decorated_foo(A, None, A)
+		with pytest.raises(TypeError):
+			decorated_foo(A, None, None)
+		with pytest.raises(TypeError):
+			decorated_foo(A, None, B, d=C)
+		with pytest.raises(TypeError):
+			decorated_foo(A, None, B, d=B, e=A)
 
 
 class TestValueVerifier:
@@ -216,8 +232,10 @@ class TestValueVerifier:
 			pass
 
 		verifier = ValueVerifier()
-		pytest.raises(RuntimeError, 'verifier.decorator(a=1)(foo)')
-		pytest.raises(RuntimeError, 'verifier.decorator(a=(1,))(foo)')
+		with pytest.raises(RuntimeError):
+			verifier.decorator(a=1)(foo)
+		with pytest.raises(RuntimeError):
+			verifier.decorator(a=(1,))(foo)
 
 		decorated_foo = verifier.decorator(
 			a=(lambda x: x > 5, lambda x: x < 10),

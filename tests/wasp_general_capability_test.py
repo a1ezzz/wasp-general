@@ -86,7 +86,9 @@ class TestWCapabilitiesHolder:
 			def foo_enhanced(self, *args):
 				return list(args)
 
-		pytest.raises(ValueError, "class E(A, D): pass")
+		with pytest.raises(ValueError):
+			class E(A, D):
+				pass
 
 		class E(A, D):
 

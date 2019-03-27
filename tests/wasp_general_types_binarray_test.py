@@ -45,12 +45,17 @@ class TestWBinArray:
 		assert(int(a) == 0)
 		a[0] = 2
 		assert(int(a) == 8)
-		pytest.raises(TypeError, "a[0] = 0.1")
-		pytest.raises(ValueError, "a[0] = -1")
-		pytest.raises(IndexError, "a[-1] = 0")
-		pytest.raises(IndexError, "a[8] = 0")
+		with pytest.raises(TypeError):
+			a[0] = 0.1
+		with pytest.raises(ValueError):
+			a[0] = -1
+		with pytest.raises(IndexError):
+			a[-1] = 0
+		with pytest.raises(IndexError):
+			a[8] = 0
 
-		pytest.raises(OverflowError, "a[0] = 20")
+		with pytest.raises(OverflowError):
+			a[0] = 20
 		a = WBinArray(0)
 		a[0] = 20
 
