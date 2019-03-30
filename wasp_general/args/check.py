@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/args_checker.py
+# wasp_general/args/check.py
 #
 # Copyright (C) 2019 the wasp-general authors and contributors
 # <see AUTHORS file>

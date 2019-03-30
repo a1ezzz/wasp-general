@@ -2,10 +2,10 @@
 
 import pytest
 
-from wasp_general.args_checker import WArgumentRestrictionException, WArgumentsRestrictionProto, WArgumentsChecker
-from wasp_general.args_checker import WRequiredArguments, WConflictedArguments, WSupportedArguments, WNotNullArguments
-from wasp_general.args_checker import WOneOfArgument, WArgumentDependency, WArgumentOneOfDependency
-from wasp_general.args_checker import WArgumentRERestriction
+from wasp_general.args.check import WArgumentRestrictionException, WArgumentsRestrictionProto, WArgumentsChecker
+from wasp_general.args.check import WRequiredArguments, WConflictedArguments, WSupportedArguments, WNotNullArguments
+from wasp_general.args.check import WOneOfArgument, WArgumentDependency, WArgumentOneOfDependency
+from wasp_general.args.check import WArgumentRERestriction
 
 
 def test_exceptions():
