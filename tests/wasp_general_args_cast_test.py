@@ -16,7 +16,7 @@ def test_exceptions():
 
 def test_abstract():
 	pytest.raises(TypeError, WArgumentCastingHelperProto)
-	pytest.raises(NotImplementedError, WArgumentCastingHelperProto.cast, None, None)
+	pytest.raises(NotImplementedError, WArgumentCastingHelperProto.cast, None, '')
 
 
 class TestWArgumentCastingFnHelper:
@@ -73,6 +73,7 @@ class TestWIntegerArgumentCastingHelper:
 		assert(isinstance(h, WArgumentCastingFnHelper) is True)
 		assert(h.cast('11') == 11)
 		assert(h.cast('9') == 9)
+		pytest.raises(WArgumentCastingError, h.cast, 'abc')
 
 		h = WIntegerArgumentCastingHelper(validate_fn=lambda x: x > 10)
 		assert(h.cast('11') == 11)
