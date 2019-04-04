@@ -136,7 +136,17 @@ class WIntegerArgumentCastingHelper(WArgumentCastingFnHelper):
 		:param validate_fn: if specified then this function is used for value validation
 		:type validate_fn: callable | None
 		"""
-		WArgumentCastingFnHelper.__init__(self, casting_fn=lambda x: int(x, base=base), validate_fn=validate_fn)
+		self.__base = base
+		WArgumentCastingFnHelper.__init__(self, casting_fn=self._cast_string, validate_fn=validate_fn)
+
+	@verify_type('strict', value=str)
+	def _cast_string(self, value):
+		try:
+			return int(value, base=self.__base)
+		except ValueError:
+			raise WArgumentCastingError(
+				'Unable to cast value "%s" to integer (with base %i)' % (value, self.__base)
+			)
 
 
 class WFloatArgumentCastingHelper(WArgumentCastingFnHelper):
