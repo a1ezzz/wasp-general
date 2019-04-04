@@ -27,7 +27,7 @@ from wasp_general.version import __author__, __version__, __credits__, __license
 # noinspection PyUnresolvedReferences
 from wasp_general.version import __status__
 
-from wasp_general.verify import verify_type
+from wasp_general.verify import verify_type, verify_value
 
 # TODO: update wasp_general.command.enhanced
 # TODO: update wasp_general.uri
@@ -35,7 +35,7 @@ from wasp_general.verify import verify_type
 # TODO: update wasp_general.network.clients.*
 
 
-class WArgumentRestrictionException(Exception):
+class WArgumentRestrictionError(Exception):
 	""" This exception will raise if invalid arguments are specified
 	"""
 	pass
@@ -82,33 +82,6 @@ class WArgumentsChecker(WArgumentsRestrictionProto):
 			restrictions.check(arguments)
 
 
-class WRequiredArguments(WArgumentsRestrictionProto):
-	""" This class may check that all required arguments are specified
-	"""
-
-	@verify_type('strict', arguments=str)
-	def __init__(self, *arguments):
-		""" Create new restriction
-
-		:param arguments: arguments that must be specified
-		:type arguments: str
-		"""
-		WArgumentsRestrictionProto.__init__(self)
-		self.__required_arguments = set(arguments)
-
-	@verify_type('strict', arguments=dict)
-	def check(self, arguments):
-		""" :meth:`.WArgumentsRestrictionProto.check` method implementation
-		:type arguments: dict[str, Object]
-		:rtype: None
-		"""
-		not_found_arguments = self.__required_arguments.difference(set(arguments.keys()))
-		if not_found_arguments:
-			raise WArgumentRestrictionException(
-				'The following arguments was not found: %s' % (', '.join(not_found_arguments))
-			)
-
-
 class WConflictedArguments(WArgumentsRestrictionProto):
 	""" This class may check that conflicted arguments are not specified together
 	"""
@@ -131,7 +104,7 @@ class WConflictedArguments(WArgumentsRestrictionProto):
 		"""
 		found_arguments = self.__conflicted_arguments.intersection(set(arguments.keys()))
 		if len(found_arguments) > 1:
-			raise WArgumentRestrictionException(
+			raise WArgumentRestrictionError(
 				'Conflicted arguments that can not be specified together was found: %s' %
 				(', '.join(found_arguments))
 			)
@@ -159,7 +132,7 @@ class WSupportedArguments(WArgumentsRestrictionProto):
 		"""
 		found_arguments = set(arguments.keys()).difference(self.__arguments)
 		if found_arguments:
-			raise WArgumentRestrictionException(
+			raise WArgumentRestrictionError(
 				'Unsupported arguments was found: %s' % (', '.join(found_arguments))
 			)
 
@@ -186,29 +159,59 @@ class WNotNullArguments(WArgumentsRestrictionProto):
 		"""
 		for argument in self.__arguments:
 			if argument in arguments and arguments[argument] is None:
-				raise WArgumentRestrictionException(
+				raise WArgumentRestrictionError(
 					'The following argument can not have None value: "%s"' % argument
 				)
 
 
-class WOneOfArgument(WArgumentsRestrictionProto):
-	""" This class may check that at least one (or exactly one) argument is specified
+class WArgumentRequirements(WArgumentsRestrictionProto):
+	""" This class may check that at least N or exactly N or all required arguments are specified
 	"""
 
-	@verify_type('strict', arguments=str, exact_one=bool)
-	def __init__(self, *arguments, exact_one=False):
+	@verify_type('strict', arguments=str, main_argument=(str, None), occurrences=(int, None))
+	@verify_type('strict', exact_occurrences=bool)
+	@verify_value('strict', occurrences=lambda x: x is None or x > 0)
+	def __init__(self, *requirements, main_argument=None, occurrences=None, exact_occurrences=True):
 		""" Create new restriction
 
-		:param arguments: arguments from which at least one (or exactly one) argument must be specified
+		:param requirements: arguments that are required (at least part of them are)
 		:type arguments: str
 
-		:param exact_one: whether at least one or exactly one argument must be specified (at least one by
-		default)
-		:type exact_one: bool
+		:param main_argument: name of a main argument. If it is set then requirement should be met only
+		if this argument exists in a checking dictionary. It may be used for setting requirements for
+		an optional argument
+		:type main_argument: str | None
+
+		:param occurrences: if it is specified then this is a number of requirements that should be in a
+		checking dictionary, like N of all requirements must be. See 'exact_occurrences' parameter also.
+		:type occurrences: int | None
+
+		:param exact_occurrences: whether exact N occurrences must be specified or at least N occurrences
+		must be. This value is used only if 'occurrences' parameter is set.
+		:type exact_occurrences: bool
 		"""
-		WArgumentsRestrictionProto.__init__(self)
-		self.__arguments = set(arguments)
-		self.__exact_one = exact_one
+
+		self.__requirements = set(requirements)
+		self.__main_argument = main_argument
+		self.__occurrences = occurrences
+		self.__exact_occurrences = exact_occurrences
+
+		self.__exc_prefix = \
+			'"%s" argument is required that' % self.__main_argument if self.__main_argument is not None \
+				else 'It is required that'
+
+		if self.__occurrences is None:
+			self.__exc_prefix += \
+				(' all the following arguments was specified: %s. ' % ', '.join(self.__requirements))
+		elif self.__exact_occurrences is True:
+			self.__exc_prefix += \
+				' exact %i arguments of the following one was specified: %s. ' % (
+					self.__occurrences, ', '.join(self.__requirements)
+				)
+		else:
+			self.__exc_prefix += ' at least %i arguments of the following one was specified: %s. ' % (
+					self.__occurrences, ', '.join(self.__requirements)
+				)
 
 	@verify_type('strict', arguments=dict)
 	def check(self, arguments):
@@ -216,90 +219,30 @@ class WOneOfArgument(WArgumentsRestrictionProto):
 		:type arguments: dict[str, Object]
 		:rtype: None
 		"""
-		if len(self.__arguments) == 0:
+		if len(self.__requirements) == 0:
 			return
 
-		found_arguments = self.__arguments.intersection(set(arguments.keys()))
+		if self.__main_argument is not None and self.__main_argument not in arguments:
+			return
+
+		found_arguments = self.__requirements.intersection(set(arguments.keys()))
 		if len(found_arguments) == 0:
-			if self.__exact_one:
-				raise WArgumentRestrictionException(
-					'One of the following arguments must be specified: %s' %
-					(', '.join(self.__arguments))
+			raise WArgumentRestrictionError(self.__exc_prefix + 'But no required argument was specified')
+		elif self.__occurrences is not None:
+			if len(found_arguments) < self.__occurrences:
+				raise WArgumentRestrictionError(
+					self.__exc_prefix + 'But only %i argments was specified' % len(found_arguments)
 				)
-			raise WArgumentRestrictionException(
-				'At least one of the following arguments must be specified: %s' %
-				(', '.join(self.__arguments))
+			elif len(found_arguments) > self.__occurrences and self.__exact_occurrences is True:
+				raise WArgumentRestrictionError(
+					self.__exc_prefix + 'But extra %i arguments was specified' % (
+						self.__occurrences - len(found_arguments)
+					)
+				)
+		elif len(found_arguments) != len(self.__requirements):
+			raise WArgumentRestrictionError(
+				self.__exc_prefix + 'But only %i argments was specified' % len(found_arguments)
 			)
-		elif len(found_arguments) > 1 and self.__exact_one:
-			raise WArgumentRestrictionException(
-				'Only one of the following arguments must be specified: %s' %
-				(', '.join(self.__arguments))
-			)
-
-
-class WArgumentDependency(WArgumentsRestrictionProto):
-	""" This class may check that required arguments are specified only if a main argument is specified
-	"""
-
-	@verify_type('strict', main_argument=str)
-	@verify_type('paranoid', required_arguments=str)
-	def __init__(self, main_argument, *required_arguments):
-		""" Create new restriction
-
-		:param main_argument: if this argument is specified in check, then all other arguments must be
-		specified also
-		:type main_argument: str
-
-		:param required_arguments: arguments that must be specified if main argument is specified
-		:type required_arguments: str
-		"""
-		WArgumentsRestrictionProto.__init__(self)
-		self.__main_argument = main_argument
-		self.__dependency_check = WRequiredArguments(*required_arguments)
-
-	@verify_type('strict', arguments=dict)
-	def check(self, arguments):
-		""" :meth:`.WArgumentsRestrictionProto.check` method implementation
-		:type arguments: dict[str, Object]
-		:rtype: None
-		"""
-		if self.__main_argument in arguments:
-			self.__dependency_check.check(arguments)
-
-
-class WArgumentOneOfDependency(WArgumentsRestrictionProto):
-	""" This class may check that at least one (or exactly one) argument is specified only if a main argument
-	is specified
-	"""
-
-	@verify_type('strict', main_argument=str)
-	@verify_type('paranoid', arguments=str, exact_one=bool)
-	def __init__(self, main_argument, *arguments, exact_one=False):
-		""" Create new restriction
-
-		:param main_argument: if this argument is specified in check, then at least one (or exactly one)
-		arguments is specified also
-		:type main_argument: str
-
-		:param arguments: arguments from which at least one (or exactly one) argument must be specified
-		:type arguments: str
-
-		:param exact_one: whether at least one or exactly one argument must be specified (at least one by
-		default)
-		:type exact_one: bool
-		"""
-		WArgumentsRestrictionProto.__init__(self)
-		self.__main_argument = main_argument
-		self.__dependency_check = WOneOfArgument(*arguments, exact_one=exact_one)
-
-	@verify_type('strict', arguments=dict)
-	def check(self, arguments):
-		""" :meth:`.WArgumentsRestrictionProto.check` method implementation
-		:type arguments: dict[str, Object]
-		:rtype: None
-		"""
-		if self.__main_argument in arguments:
-			self.__dependency_check.check(arguments)
 
 
 class WArgumentRERestriction(WArgumentsRestrictionProto):
@@ -338,12 +281,12 @@ class WArgumentRERestriction(WArgumentsRestrictionProto):
 			value = arguments[self.__main_argument]
 			if value is None:
 				if self.__nullable is False:
-					raise WArgumentRestrictionException(
+					raise WArgumentRestrictionError(
 						'An "%s" argument value can not have None value' % self.__main_argument
 					)
 			elif self.__re.match(value) is None:
-				raise WArgumentRestrictionException(
+				raise WArgumentRestrictionError(
 					'An "%s" argument value does not match required pattern' % self.__main_argument
 				)
 		elif self.__required is True:
-			raise WArgumentRestrictionException('The "%s" argument is required' % self.__main_argument)
+			raise WArgumentRestrictionError('The "%s" argument is required' % self.__main_argument)
