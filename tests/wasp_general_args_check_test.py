@@ -44,17 +44,20 @@ class TestWConflictedArguments:
 
 	def test(self):
 		assert(isinstance(WConflictedArguments(), WArgumentsRestrictionProto) is True)
+		assert(WConflictedArguments().conflicted_arguments() == set())
 		WConflictedArguments().check({})
 		WConflictedArguments().check({'a': 'foo'})
 		WConflictedArguments().check({'a': 'foo', 'b': 'bar'})
 		WConflictedArguments().check({'a': 'foo', 'c': 'zzz'})
 
 		WConflictedArguments('a').check({})
+		assert(WConflictedArguments('a').conflicted_arguments() == {'a', })
 		WConflictedArguments('a').check({'a': 'foo'})
 		WConflictedArguments('a').check({'a': 'foo', 'b': 'bar'})
 		WConflictedArguments('a').check({'a': 'foo', 'c': 'zzz'})
 
 		r = WConflictedArguments('a', 'b')
+		assert(WConflictedArguments('a', 'b').conflicted_arguments() == {'a', 'b'})
 		r.check({})
 		r.check({'a': 'foo'})
 		pytest.raises(WArgumentRestrictionError, r.check, {'a': 'foo', 'b': 'bar'})
@@ -67,18 +70,22 @@ class TestWSupportedArguments:
 		assert(isinstance(WSupportedArguments(), WArgumentsRestrictionProto) is True)
 
 		WSupportedArguments().check({})
+		assert(WSupportedArguments().supported_arguments() == set())
 		pytest.raises(WArgumentRestrictionError, WSupportedArguments().check, {'a': 'foo'})
 		pytest.raises(WArgumentRestrictionError, WSupportedArguments().check, {'a': 'foo', 'b': 'bar'})
 		pytest.raises(WArgumentRestrictionError, WSupportedArguments().check, {'a': 'foo', 'c': 'zzz'})
 
+		assert(WSupportedArguments('a').supported_arguments() == {'a', })
 		WSupportedArguments('a').check({})
 		WSupportedArguments('a').check({'a': 'foo'})
 		pytest.raises(WArgumentRestrictionError, WSupportedArguments('a').check, {'a': 'foo', 'b': 'bar'})
 		pytest.raises(WArgumentRestrictionError, WSupportedArguments('a').check, {'a': 'foo', 'c': 'zzz'})
 
+		assert(WSupportedArguments('a', 'b').supported_arguments() == {'a', 'b'})
 		WSupportedArguments('a', 'b').check({})
 		WSupportedArguments('a', 'b').check({'a': 'foo'})
 		WSupportedArguments('a', 'b').check({'a': 'foo', 'b': 'bar'})
+
 		pytest.raises(WArgumentRestrictionError, WSupportedArguments('a', 'b').check, {'a': 'foo', 'c': 'zzz'})
 
 
@@ -102,8 +109,22 @@ class TestWArgumentRequirements:
 
 	def test_all_dependencies(self):
 		assert(isinstance(WArgumentRequirements('a'), WArgumentsRestrictionProto) is True)
+		r = WArgumentRequirements()
+		assert(r.conditional_argument() is None)
+		assert(r.requirements() == set())
+		assert(r.occurrences() is None)
+		assert(r.exact_occurrences() is None)
+		r.check({})
+		r.check({'a': 'foo'})
+		r.check({'a': 'foo', 'b': 'bar'})
+		r.check({'a': 'foo', 'c': 'zzz'})
+		r.check({'a': 'foo', 'b': 'bar', 'c': 'zzz'})
 
 		r = WArgumentRequirements('a')
+		assert(r.conditional_argument() is None)
+		assert(r.requirements() == {'a', })
+		assert(r.occurrences() is None)
+		assert(r.exact_occurrences() is None)
 		pytest.raises(WArgumentRestrictionError, r.check, {})
 		r.check({'a': 'foo'})
 		r.check({'a': 'foo', 'b': 'bar'})
@@ -111,13 +132,21 @@ class TestWArgumentRequirements:
 		r.check({'a': 'foo', 'b': 'bar', 'c': 'zzz'})
 
 		r = WArgumentRequirements('a', 'b')
+		assert(r.conditional_argument() is None)
+		assert(r.requirements() == {'a', 'b'})
+		assert(r.occurrences() is None)
+		assert(r.exact_occurrences() is None)
 		pytest.raises(WArgumentRestrictionError, r.check, {})
 		pytest.raises(WArgumentRestrictionError, r.check, {'a': 'foo'})
 		r.check({'a': 'foo', 'b': 'bar'})
 		pytest.raises(WArgumentRestrictionError, r.check, {'a': 'foo', 'c': 'zzz'})
 		r.check({'a': 'foo', 'b': 'bar', 'c': 'zzz'})
 
-		r = WArgumentRequirements('a', 'b', main_argument='c')
+		r = WArgumentRequirements('a', 'b', conditional_argument='c')
+		assert(r.conditional_argument() == 'c')
+		assert(r.requirements() == {'a', 'b'})
+		assert(r.occurrences() is None)
+		assert(r.exact_occurrences() is None)
 		r.check({})
 		r.check({'a': 'foo'})
 		r.check({'a': 'foo', 'b': 'bar'})
@@ -125,15 +154,14 @@ class TestWArgumentRequirements:
 		r.check({'a': 'foo', 'b': 'bar', 'c': 'zzz'})
 
 	def test_n_of_dependencies(self):
-		r = WArgumentRequirements(occurrences=1)
-		r.check({})
-		r.check({'a': 'foo'})
-		r.check({'a': 'foo', 'b': 'bar'})
-		r.check({'a': 'foo', 'c': 'zzz'})
-		r.check({'a': 'foo', 'b': 'bar', 'c': 'zzz'})
-		r.check({'b': 'foo'})
+		pytest.raises(ValueError, WArgumentRequirements, occurrences=1)
+		pytest.raises(ValueError, WArgumentRequirements, 'a', occurrences=2)
 
 		r = WArgumentRequirements('a', occurrences=1)
+		assert(r.conditional_argument() is None)
+		assert(r.requirements() == {'a', })
+		assert(r.occurrences() == 1)
+		assert(r.exact_occurrences() is True)
 		pytest.raises(WArgumentRestrictionError, r.check, {})
 		r.check({'a': 'foo'})
 		r.check({'a': 'foo', 'b': 'bar'})
@@ -142,6 +170,10 @@ class TestWArgumentRequirements:
 		pytest.raises(WArgumentRestrictionError, r.check, {'b': 'foo'})
 
 		r = WArgumentRequirements('a', 'b', occurrences=1)
+		assert(r.conditional_argument() is None)
+		assert(r.requirements() == {'a', 'b'})
+		assert(r.occurrences() == 1)
+		assert(r.exact_occurrences() is True)
 		pytest.raises(WArgumentRestrictionError, r.check, {})
 		r.check({'a': 'foo'})
 		pytest.raises(WArgumentRestrictionError, r.check, {'a': 'foo', 'b': 'bar'})
@@ -150,6 +182,10 @@ class TestWArgumentRequirements:
 		r.check({'b': 'foo'})
 
 		r = WArgumentRequirements('a', 'b', occurrences=1, exact_occurrences=False)
+		assert(r.conditional_argument() is None)
+		assert(r.requirements() == {'a', 'b'})
+		assert(r.occurrences() == 1)
+		assert(r.exact_occurrences() is False)
 		pytest.raises(WArgumentRestrictionError, r.check, {})
 		r.check({'a': 'foo'})
 		r.check({'a': 'foo', 'b': 'bar'})
@@ -158,6 +194,10 @@ class TestWArgumentRequirements:
 		r.check({'b': 'foo'})
 
 		r = WArgumentRequirements('a', 'b', 'd', occurrences=2)
+		assert(r.conditional_argument() is None)
+		assert(r.requirements() == {'a', 'b', 'd'})
+		assert(r.occurrences() == 2)
+		assert(r.exact_occurrences() is True)
 		pytest.raises(WArgumentRestrictionError, r.check, {})
 		pytest.raises(WArgumentRestrictionError, r.check, {'a': 'foo'})
 		r.check({'a': 'foo', 'b': 'bar'})
@@ -165,7 +205,11 @@ class TestWArgumentRequirements:
 		r.check({'a': 'foo', 'b': 'bar', 'c': 'zzz'})
 		pytest.raises(WArgumentRestrictionError, r.check, {'b': 'foo'})
 
-		r = WArgumentRequirements('a', 'b', 'd', main_argument='c', occurrences=2)
+		r = WArgumentRequirements('a', 'b', 'd', conditional_argument='c', occurrences=2)
+		assert(r.conditional_argument() == 'c')
+		assert(r.requirements() == {'a', 'b', 'd'})
+		assert(r.occurrences() == 2)
+		assert(r.exact_occurrences() is True)
 		r.check({})
 		r.check({'a': 'foo'})
 		r.check({'a': 'foo', 'b': 'bar'})

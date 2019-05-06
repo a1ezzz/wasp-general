@@ -96,6 +96,13 @@ class WConflictedArguments(WArgumentsRestrictionProto):
 		WArgumentsRestrictionProto.__init__(self)
 		self.__conflicted_arguments = set(arguments)
 
+	def conflicted_arguments(self):
+		""" Return argument's names that can not be specified at the same time
+
+		:rtype: set[str]
+		"""
+		return self.__conflicted_arguments
+
 	@verify_type('strict', arguments=dict)
 	def check(self, arguments):
 		""" :meth:`.WArgumentsRestrictionProto.check` method implementation
@@ -123,6 +130,13 @@ class WSupportedArguments(WArgumentsRestrictionProto):
 		"""
 		WArgumentsRestrictionProto.__init__(self)
 		self.__arguments = set(arguments)
+
+	def supported_arguments(self):
+		""" Return argument's names that may be specified
+
+		:rtype: set[str]
+		"""
+		return self.__arguments
 
 	@verify_type('strict', arguments=dict)
 	def check(self, arguments):
@@ -171,16 +185,16 @@ class WArgumentRequirements(WArgumentsRestrictionProto):
 	@verify_type('strict', arguments=str, main_argument=(str, None), occurrences=(int, None))
 	@verify_type('strict', exact_occurrences=bool)
 	@verify_value('strict', occurrences=lambda x: x is None or x > 0)
-	def __init__(self, *requirements, main_argument=None, occurrences=None, exact_occurrences=True):
+	def __init__(self, *requirements, conditional_argument=None, occurrences=None, exact_occurrences=True):
 		""" Create new restriction
 
 		:param requirements: arguments that are required (at least part of them are)
 		:type arguments: str
 
-		:param main_argument: name of a main argument. If it is set then requirement should be met only
+		:param conditional_argument: name of a argument. If it is set then requirement should be met only
 		if this argument exists in a checking dictionary. It may be used for setting requirements for
 		an optional argument
-		:type main_argument: str | None
+		:type conditional_argument: str | None
 
 		:param occurrences: if it is specified then this is a number of requirements that should be in a
 		checking dictionary, like N of all requirements must be. See 'exact_occurrences' parameter also.
@@ -192,12 +206,18 @@ class WArgumentRequirements(WArgumentsRestrictionProto):
 		"""
 
 		self.__requirements = set(requirements)
-		self.__main_argument = main_argument
+		self.__cond_argument = conditional_argument
 		self.__occurrences = occurrences
 		self.__exact_occurrences = exact_occurrences
 
+		if self.__occurrences is not None and self.__occurrences > len(self.__requirements):
+			raise ValueError(
+				'Requirement can not be satisfied beacause "occurrences" argument value is more then '
+				'a number of all arguments'
+			)
+
 		self.__exc_prefix = \
-			'"%s" argument is required that' % self.__main_argument if self.__main_argument is not None \
+			'"%s" argument is required that' % self.__cond_argument if self.__cond_argument is not None \
 				else 'It is required that'
 
 		if self.__occurrences is None:
@@ -213,6 +233,36 @@ class WArgumentRequirements(WArgumentsRestrictionProto):
 					self.__occurrences, ', '.join(self.__requirements)
 				)
 
+	def conditional_argument(self):
+		""" Return conditional argument of this restriction
+
+		:rtype: str | None
+		"""
+		return self.__cond_argument
+
+	def requirements(self):
+		""" Return requirements of this restriction
+
+		:rtype: set[str]
+		"""
+		return self.__requirements
+
+	def occurrences(self):
+		""" Return number of argument occurrences that is specified in this restriction
+
+		:rtype: int | None
+		"""
+		return self.__occurrences
+
+	def exact_occurrences(self):
+		""" Return True if number of arguments that must be specified is exact
+		:meth:`.WArgumentRequirements.occurrences` (nor less nor more). if
+		:meth:`.WArgumentRequirements.occurrences` was not set then None is returned
+
+		:rtype: bool | None
+		"""
+		return self.__exact_occurrences if self.__occurrences is not None else None
+
 	@verify_type('strict', arguments=dict)
 	def check(self, arguments):
 		""" :meth:`.WArgumentsRestrictionProto.check` method implementation
@@ -222,7 +272,7 @@ class WArgumentRequirements(WArgumentsRestrictionProto):
 		if len(self.__requirements) == 0:
 			return
 
-		if self.__main_argument is not None and self.__main_argument not in arguments:
+		if self.__cond_argument is not None and self.__cond_argument not in arguments:
 			return
 
 		found_arguments = self.__requirements.intersection(set(arguments.keys()))
