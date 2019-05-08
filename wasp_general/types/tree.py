@@ -108,8 +108,20 @@ class WUnbalancedTreeNode:
 			)
 
 		self.__children[child_node_id] = child_node
-		self._path_cache[child_node_id] = child_node_id
-		self._path_cache.update({x: child_node_id for x in child_node._path_cache})
+
+		def propagate_cache(parent, child):
+			"""
+			:type parent: WUnbalancedTreeNode
+			:type child: WUnbalancedTreeNode
+			"""
+			propagate_id = child.node_id()
+			parent._path_cache[child_node_id] = propagate_id
+			parent._path_cache.update({x: propagate_id for x in child_node._path_cache})
+			return parent, parent.parent_node()
+
+		previous_node, next_node = propagate_cache(self, child_node)
+		while next_node is not None:
+			previous_node, next_node = propagate_cache(next_node, previous_node)
 
 	@verify_type('strict', child_node_id=str)
 	def _remove_child(self, child_node_id):
@@ -157,3 +169,57 @@ class WUnbalancedTreeNode:
 			return self.__children[self._path_cache[node_id]].node(node_id)
 
 		raise KeyError('Unable to find "%s" node' % node_id)
+
+	@verify_type('strict', node_id=str)
+	def has_node(self, node_id):
+		""" Check whether this or children nodes have the specified node
+
+		:param node_id: node to check
+		:type node_id: str
+
+		:rtype: bool
+		"""
+		return node_id == self.node_id() or node_id in self._path_cache
+
+	def to_parent(self):
+		""" Return generator that will iterate over all the parent node up to the root node. The first element is this
+		node
+
+		:rtype: generator
+		"""
+		node = self
+		yield node
+		while node.parent_node() is not None:
+			node = node.parent_node()
+			yield node
+
+	@verify_type('strict', node_id=str)
+	def to_node(self, node_id):
+		""" Return generator that will iterate from this node to the specified child node. The first element is this
+		node
+
+		:param node_id: child node that is should be iterated to
+		:type node_id: str
+
+		:rtype: generator
+		"""
+
+		def node_iter(node):
+			"""
+			:type node: WUnbalancedTreeNode
+			"""
+			if node.node_id() == node_id:
+				return
+
+			child_id = node._path_cache[node_id]
+			child_node = node.node(child_id)
+			return child_node
+
+		if not self.has_node(node_id):
+			raise KeyError('Unable to find the specified node - "%s"' % node_id)
+
+		yield self
+		next_node = node_iter(self)
+		while next_node is not None:
+			yield next_node
+			next_node = node_iter(next_node)
