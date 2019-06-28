@@ -4,10 +4,10 @@ from enum import Enum
 import re
 import pytest
 
-from wasp_general.args.cast import WArgumentCastingError, WArgumentCastingHelperProto, WArgumentCastingFnHelper
-from wasp_general.args.cast import WStringArgumentCastingHelper, WIntegerArgumentCastingHelper
-from wasp_general.args.cast import WFloatArgumentCastingHelper, WByteSizeArgumentHelper, WEnumArgumentHelper
-from wasp_general.args.cast import WRegExpArgumentHelper
+from wasp_general.api.cast import WArgumentCastingError, WArgumentCastingHelperProto, WArgumentCastingFnHelper
+from wasp_general.api.cast import WStringArgumentCastingHelper, WIntegerArgumentCastingHelper
+from wasp_general.api.cast import WFloatArgumentCastingHelper, WByteSizeArgumentHelper, WEnumArgumentHelper
+from wasp_general.api.cast import WRegExpArgumentHelper
 
 
 def test_exceptions():
