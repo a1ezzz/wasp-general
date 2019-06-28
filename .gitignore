@@ -6,3 +6,9 @@ docs/pytest/
 docs/sphinx-html/
 docs/sphinx/api
 tests/.coverage
+# virtual environment directory
+venv
+# mac os files
+.DS_Store
+# IDE
+.idea
