@@ -181,6 +181,13 @@ class WUnbalancedTreeNode:
 		"""
 		return node_id == self.node_id() or node_id in self._path_cache
 
+	def has_children(self):
+		""" Whether this node has any child node
+
+		:rtype: bool
+		"""
+		return len(self.__children) > 0
+
 	def to_parent(self):
 		""" Return generator that will iterate over all the parent node up to the root node. The first element is this
 		node
@@ -223,3 +230,33 @@ class WUnbalancedTreeNode:
 		while next_node is not None:
 			yield next_node
 			next_node = node_iter(next_node)
+
+	def children(self):
+		""" Return generator that will iterate over the direct children nodes
+
+		:rtype: generator
+		"""
+		for c in self.__children.values():
+			yield c
+
+	def all_nodes(self):
+		""" Return generator that will iterate over all of the nodes. Node order is undetermined
+
+		:rtype: generator
+		"""
+		yield self
+		for child_node in self.__children.values():
+			for n in child_node.all_nodes():
+				yield n
+
+	def clone(self):
+		""" Return exact copy of this tree (this node and all the children nodes)
+
+		:rtype: WUnbalancedTreeNode
+		"""
+		cloned_node = WUnbalancedTreeNode(self.node_id(), node_content=self.node_content())
+		for ch_node in self.children():
+			cloned_ch = ch_node.clone()
+			cloned_ch.set_parent(cloned_node)
+
+		return cloned_node
