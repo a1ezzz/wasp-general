@@ -1,9 +1,4 @@
 
-env:
-    - WASP_ENABLE_CHECKS=
-    - WASP_ENABLE_CHECKS=*
-    - WASP_ENABLE_CHECKS=strict:paranoid
-
 language: python
 
 matrix:
