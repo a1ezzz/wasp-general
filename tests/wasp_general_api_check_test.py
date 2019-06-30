@@ -240,22 +240,30 @@ class TestWArgsValueRestriction:
 
 		a = A(args_selection=WArgsValueRestriction.ArgsSelection.kw_args)
 		a.check(1, 2, 3, foo='bar', zzz='mmm')
+		A.__checked_values__.sort(key=lambda x: x[0])
 		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
 		A.__checked_values__ = []
 
 		a = A('foo', 'qqq', args_selection=WArgsValueRestriction.ArgsSelection.kw_args)
 		a.check(1, 2, 3, foo='bar', zzz='mmm')
+		A.__checked_values__.sort(key=lambda x: x[0])
 		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
 		A.__checked_values__ = []
 
 		a = A(args_selection=WArgsValueRestriction.ArgsSelection.all)
 		a.check(1, 2, 3, foo='bar', zzz='mmm')
-		assert(A.__checked_values__ == [(1, None), (2, None), (3, None), ('bar', 'foo'), ('mmm', 'zzz')])
+		assert(A.__checked_values__[:3] == [(1, None), (2, None), (3, None)])
+		A.__checked_values__ = A.__checked_values__[3:]
+		A.__checked_values__.sort(key=lambda x: x[0])
+		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
 		A.__checked_values__ = []
 
 		a = A('foo', 'qqq', args_selection=WArgsValueRestriction.ArgsSelection.all)
 		a.check(1, 2, 3, foo='bar', zzz='mmm')
-		assert(A.__checked_values__ == [(1, None), (2, None), (3, None), ('bar', 'foo'), ('mmm', 'zzz')])
+		assert(A.__checked_values__[:3] == [(1, None), (2, None), (3, None)])
+		A.__checked_values__ = A.__checked_values__[3:]
+		A.__checked_values__.sort(key=lambda x: x[0])
+		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
 		A.__checked_values__ = []
 
 
