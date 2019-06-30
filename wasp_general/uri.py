@@ -50,6 +50,8 @@ class WURI:
 
 	__all_components__ = {str(x) for x in Component}
 
+	__all_components__ = {x.name for x in Component}  #
+
 	def __init__(self, **components):
 		""" Create new WURI object. By default empty URI is created
 
@@ -283,6 +285,14 @@ class WURIQuery:
 		for name in self.__query:
 			yield name
 
+	def parameters(self):
+		""" Iterate over items, pair of component name and component value will be raised
+
+		:rtype: generator
+		"""
+		for item in self.__query.items():
+			yield item
+
 	@classmethod
 	@verify_type('strict', query_str=str)
 	def parse(cls, query_str):
@@ -305,6 +315,8 @@ class WURIQuery:
 
 
 class WStrictURIQuery(WURIQuery):
+	# TODO: Remove this class
+
 	""" Strict version of :class:`.WURIQuery` class. It has optional limits and requirements
 	"""
 
@@ -555,9 +567,12 @@ class WStrictURIQuery(WURIQuery):
 
 
 class WURIComponentVerifier:
+	# TODO: Remove this class
+
 	""" Descriptor that helps to verify that an URI component matches a specification
 	"""
 
+	@enum.unique
 	class Requirement(enum.Enum):
 		""" Represent necessity of URI component
 
@@ -629,6 +644,8 @@ class WURIComponentVerifier:
 
 
 class WURIQueryVerifier(WURIComponentVerifier):
+	# TODO: Remove this class
+
 	""" Specific URI component descriptor that verify an query part only
 	"""
 
@@ -676,6 +693,8 @@ class WURIQueryVerifier(WURIComponentVerifier):
 
 
 class WSchemeSpecification:
+	# TODO: Remove this class
+
 	""" Specification for URI, that is described by scheme-component
 	"""
 
@@ -759,6 +778,8 @@ class WSchemeSpecification:
 
 
 class WSchemeHandler(metaclass=ABCMeta):
+	# TODO: Remove this class
+
 	""" Handler that do some work for compatible URI
 	"""
 
@@ -788,6 +809,7 @@ class WSchemeHandler(metaclass=ABCMeta):
 
 
 class WSchemeCollection:
+	# TODO: Remove this class
 	""" Collection of URI scheme handlers, that is capable to process different WURI. Only one handler per scheme
 	is supported. Suitable handler will be searched by a scheme name.
 	"""
