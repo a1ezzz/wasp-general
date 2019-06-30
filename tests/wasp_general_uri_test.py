@@ -15,6 +15,11 @@ def test_abstract():
 class TestWURI:
 
 	def test(self):
+		assert(isinstance(WURI.__all_components__, dict) is True)
+		assert(len(WURI.__all_components__) == len(WURI.Component))
+		for n, v in WURI.__all_components__.items():
+			assert(n == v)
+
 		uri = WURI()
 		assert(isinstance(uri, WURI) is True)
 
