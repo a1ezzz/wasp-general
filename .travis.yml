@@ -1,6 +1,5 @@
 
 env:
-  matrix:
     - WASP_ENABLE_CHECKS=
     - WASP_ENABLE_CHECKS=*
     - WASP_ENABLE_CHECKS=strict:paranoid
