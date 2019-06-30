@@ -106,7 +106,6 @@ class WPBKDF2:
 
 		self.__derived_key = pbkdf2_obj.derive(key)
 
-
 	def salt(self):
 		""" Return salt value (that was given in constructor or created automatically)
 
