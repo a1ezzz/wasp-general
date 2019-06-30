@@ -263,10 +263,10 @@ class WArgsValueRestriction(WArgsRestrictionProto):
 	class ArgsSelection(enum.Enum):
 		""" This enum defines selection of arguments that will be checked later
 		"""
-		none = enum.auto()  # None of the arguments will be selected
-		positional_args = enum.auto()  # Positional arguments will be selected only
-		kw_args = enum.auto()  # Named arguments will be selected only
-		all = enum.auto()  # All the arguments will be selected
+		none = 1  # None of the arguments will be selected
+		positional_args = 2  # Positional arguments will be selected only
+		kw_args = 3  # Named arguments will be selected only
+		all = 4  # All the arguments will be selected
 
 	@verify_type('strict', args_selection=ArgsSelection, extra_kw_args=str)
 	def __init__(self, *extra_kw_args, args_selection=ArgsSelection.none):
