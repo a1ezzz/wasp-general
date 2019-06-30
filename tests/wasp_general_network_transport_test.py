@@ -204,7 +204,7 @@ class TestWBroadcastNetworkTransport:
 		s = t.create_client_socket(config)
 		assert(isinstance(s, socket.socket) is True)
 		assert(s.type == socket.SOCK_DGRAM)
-		assert(s.getsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST) == 1)
+		assert(s.getsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST) != 0)
 
 
 class TestWMulticastNetworkTransport:
