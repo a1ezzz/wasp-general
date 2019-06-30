@@ -11,17 +11,71 @@ matrix:
 
 # Python 3.4 ignored due to tornado requirement of python >= 3.4
 
-    - python: "3.4"
+    - name: "3.4 without checks"
+      python: "3.4"
+      env: WASP_ENABLE_CHECKS=
 
-    - python: "3.5"
+    - name: "3.5 without checks"
+      python: "3.5"
+      env: WASP_ENABLE_CHECKS=
 
-    - python: "3.6"
+    - name: "3.6 without checks"
+      python: "3.6"
+      env: WASP_ENABLE_CHECKS=
 
-    - dist: xenial
+    - name: "3.7 without checks"
       python: "3.7"
+      env: WASP_ENABLE_CHECKS=
+      dist: xenial
 
-    - dist: xenial
+    - name: "pypy3.5 without checks"
       python: "pypy3.5"
+      env: WASP_ENABLE_CHECKS=
+      dist: xenial
+
+    - name: "3.4 all checks"
+      python: "3.4"
+      env: WASP_ENABLE_CHECKS=*
+
+    - name: "3.5 all checks"
+      python: "3.5"
+      env: WASP_ENABLE_CHECKS=*
+
+    - name: "3.6 all checks"
+      python: "3.6"
+      env: WASP_ENABLE_CHECKS=*
+
+    - name: "3.7 all checks"
+      python: "3.7"
+      env: WASP_ENABLE_CHECKS=*
+      dist: xenial
+
+    - name: "pypy3.5 all checks"
+      python: "pypy3.5"
+      env: WASP_ENABLE_CHECKS=*
+      dist: xenial
+
+    - name: "3.4 strict, paranoid checks"
+      python: "3.4"
+      env: WASP_ENABLE_CHECKS=strict:paranoid
+
+    - name: "3.5 strict, paranoid checks"
+      python: "3.5"
+      env: WASP_ENABLE_CHECKS=strict:paranoid
+
+    - name: "3.6 strict, paranoid checks"
+      python: "3.6"
+      env: WASP_ENABLE_CHECKS=strict:paranoid
+
+    - name: "3.7 strict, paranoid checks"
+      python: "3.7"
+      env: WASP_ENABLE_CHECKS=strict:paranoid
+      dist: xenial
+
+    - name: "pypy3.5 strict, paranoid checks"
+      python: "pypy3.5"
+      env: WASP_ENABLE_CHECKS=strict:paranoid
+      dist: xenial
 
 install:
   - pip install -r dev-requirements.txt
