@@ -20,7 +20,7 @@
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
 # TODO: Add zeroconf beacon
-# TODO: write tests for the code
+# TODO: test the code
 
 import os
 from enum import Enum

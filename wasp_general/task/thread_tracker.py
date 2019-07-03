@@ -30,6 +30,8 @@ from wasp_general.task.scheduler.proto import WScheduleTask, WScheduleRecord
 from wasp_general.thread import WCriticalResource
 from wasp_general.datetime import utc_datetime
 
+# TODO: think of merge with wasp_general.api.registry
+
 
 class WTrackerEvents(Enum):
 	""" Possible tracking events

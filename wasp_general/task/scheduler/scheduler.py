@@ -30,6 +30,8 @@ from wasp_general.task.scheduler.proto import WScheduleTask, WRunningRecordRegis
 from wasp_general.task.scheduler.proto import WScheduleRecord, WTaskSourceProto
 from wasp_general.task.thread import WPollingThreadTask
 
+# TODO: think of merge with wasp_general.api.registry
+
 
 class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 	""" Class that is looking for execution process of scheduled task. Each scheduled task has its own
