@@ -29,6 +29,8 @@ from abc import ABCMeta, abstractmethod
 from wasp_general.verify import verify_subclass, verify_type
 from wasp_general.task.base import WTask
 
+# TODO: think of merge with wasp_general.api.registry
+
 
 class WRegisteredTask(ABCMeta):
 	""" Metaclass for task, that is stored in registry.  Derived class must redefine __registry__ property

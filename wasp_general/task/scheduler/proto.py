@@ -33,6 +33,8 @@ from wasp_general.verify import verify_type, verify_value
 
 from wasp_general.task.thread import WThreadTask
 
+# TODO: think of merge with wasp_general.api.registry
+
 
 # noinspection PyAbstractClass
 class WScheduleTask(WThreadTask):

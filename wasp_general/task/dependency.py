@@ -28,6 +28,8 @@ from wasp_general.verify import verify_type, verify_subclass
 from wasp_general.task.registry import WTaskRegistry, WRegisteredTask, WTaskRegistryStorage
 from wasp_general.task.base import WTask, WStoppableTask
 
+# TODO: think of merge with wasp_general.api.registry
+
 
 class WDependentTask(WRegisteredTask):
 	""" Metaclass for dependent tasks. It is used for automatic resolving required dependencies (starting required
