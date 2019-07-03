@@ -19,6 +19,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+# noinspection PyUnresolvedReferences
+from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
+# noinspection PyUnresolvedReferences
+from wasp_general.version import __status__
+
 import sys
 import os
 from inspect import getfullargspec, isclass, isfunction, getsource
@@ -59,7 +64,7 @@ class Verifier:
 		function or is passing them to other function that has checks
 		'strict' - checks that function parameters are suited and guaranteed to work. For example, function
 		expects that its parameter is iterable. 'strict' check may test that parameter is list, tuple or set.
-		'*' - enable all checks    
+		'*' - enable all checks
 	"""
 
 	__tags_delimiter__ = ':'
