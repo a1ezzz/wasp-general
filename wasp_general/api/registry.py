@@ -105,7 +105,7 @@ class WAPIRegistry(WAPIRegistryProto):
 			raise WNoSuchAPIIdError('No such entry: %s' % api_id)
 
 	def __getitem__(self, item):
-		""" Return descriptor by it's API id
+		""" Return descriptor by its API id
 
 		:param item: API id
 		:type item: any (hashable only)
