@@ -24,6 +24,9 @@ from abc import ABCMeta
 from wasp_general.verify import verify_type
 
 
+# TODO: think of merging with wasp_genral.api
+
+
 class WCapabilitiesHolderMeta(ABCMeta):
 	""" Metaclass that stores different "capabilities". Each "capability" is a function that implement a common
 	function. This metaclass does not replace but extends interface pattern. If a class implement less then five
