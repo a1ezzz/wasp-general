@@ -303,6 +303,8 @@ class WURIQuery:
 
 		:rtype: WURIQuery
 		"""
+		if not len(query_str):
+			return cls()
 		parsed_query = parse_qs(query_str, keep_blank_values=True, strict_parsing=True)
 		result = cls()
 		for parameter_name in parsed_query.keys():
