@@ -19,14 +19,17 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+# noinspection PyUnresolvedReferences
+from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
+# noinspection PyUnresolvedReferences
+from wasp_general.version import __status__
+
 from wasp_general.verify import verify_type, verify_value
 
 from wasp_general.api.check import WArgsRestrictionProto, WArgsValueRestriction, WChainChecker
 from wasp_general.api.registry import register_api, WAPIRegistry
 
 from wasp_general.uri import WURI, WURIQuery
-
-# TODO: rename because of wasp_general.uri
 
 
 class WURIRestriction(WArgsValueRestriction):
@@ -37,7 +40,7 @@ class WURIRestriction(WArgsValueRestriction):
 	@verify_type('strict', restrictions=WArgsRestrictionProto)
 	@verify_type('paranoid', args_selection=WArgsValueRestriction.ArgsSelection, extra_kw_args=str)
 	def __init__(
-		self, restriction, *extra_kw_args, args_selection=WArgsValueRestriction.ArgsSelection.all
+		self, restriction, *extra_kw_args, args_selection=WArgsValueRestriction.ArgsSelection.none,
 	):
 		""" Create new restriction
 
@@ -89,9 +92,7 @@ class WURIQueryRestriction(WArgsValueRestriction):
 		:param restrictions: restriction that will be applied on query parameters
 		:type restrictions: WArgsRestrictionProto
 		"""
-		WArgsValueRestriction.__init__(
-			self, WURI.Component.query, args_selection=WArgsValueRestriction.ArgsSelection.none
-		)
+		WArgsValueRestriction.__init__(self, WURI.Component.query.value)
 		self.__restriction_chain = WChainChecker(*restrictions)
 
 	@verify_type('strict', value=(WURIQuery, str), name=(str, None))
@@ -113,3 +114,41 @@ class WURIQueryRestriction(WArgsValueRestriction):
 		self.__restriction_chain.check(**{
 			param_name: param_value for param_name, param_value in value.parameters()
 		})
+
+
+class WURIAPIRegistry(WAPIRegistry):
+	""" This is a registry implementation, that uses API id as a scheme name from an URI
+	"""
+
+	@verify_type('strict', uri=(WURI, str))
+	def open(self, uri):
+		""" Return descriptor by an URI scheme name
+
+		:param uri: URI from which a scheme name will be fetched
+		:type uri: WURI | str
+
+		:rtype: any
+
+		:raise WNoSuchAPIIdError: when the specified scheme was not found
+		"""
+		if isinstance(uri, str) is True:
+			uri = WURI.parse(uri)
+		return self.get(uri.scheme())
+
+
+@verify_type('strict', scheme_name=str, registry=WURIAPIRegistry)
+@verify_value('strict', scheme_name=lambda x: len(x) > 0 and ':' not in x)
+def register_scheme_handler(registry, scheme_name):
+	""" This is a decorator, that may limit input parameters. This limit will be used if the correct
+	WASP_ENABLE_CHECKS variable was set. This decorator should be used in conjugation with
+	an :class:`.WURIAPIRegistry` object
+
+	:param registry: registry decorated function will be registered in
+	:type registry: WURIAPIRegistry
+
+	:param scheme_name: name of an URI scheme with which decorated function will be registered
+	:type scheme_name: str
+
+	:rtype: callable
+	"""
+	return register_api(registry, scheme_name)

@@ -15,7 +15,11 @@ def test_abstract():
 class TestWURI:
 
 	def test(self):
+		assert(isinstance(WURI.__all_components__, set) is True)
 		assert(len(WURI.__all_components__) == len(WURI.Component))
+		for c in WURI.Component:
+			assert(c.value in WURI.__all_components__)
+
 		uri = WURI()
 		assert(isinstance(uri, WURI) is True)
 
@@ -190,6 +194,19 @@ class TestWURIQuery:
 		assert('bar' in r)
 		assert('nnn' in r)
 		assert(None in r)
+
+		params = {x: y for x, y in query.parameters()}
+		assert(len(params) == 2)
+		assert('foo' in params)
+		assert(len(params['foo']) == 3)
+		assert('bar' in params['foo'])
+		assert('nnn' in params['foo'])
+		assert(None in params['foo'])
+		assert('zzz' in params)
+		assert(params['zzz'] == ['123'])
+
+		query = WURIQuery.parse('')
+		assert({x: y for x, y in query.parameters()} == {})
 
 
 class TestWStrictURIQuery:
