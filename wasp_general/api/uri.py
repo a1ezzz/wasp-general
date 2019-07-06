@@ -40,7 +40,7 @@ class WURIRestriction(WArgsValueRestriction):
 	@verify_type('strict', restrictions=WArgsRestrictionProto)
 	@verify_type('paranoid', args_selection=WArgsValueRestriction.ArgsSelection, extra_kw_args=str)
 	def __init__(
-		self, restriction, *extra_kw_args, args_selection=WArgsValueRestriction.ArgsSelection.none,
+		self, restriction, *extra_kw_args, args_selection=WArgsValueRestriction.ArgsSelection.none
 	):
 		""" Create new restriction
 
