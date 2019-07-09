@@ -21,6 +21,7 @@
 
 from abc import ABCMeta, abstractmethod
 import socket
+import struct
 import enum
 
 from wasp_general.verify import verify_type, verify_value
@@ -119,19 +120,23 @@ class WUDPSocketHandler(WSocketHandlerProto):
 		self.__uri = uri
 
 		address = self.__uri.hostname()
+		multicast_address = None
 		uri_query = uri.query()
 		if uri_query is not None:
 			socket_opts = WURIQuery.parse(uri_query)
-
 			if WUDPSocketHandler.QueryArg.multicast.value in socket_opts:
-				address = socket.gethostbyname(address)
-				ipv4_address = WIPV4Address(address)
-				if WNetworkIPV4.is_multicast(ipv4_address) is False:
+				multicast_address = socket.gethostbyname(address)
+				multicast_address = WIPV4Address(multicast_address)
+				if WNetworkIPV4.is_multicast(multicast_address) is False:
 					raise ValueError(
 						'The specified address: "%s" is not a multicast address' %
-						str(ipv4_address)
+						str(multicast_address)
 					)
 		self.__socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+		if multicast_address:
+			group = socket.inet_aton(str(multicast_address))
+			group_membership = struct.pack('4sL', group, socket.INADDR_ANY)
+			self.__socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group_membership)
 
 	def uri(self):
 		""" :meth:`.WSocketHandlerProto.uri` implementation
