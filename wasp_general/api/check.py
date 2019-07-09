@@ -422,7 +422,7 @@ class WIterValueRestriction(WArgsValueRestriction):
 	@verify_value('strict', min_length=lambda x: x >= 0, max_length=lambda x: x is None or x >= 0)
 	def __init__(
 		self, restriction, *extra_kw_args, min_length=0, max_length=None,
-		args_selection=WArgsValueRestriction.ArgsSelection.all,
+		args_selection=WArgsValueRestriction.ArgsSelection.all
 	):
 		""" Create new restriction
 
