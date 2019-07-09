@@ -40,7 +40,7 @@ class WURIRestriction(WArgsValueRestriction):
 	@verify_type('strict', restrictions=WArgsRestrictionProto)
 	@verify_type('paranoid', args_selection=WArgsValueRestriction.ArgsSelection, extra_kw_args=str)
 	def __init__(
-		self, restriction, *extra_kw_args, args_selection=WArgsValueRestriction.ArgsSelection.none
+		self, restriction, *extra_kw_args, args_selection=WArgsValueRestriction.ArgsSelection.all
 	):
 		""" Create new restriction
 
@@ -92,7 +92,9 @@ class WURIQueryRestriction(WArgsValueRestriction):
 		:param restrictions: restriction that will be applied on query parameters
 		:type restrictions: WArgsRestrictionProto
 		"""
-		WArgsValueRestriction.__init__(self, WURI.Component.query.value)
+		WArgsValueRestriction.__init__(
+			self, WURI.Component.query.value, args_selection=WArgsValueRestriction.ArgsSelection.none
+		)
 		self.__restriction_chain = WChainChecker(*restrictions)
 
 	@verify_type('strict', value=(WURIQuery, str), name=(str, None))

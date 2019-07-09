@@ -221,11 +221,26 @@ class TestWArgsValueRestriction:
 
 		a = A()
 		a.check(1, 2, 3, foo='bar', zzz='mmm')
-		assert(A.__checked_values__ == [])
+		assert(A.__checked_values__[:3] == [(1, None), (2, None), (3, None)])
+		A.__checked_values__ = A.__checked_values__[3:]
+		A.__checked_values__.sort(key=lambda x: x[0])
+		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
+		A.__checked_values__ = []
 
-		a = A('foo', 'qqq')
+		a = A(args_selection=WArgsValueRestriction.ArgsSelection.all)
 		a.check(1, 2, 3, foo='bar', zzz='mmm')
-		assert(A.__checked_values__ == [('bar', 'foo')])
+		assert(A.__checked_values__[:3] == [(1, None), (2, None), (3, None)])
+		A.__checked_values__ = A.__checked_values__[3:]
+		A.__checked_values__.sort(key=lambda x: x[0])
+		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
+		A.__checked_values__ = []
+
+		a = A('foo', 'qqq', args_selection=WArgsValueRestriction.ArgsSelection.all)
+		a.check(1, 2, 3, foo='bar', zzz='mmm')
+		assert(A.__checked_values__[:3] == [(1, None), (2, None), (3, None)])
+		A.__checked_values__ = A.__checked_values__[3:]
+		A.__checked_values__.sort(key=lambda x: x[0])
+		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
 		A.__checked_values__ = []
 
 		a = A(args_selection=WArgsValueRestriction.ArgsSelection.positional_args)
@@ -250,33 +265,28 @@ class TestWArgsValueRestriction:
 		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
 		A.__checked_values__ = []
 
-		a = A(args_selection=WArgsValueRestriction.ArgsSelection.all)
+		a = A(args_selection=WArgsValueRestriction.ArgsSelection.none)
 		a.check(1, 2, 3, foo='bar', zzz='mmm')
-		assert(A.__checked_values__[:3] == [(1, None), (2, None), (3, None)])
-		A.__checked_values__ = A.__checked_values__[3:]
-		A.__checked_values__.sort(key=lambda x: x[0])
-		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
+		assert(A.__checked_values__ == [])
 		A.__checked_values__ = []
 
-		a = A('foo', 'qqq', args_selection=WArgsValueRestriction.ArgsSelection.all)
+		a = A('foo', 'qqq', args_selection=WArgsValueRestriction.ArgsSelection.none)
 		a.check(1, 2, 3, foo='bar', zzz='mmm')
-		assert(A.__checked_values__[:3] == [(1, None), (2, None), (3, None)])
-		A.__checked_values__ = A.__checked_values__[3:]
-		A.__checked_values__.sort(key=lambda x: x[0])
-		assert(A.__checked_values__ == [('bar', 'foo'), ('mmm', 'zzz')])
+		assert(A.__checked_values__ == [('bar', 'foo')])
 		A.__checked_values__ = []
 
 
 class TestWNotNullValues:
 
 	def test(self):
-		assert(isinstance(WNotNullValues(), WArgsValueRestriction) is True)
-		WNotNullValues().check()
-		WNotNullValues().check(a=None)
-		WNotNullValues().check(a=None, b='bar')
-		WNotNullValues().check(a='foo', c=None)
+		r = WNotNullValues(args_selection=WArgsValueRestriction.ArgsSelection.none)
+		assert(isinstance(r, WArgsValueRestriction) is True)
+		r.check()
+		r.check(a=None)
+		r.check(a=None, b='bar')
+		r.check(a='foo', c=None)
 
-		r = WNotNullValues('a')
+		r = WNotNullValues('a', args_selection=WArgsValueRestriction.ArgsSelection.none)
 		r.check()
 		pytest.raises(WArgsRestrictionError, r.check, a=None)
 		pytest.raises(WArgsRestrictionError, r.check, a=None, b='bar')
@@ -292,7 +302,7 @@ class TestWNotNullValues:
 class TestWArgsValueRegExp:
 
 	def test(self):
-		r = WArgsValueRegExp('^\\d+$', 'a')
+		r = WArgsValueRegExp('^\\d+$', 'a', args_selection=WArgsValueRestriction.ArgsSelection.none)
 		assert(isinstance(r, WArgsValueRestriction))
 		r.check()
 		r.check(a='11')
@@ -309,7 +319,9 @@ class TestWArgsValueRegExp:
 		pytest.raises(WArgsRestrictionError, r.check, 'foo')
 		pytest.raises(WArgsRestrictionError, r.check, None)
 
-		r = WArgsValueRegExp('^\\d+$', 'a', nullable=True)
+		r = WArgsValueRegExp(
+			'^\\d+$', 'a', nullable=True, args_selection=WArgsValueRestriction.ArgsSelection.none
+		)
 		r.check()
 		r.check(a='11')
 		r.check(a=None)

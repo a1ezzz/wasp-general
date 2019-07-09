@@ -269,7 +269,7 @@ class WArgsValueRestriction(WArgsRestrictionProto):
 		all = 4  # All the arguments will be selected
 
 	@verify_type('strict', args_selection=ArgsSelection, extra_kw_args=str)
-	def __init__(self, *extra_kw_args, args_selection=ArgsSelection.none):
+	def __init__(self, *extra_kw_args, args_selection=ArgsSelection.all):
 		""" Create new restriction
 
 		:param extra_kw_args: additional named arguments that will be checked
@@ -325,7 +325,7 @@ class WNotNullValues(WArgsValueRestriction):
 
 	@verify_type('paranoid', args_selection=WArgsValueRestriction.ArgsSelection)
 	@verify_type('paranoid', extra_kw_args=str)
-	def __init__(self, *extra_kw_args, args_selection=WArgsValueRestriction.ArgsSelection.none):
+	def __init__(self, *extra_kw_args, args_selection=WArgsValueRestriction.ArgsSelection.all):
 		""" Create new restriction
 
 		:param extra_kw_args: select arguments to check (the sames as extra_kw_args parameter in
@@ -364,7 +364,7 @@ class WArgsValueRegExp(WArgsValueRestriction):
 	@verify_type('paranoid', args_selection=WArgsValueRestriction.ArgsSelection, extra_kw_args=str)
 	def __init__(
 		self, re_sentence, *extra_kw_args, nullable=False,
-		args_selection=WArgsValueRestriction.ArgsSelection.none
+		args_selection=WArgsValueRestriction.ArgsSelection.all
 	):
 		""" Create new restriction
 
@@ -422,7 +422,7 @@ class WIterValueRestriction(WArgsValueRestriction):
 	@verify_value('strict', min_length=lambda x: x >= 0, max_length=lambda x: x is None or x >= 0)
 	def __init__(
 		self, restriction, *extra_kw_args, min_length=0, max_length=None,
-		args_selection=WArgsValueRestriction.ArgsSelection.none,
+		args_selection=WArgsValueRestriction.ArgsSelection.all,
 	):
 		""" Create new restriction
 
