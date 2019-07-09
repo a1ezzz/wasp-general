@@ -410,3 +410,77 @@ class WArgsValueRegExp(WArgsValueRestriction):
 			raise WArgsRestrictionError(
 				'The "%s" argument value does not match a specified pattern' % str(name)
 			)
+
+
+class WIterValueRestriction(WArgsValueRestriction):
+	""" This restriction applies a :class:`.WArgsValueRestriction` restriction on each element of iterable
+	objects
+	"""
+
+	@verify_type('strict', restriction=WArgsValueRestriction, min_length=int, max_length=(int, None))
+	@verify_type('paranoid', args_selection=WArgsValueRestriction.ArgsSelection, extra_kw_args=str)
+	@verify_value('strict', min_length=lambda x: x >= 0, max_length=lambda x: x is None or x >= 0)
+	def __init__(
+		self, restriction, *extra_kw_args, min_length=0, max_length=None,
+		args_selection=WArgsValueRestriction.ArgsSelection.none,
+	):
+		""" Create new restriction
+
+		:param restriction: a restriction that will be applied on each element of selected iterable objects
+		:type restriction: WArgsValueRestriction
+
+		:param extra_kw_args: select arguments to check (the sames as extra_kw_args parameter in
+		:meth:`.WArgsValueRestriction.__init__`)
+		:type extra_kw_args: str
+
+		:param min_length: restricts an iterable to have this number of items at least
+		:type min_length: int
+
+		:param max_length: restricts an iterable not to have items more than this value
+		:type max_length: int | None
+
+		:param args_selection: select arguments to check (the sames as args_selection parameter in
+		:meth:`.WArgsValueRestriction.__init__`)
+		:type args_selection: WArgsValueRestriction.ArgsSelection
+		"""
+		WArgsValueRestriction.__init__(self, *extra_kw_args, args_selection=args_selection)
+		self.__restriction = restriction
+		self.__min_length = min_length
+		self.__max_length = max_length
+
+	def min_length(self):
+		""" Return minimum number of items in a selected iterable object (is 0 by default)
+
+		:rtype: int
+		"""
+		return self.__min_length
+
+	def max_length(self):
+		""" Return maximum number of items in a selected iterable object or None if limit is not set (is None
+		by default)
+
+		:rtype: int | None
+		"""
+		return self.__max_length
+
+	@verify_type('paranoid', name=(str, None))
+	def check_value(self, value, name=None):
+		""" :meth:`.WArgsValueRestriction.check_value` method implementation
+
+		:rtype: None
+		"""
+		value_l = len(value)
+		min_l = self.min_length()
+		max_l = self.max_length()
+
+		if value_l < min_l:
+			raise WArgsRestrictionError(
+				'Number of items in iterable object (%i) is less then a minimum (%i)' % (value_l, min_l)
+			)
+		if max_l is not None and value_l > max_l:
+			raise WArgsRestrictionError(
+				'Number of items in iterable object (%i) is more then a maximum (%i)' % (value_l, max_l)
+			)
+
+		for i in value:
+			self.__restriction.check_value(i, name=name)

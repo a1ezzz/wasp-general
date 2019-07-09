@@ -3,8 +3,8 @@
 import pytest
 
 from wasp_general.api.check import WArgsRestrictionError, WArgsRestrictionProto, WChainChecker, WConflictedArgs
-from wasp_general.api.check import WSupportedArgs, WArgsRequirements, WArgsValueRestriction
-from wasp_general.api.check import WNotNullValues, WArgsValueRegExp
+from wasp_general.api.check import WSupportedArgs, WArgsRequirements, WArgsValueRestriction, WNotNullValues
+from wasp_general.api.check import WArgsValueRegExp, WIterValueRestriction
 
 
 def test_exceptions():
@@ -320,3 +320,37 @@ class TestWArgsValueRegExp:
 		r.check()
 		r.check('11')
 		r.check(None)
+
+
+class TestWIterValueRestriction:
+
+	def test(self):
+		restriction = WIterValueRestriction(WArgsValueRegExp('.*'))
+		assert(isinstance(restriction, WIterValueRestriction) is True)
+		assert(isinstance(restriction, WArgsValueRestriction) is True)
+		assert(restriction.min_length() == 0)
+		assert(restriction.max_length() is None)
+
+		restriction = WIterValueRestriction(WArgsValueRegExp('^\\d+$'), 'a')
+		restriction.check(a=[])
+		restriction.check(a=['7'])
+		restriction.check(a=['1', '2', '3'])
+		pytest.raises(WArgsRestrictionError, restriction.check, a=['b'])
+
+		restriction = WIterValueRestriction(WArgsValueRegExp('^\\d+$'), 'a', min_length=2)
+		pytest.raises(WArgsRestrictionError, restriction.check, a=[])
+		pytest.raises(WArgsRestrictionError, restriction.check, a=['7'])
+		restriction.check(a=['1', '2', '3'])
+		pytest.raises(WArgsRestrictionError, restriction.check, a=['b'])
+
+		restriction = WIterValueRestriction(WArgsValueRegExp('^\\d+$'), 'a', max_length=2)
+		restriction.check(a=[])
+		restriction.check(a=['7'])
+		pytest.raises(WArgsRestrictionError, restriction.check, a=['1', '2', '3'])
+		pytest.raises(WArgsRestrictionError, restriction.check, a=['b'])
+
+		restriction = WIterValueRestriction(WArgsValueRegExp('^\\d+$'), 'a', min_length=1, max_length=2)
+		pytest.raises(WArgsRestrictionError, restriction.check, a=[])
+		restriction.check(a=['7'])
+		pytest.raises(WArgsRestrictionError, restriction.check, a=['1', '2', '3'])
+		pytest.raises(WArgsRestrictionError, restriction.check, a=['b'])
