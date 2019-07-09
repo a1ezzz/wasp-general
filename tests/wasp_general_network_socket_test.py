@@ -6,12 +6,11 @@ import socket
 from wasp_general.uri import WSchemeHandler, WSchemeSpecification, WURI, WSchemeCollection
 
 from wasp_general.network.socket import WSocketHandlerProto, WUDPSocketHandler, WTCPSocketHandler, WUnixSocketHandler
-from wasp_general.network.socket import WSocketCollectionProto, __default_socket_collection__
+from wasp_general.network.socket import __default_socket_collection__
 
 
 def test_abstract():
 	pytest.raises(TypeError, WSocketHandlerProto)
-	assert(issubclass(WSocketHandlerProto, WSchemeHandler) is True)
 	pytest.raises(NotImplementedError, WSocketHandlerProto.uri, None)
 	pytest.raises(NotImplementedError, WSocketHandlerProto.socket, None)
 
@@ -22,8 +21,6 @@ class TestWUDPSocketHandler:
 
 	def test(self):
 		assert(issubclass(WUDPSocketHandler, WSocketHandlerProto) is True)
-		spec = WUDPSocketHandler.scheme_specification()
-		assert(isinstance(spec, WSchemeSpecification) is True)
 
 		uri = WURI.parse("udp://127.0.0.1:3333")
 		h = WUDPSocketHandler.create_handler(uri)
@@ -61,8 +58,6 @@ class TestWTCPSocketHandler:
 
 	def test(self):
 		assert(issubclass(WTCPSocketHandler, WSocketHandlerProto) is True)
-		spec = WTCPSocketHandler.scheme_specification()
-		assert(isinstance(spec, WSchemeSpecification) is True)
 
 		uri = WURI.parse("tcp://127.0.0.1:3333")
 		h = WTCPSocketHandler.create_handler(uri)
@@ -98,8 +93,6 @@ class TestWUnixSocketHandler:
 
 	def test(self):
 		assert(issubclass(WUnixSocketHandler, WSocketHandlerProto) is True)
-		spec = WUnixSocketHandler.scheme_specification()
-		assert(isinstance(spec, WSchemeSpecification) is True)
 
 		uri = WURI.parse("unix:///")
 		h = WUnixSocketHandler.create_handler(uri)
@@ -151,14 +144,7 @@ class TestWUnixSocketHandler:
 		s2.close()
 
 
-class TestWSocketCollectionProto:
-
-	def test(self):
-		assert(issubclass(WSocketCollectionProto, WSchemeCollection) is True)
-
-
 def test_default_collection():
-	assert(isinstance(__default_socket_collection__, WSocketCollectionProto) is True)
 
 	h = __default_socket_collection__.open(WURI.parse('udp://127.0.0.1:3333'))
 	assert(isinstance(h, WUDPSocketHandler) is True)

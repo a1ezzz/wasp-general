@@ -19,19 +19,22 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-from abc import abstractmethod
-
+from abc import ABCMeta, abstractmethod
 import socket
+import enum
 
-from wasp_general.verify import verify_subclass
+from wasp_general.verify import verify_type, verify_value
 
-from wasp_general.uri import WSchemeHandler, WSchemeSpecification, WURIComponentVerifier, WURI, WURIQueryVerifier
-from wasp_general.uri import WStrictURIQuery, WSchemeCollection
+from wasp_general.uri import WURI, WURIQuery
 
 from wasp_general.network.primitives import WIPV4Address, WNetworkIPV4
 
+from wasp_general.api.uri import WURIRestriction, WURIQueryRestriction, WURIAPIRegistry, register_scheme_handler
+from wasp_general.api.check import WSupportedArgs, WArgsRequirements, WNotNullValues, WArgsValueRegExp, WChainChecker
+from wasp_general.api.check import WIterValueRestriction
 
-class WSocketHandlerProto(WSchemeHandler):
+
+class WSocketHandlerProto(metaclass=ABCMeta):
 	""" Represent class that is able to create and set up socket object
 	"""
 
@@ -52,16 +55,60 @@ class WSocketHandlerProto(WSchemeHandler):
 		raise NotImplementedError('This method is abstract')
 
 
+class WSocketAPIRegistry(WURIAPIRegistry):
+	""" This is a registry for socket handlers. Such handlers as a descriptor must be a callable that accepts
+	the specified URI as a first argument
+	"""
+
+	@verify_type('paranoid', uri=(WURI, str))
+	def open(self, uri):
+		""" Return socket handler by a scheme name in URI
+
+		:param uri: URI from which a scheme name will be fetched
+		:type uri: WURI | str
+
+		:rtype: WSocketHandlerProto
+		"""
+		create_handler_fn = WURIAPIRegistry.open(self, uri)
+		return create_handler_fn(uri)
+
+
+__default_socket_collection__ = WSocketAPIRegistry()
+""" Default collection that is able to create UDP, TCP and Unix sockets
+"""
+
+
 class WUDPSocketHandler(WSocketHandlerProto):
 	""" :class:`.WSocketHandlerProto` implementation with which UDP socket may be created
 	"""
 
-	__multicast_options_spec__ = WStrictURIQuery.ParameterSpecification(
-		'multicast', nullable=True, multiple=False, optional=True
-	)
-	""" With this option it is possible to check that a target URI has a valid multicast address
-	"""
+	@enum.unique
+	class QueryArg(enum.Enum):
+		""" Socket options
+		"""
+		multicast = 'multicast'  # set up multicast socket
 
+	__uri_check__ = WURIRestriction(
+		WChainChecker(
+			WSupportedArgs(
+				WURI.Component.scheme.value,
+				WURI.Component.hostname.value,
+				WURI.Component.port.value,
+				WURI.Component.query.value
+			),
+			WArgsRequirements(
+				WURI.Component.hostname.value,
+				WURI.Component.port.value
+			),
+			WURIQueryRestriction(
+				WSupportedArgs(QueryArg.multicast.value),
+				WNotNullValues(QueryArg.multicast.value)
+			)
+		)
+	)  # URI compatibility check
+
+	@verify_type('strict', uri=WURI)
+	@verify_value(uri=lambda x: WUDPSocketHandler.__uri_check__.check(x) or True)
 	def __init__(self, uri):
 		""" Create new object (and UDP socket object also) from specification defined by an URI
 
@@ -74,10 +121,9 @@ class WUDPSocketHandler(WSocketHandlerProto):
 		address = self.__uri.hostname()
 		uri_query = uri.query()
 		if uri_query is not None:
-			uri_query = WStrictURIQuery.parse(uri_query)
-			socket_opts = WStrictURIQuery(uri_query, self.__multicast_options_spec__, extra_parameters=False)
+			socket_opts = WURIQuery.parse(uri_query)
 
-			if 'multicast' in socket_opts:
+			if WUDPSocketHandler.QueryArg.multicast.value in socket_opts:
 				address = socket.gethostbyname(address)
 				ipv4_address = WIPV4Address(address)
 				if WNetworkIPV4.is_multicast(ipv4_address) is False:
@@ -101,37 +147,38 @@ class WUDPSocketHandler(WSocketHandlerProto):
 		"""
 		return self.__socket
 
-	@classmethod
-	def create_handler(cls, uri, **kwargs):
-		""" :meth:`.WSchemeHandler.create_handler` implementation
+	@staticmethod
+	@register_scheme_handler(__default_socket_collection__, 'udp')
+	@verify_type('strict', uri=WURI)
+	def create_handler(uri):
+		""" Function that is registered in a default registry
 
 		:type uri: WURI
-		:rtype: WSocketHandlerProto
+		:rtype: WUDPSocketHandler
 		"""
-		return cls(uri)
-
-	@classmethod
-	def scheme_specification(cls):
-		""" :meth:`.WSchemeHandler.scheme_specification` implementation
-
-		:rtype: WSchemeSpecification
-		"""
-		return WSchemeSpecification(
-			'udp',
-			WURIComponentVerifier(WURI.Component.hostname, WURIComponentVerifier.Requirement.required),
-			WURIComponentVerifier(WURI.Component.port, WURIComponentVerifier.Requirement.required),
-			WURIQueryVerifier(
-				WURIComponentVerifier.Requirement.optional,
-				cls.__multicast_options_spec__,
-				extra_parameters=False
-			)
-		)
+		return WUDPSocketHandler(uri)
 
 
 class WTCPSocketHandler(WSocketHandlerProto):
 	""" :class:`.WSocketHandlerProto` implementation with which TCP socket may be created
 	"""
 
+	__uri_check__ = WURIRestriction(
+		WChainChecker(
+			WSupportedArgs(
+				WURI.Component.scheme.value,
+				WURI.Component.hostname.value,
+				WURI.Component.port.value
+			),
+			WArgsRequirements(
+				WURI.Component.hostname.value,
+				WURI.Component.port.value
+			),
+		)
+	)  # URI compatibility check
+
+	@verify_type('strict', uri=WURI)
+	@verify_value(uri=lambda x: WTCPSocketHandler.__uri_check__.check(x) or True)
 	def __init__(self, uri):
 		""" Create new object (and TCP socket object also) from specification defined by an URI
 
@@ -156,41 +203,54 @@ class WTCPSocketHandler(WSocketHandlerProto):
 		"""
 		return self.__socket
 
-	@classmethod
-	def create_handler(cls, uri, **kwargs):
-		""" :meth:`.WSchemeHandler.create_handler` implementation
+	@staticmethod
+	@register_scheme_handler(__default_socket_collection__, 'tcp')
+	@verify_type('strict', uri=WURI)
+	def create_handler(uri):
+		""" Function that is registered in a default registry
 
 		:type uri: WURI
-		:rtype: WSocketHandlerProto
+		:rtype: WTCPSocketHandler
 		"""
-		return cls(uri)
-
-	@classmethod
-	def scheme_specification(cls):
-		""" :meth:`.WSchemeHandler.scheme_specification` implementation
-
-		:rtype: WSchemeSpecification
-		"""
-		return WSchemeSpecification(
-			'tcp',
-			WURIComponentVerifier(WURI.Component.hostname, WURIComponentVerifier.Requirement.required),
-			WURIComponentVerifier(WURI.Component.port, WURIComponentVerifier.Requirement.required)
-		)
+		return WTCPSocketHandler(uri)
 
 
 class WUnixSocketHandler(WSocketHandlerProto):
 	""" :class:`.WSocketHandlerProto` implementation with which Unix socket may be created
 	"""
 
-	__type_options_spec__ = WStrictURIQuery.ParameterSpecification(
-		'type', nullable=False, multiple=False, optional=True, reg_exp='stream|datagram'
-	)
-	""" This option determine the way socket will work. With "stream" value (this is a default value) target
-	socket will be created with SOCK_STREAM type (and listen/bind/connect/accept socket's methods will be used).
-	As the opposite variant datagram mode may be used. In this mode socket with SOCK_DGRAM type will be created
-	(and bind/sendto/recv methods may be used)
-	"""
+	@enum.unique
+	class QueryArg(enum.Enum):
+		""" Socket options
+		"""
+		type = 'type'
+		""" This option defines the way socket will work. With "stream" value (this is a default value) target
+		socket will be created with SOCK_STREAM type (and listen/bind/connect/accept socket's methods will
+		be used). As the opposite variant datagram mode may be used. In this mode socket with SOCK_DGRAM type
+		will be created (and bind/sendto/recv methods may be used)
+		"""
 
+	__uri_check__ = WURIRestriction(
+		WChainChecker(
+			WSupportedArgs(
+				WURI.Component.scheme.value,
+				WURI.Component.path.value,
+				WURI.Component.query.value
+			),
+			WArgsRequirements(
+				WURI.Component.path.value
+			),
+			WURIQueryRestriction(
+				WSupportedArgs(QueryArg.type.value),
+				WIterValueRestriction(
+					WArgsValueRegExp('stream|datagram', QueryArg.type.value), max_length=1
+				)
+			),
+		)
+	)  # URI compatibility check
+
+	@verify_type('strict', uri=WURI)
+	@verify_value(uri=lambda x: WUnixSocketHandler.__uri_check__.check(x) or True)
 	def __init__(self, uri):
 		""" Create new object (and Unix socket object also) from specification defined by an URI
 
@@ -204,8 +264,7 @@ class WUnixSocketHandler(WSocketHandlerProto):
 
 		uri_query = uri.query()
 		if uri_query is not None:
-			uri_query = WStrictURIQuery.parse(uri_query)
-			socket_opts = WStrictURIQuery(uri_query, self.__type_options_spec__, extra_parameters=False)
+			socket_opts = WURIQuery.parse(uri_query)
 
 			if 'type' in socket_opts:
 				if 'datagram' in socket_opts['type']:
@@ -227,50 +286,13 @@ class WUnixSocketHandler(WSocketHandlerProto):
 		"""
 		return self.__socket
 
-	@classmethod
-	def create_handler(cls, uri, **kwargs):
-		""" :meth:`.WSchemeHandler.create_handler` implementation
+	@staticmethod
+	@register_scheme_handler(__default_socket_collection__, 'unix')
+	@verify_type('strict', uri=WURI)
+	def create_handler(uri):
+		""" Function that is registered in a default registry
 
 		:type uri: WURI
-		:rtype: WSocketHandlerProto
+		:rtype: WUnixSocketHandler
 		"""
-		return cls(uri)
-
-	@classmethod
-	def scheme_specification(cls):
-		""" :meth:`.WSchemeHandler.scheme_specification` implementation
-
-		:rtype: WSchemeSpecification
-		"""
-		return WSchemeSpecification(
-			'unix',
-			WURIComponentVerifier(WURI.Component.path, WURIComponentVerifier.Requirement.required),
-			WURIQueryVerifier(
-				WURIComponentVerifier.Requirement.optional,
-				cls.__type_options_spec__,
-				extra_parameters=False
-			)
-		)
-
-
-class WSocketCollectionProto(WSchemeCollection):
-	""" Custom :class:`.WSchemeCollection` collection suitable for :class:`.WSocketHandlerProto` handlers
-	"""
-
-	@verify_subclass(scheme_handler_cls=WSocketHandlerProto)
-	def add(self, scheme_handler_cls):
-		""" :meth:`.WSchemeCollection.add` method overloaded (supported classes is restricted)
-
-		:type scheme_handler_cls: type (WSocketHandlerProto)
-		:rtype: None
-		"""
-		WSchemeCollection.add(self, scheme_handler_cls)
-
-
-__default_socket_collection__ = WSocketCollectionProto(
-	WUDPSocketHandler,
-	WTCPSocketHandler,
-	WUnixSocketHandler
-)
-""" Default collection that is able to create UDP, TCP and Unix sockets 
-"""
+		return WUnixSocketHandler(uri)
