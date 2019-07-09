@@ -49,14 +49,12 @@ class TestWURIQueryRestriction:
 		pytest.raises(WArgsRestrictionError, uri_query_restriction.check_value, WURIQuery.parse(''))
 
 	def test_uri(self):
-		uri_restriction = WURIRestriction(
-			WURIQueryRestriction(WArgsRequirements('foo')), 'uri'
-		)
+		uri_restriction = WURIRestriction(WURIQueryRestriction(WArgsRequirements('foo')))
 		uri_restriction.check()
-		uri_restriction.check(uri='///')
-		uri_restriction.check(uri='///?')
-		uri_restriction.check(uri=WURI.parse('///?foo=bar&zzz=1'))
-		pytest.raises(WArgsRestrictionError, uri_restriction.check, uri=WURI.parse('///?zzz=1'))
+		uri_restriction.check('///')
+		uri_restriction.check('///?')
+		uri_restriction.check(WURI.parse('///?foo=bar&zzz=1'))
+		pytest.raises(WArgsRestrictionError, uri_restriction.check, WURI.parse('///?zzz=1'))
 
 
 class TestWURIAPIRegistry:
