@@ -74,7 +74,7 @@ matrix:
 
 install:
   - pip install -r requirements.txt
-  - pip install -v '.[all]'
+  - pip install -v '.[dev,template]'
 
 script:
   - cd tests
