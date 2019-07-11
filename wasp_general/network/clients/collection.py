@@ -22,11 +22,6 @@
 # TODO: document the code
 # TODO: test the code
 
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __status__
-
 from wasp_general.verify import verify_subclass
 
 from wasp_general.network.clients.proto import WNetworkClientProto

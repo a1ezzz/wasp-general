@@ -23,11 +23,6 @@
 # TODO: test the code
 # TODO: rewrite with wasp_general.api
 
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __status__
-
 import re
 from abc import abstractmethod
 from enum import Enum

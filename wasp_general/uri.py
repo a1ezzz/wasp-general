@@ -21,11 +21,6 @@
 
 # TODO: merge some from wasp_general.network.web.service and wasp_general.network.web.re_statements
 
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __status__
-
 import re
 import enum
 from urllib.parse import urlsplit, urlunsplit, parse_qs, urlencode

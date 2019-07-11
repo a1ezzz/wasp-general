@@ -22,11 +22,6 @@
 # TODO: Add zeroconf beacon
 # TODO: test the code
 
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __status__
-
 import os
 from enum import Enum
 from zmq.eventloop.ioloop import IOLoop
