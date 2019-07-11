@@ -21,11 +21,6 @@
 
 # TODO: Merge with wasp_general.network.messenger
 
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __status__
-
 import re
 from abc import ABCMeta, abstractmethod
 
