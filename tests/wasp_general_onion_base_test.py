@@ -86,7 +86,7 @@ class TestWOnionBaseSessionFlow:
 			self.__layers = layers
 
 		async def iterate(self, envelope):
-			loop = asyncio.get_running_loop()
+			loop = asyncio.get_event_loop()
 			for l in self.__layers:
 				f = loop.create_future()
 				yield l, f
@@ -112,7 +112,7 @@ class TestWOnionDirectSessionFlow:
 			self.__layers = layers
 
 		async def iterate(self, envelope):
-			loop = asyncio.get_running_loop()
+			loop = asyncio.get_event_loop()
 			for l in self.__layers:
 				f = loop.create_future()
 				yield WOnionSessionFlowProto.LayerInfo(l), f

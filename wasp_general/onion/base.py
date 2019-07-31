@@ -107,7 +107,7 @@ class WOnionBaseSessionFlow(WOnionSessionFlowProto):
 
 		:rtype: async generator
 		"""
-		loop = asyncio.get_running_loop()
+		loop = asyncio.get_event_loop()
 		envelope_future = loop.create_future()
 		# noinspection PyTypeChecker
 		async for layer_info, inner_envelope_future in session_flow.iterate(envelope):
@@ -139,7 +139,7 @@ class WOnionDirectSessionFlow(WOnionBaseSessionFlow):
 		:type envelope: WEnvelopeProto
 		:rtype: async generator
 		"""
-		loop = asyncio.get_running_loop()
+		loop = asyncio.get_event_loop()
 		for i in self.__info:
 			if isinstance(i, WOnionSessionFlowProto.LayerInfo):
 				envelope_future = loop.create_future()
