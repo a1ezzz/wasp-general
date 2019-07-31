@@ -36,17 +36,17 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WOnionLayerProto.layer)
 	pytest.raises(NotImplementedError, WOnionLayerProto.name)
 
-	pytest.raises(TypeError, WOnionSessionFlowProto)
-	pytest.raises(NotImplementedError, WOnionSessionFlowProto.iterate, None, Envelope())
-
 
 @pytest.mark.asyncio
 async def test_asyncio_abstract():
 	with pytest.raises(NotImplementedError):
+		await WOnionSessionFlowProto.iterate(None, Envelope())
+
+	with pytest.raises(NotImplementedError):
 		await WOnionLayerProto.process(None, Envelope())
 
 	with pytest.raises(NotImplementedError):
-		await WOnionProto.process(None, Envelope(), SessionFlow())
+		await WOnionProto.process(None, SessionFlow(), Envelope())
 
 
 class TestWOnionSessionFlow:
