@@ -139,14 +139,18 @@ class WOnionSessionFlowProto(metaclass=ABCMeta):
 
 	@abstractmethod
 	@verify_type('strict', envelope=WEnvelopeProto)
-	async def iterate(self, envelope):
-		""" Return async generator that yields a pair of next layer information
-		(:class:`.WOnionSessionFlowProto.LayerInfo` instance) and a future that awaits next envelope
+	def next(self, envelope):
+		""" Return a pair (tuple) of layer information (:class`.WOnionSessionFlowProto.LayerInfo`
+		class) that should process the specified envelope and the next session flow
+		(:class`.WOnionSessionFlowProto` class) that will define what layer will be the next one
 
-		:param envelope: an envelope for the first layer
+		If a layer information is None then there is no layers left for the specified envelope.
+		If a session flow is None then this is a final layer no more layer left to be used
+
+		:param envelope: envelope that the next layer will process
 		:type envelope: WEnvelopeProto
 
-		:rtype: async generator
+		:rtype: (WOnionSessionFlowProto.LayerInfo | None, WOnionSessionFlowProto | None)
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -197,4 +201,3 @@ class WOnionProto(metaclass=ABCMeta):
 		:rtype: WEnvelopeProto
 		"""
 		raise NotImplementedError('This method is abstract')
-

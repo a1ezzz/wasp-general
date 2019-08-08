@@ -19,7 +19,7 @@ class Envelope(WEnvelopeProto):
 
 class SessionFlow(WOnionSessionFlowProto):
 
-	def iterate(self, envelope):
+	def next(self, envelope):
 		pass
 
 
@@ -32,6 +32,9 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WOnionProto.layer, None, 'foo')
 	pytest.raises(NotImplementedError, WOnionProto.layers_names, None)
 
+	pytest.raises(TypeError, WOnionSessionFlowProto)
+	pytest.raises(NotImplementedError, WOnionSessionFlowProto.next, None, Envelope())
+
 	pytest.raises(TypeError, WOnionLayerProto)
 	pytest.raises(NotImplementedError, WOnionLayerProto.layer)
 	pytest.raises(NotImplementedError, WOnionLayerProto.name)
@@ -39,9 +42,6 @@ def test_abstract():
 
 @pytest.mark.asyncio
 async def test_asyncio_abstract():
-	with pytest.raises(NotImplementedError):
-		await WOnionSessionFlowProto.iterate(None, Envelope())
-
 	with pytest.raises(NotImplementedError):
 		await WOnionLayerProto.process(None, Envelope())
 

@@ -4,14 +4,10 @@ import pytest
 import asyncio
 
 from wasp_general.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
-from wasp_general.onion.base import WEnvelope, WOnionBaseSessionFlow, WOnionDirectSessionFlow
-from wasp_general.onion.base import WOnionConditionalSessionFlow, WOnion
+from wasp_general.onion.base import WEnvelope, WOnionDirectSessionFlow, WOnionConditionalSessionFlow, WOnion
 
 
 def test_abstract():
-	pytest.raises(TypeError, WOnionBaseSessionFlow)
-	assert(issubclass(WOnionBaseSessionFlow, WOnionSessionFlowProto) is True)
-
 	pytest.raises(TypeError, WOnionConditionalSessionFlow.FlowSelector)
 	pytest.raises(NotImplementedError, WOnionConditionalSessionFlow.FlowSelector.flow, None, WEnvelope(1))
 
@@ -78,31 +74,33 @@ class TestWEnvelope:
 		))
 
 
-class TestWOnionBaseSessionFlow:
-
-	class SessionFlow(WOnionSessionFlowProto):
-
-		def __init__(self, *layers):
-			self.__layers = layers
-
-		async def iterate(self, envelope):
-			loop = asyncio.get_event_loop()
-			for l in self.__layers:
-				f = loop.create_future()
-				yield l, f
-				z = await f
-				assert(z == 'zzz')
-
-	@pytest.mark.asyncio
-	async def test(self):
-		sf = TestWOnionBaseSessionFlow.SessionFlow('layer1', 'layer-foo', 'layer-bar')
-		result = []
-		async for i, j in WOnionBaseSessionFlow.iterate_inner_flow(sf, WEnvelope(1)):
-			result.append(i)
-			assert(asyncio.isfuture(j) is True)
-			j.set_result('zzz')
-		assert(result == ['layer1', 'layer-foo', 'layer-bar'])
-
+# class TestWOnionBaseSessionFlow:
+#
+# 	class SessionFlow(WOnionSessionFlowProto):
+#
+# 		def __init__(self, *layers):
+# 			self.__layers = layers
+#
+# 		async def iterate(self, envelope):
+# 			loop = asyncio.get_event_loop()
+# 			for l in self.__layers:
+# 				f = loop.create_future()
+# 				yield l, f
+# 				z = await f
+# 				assert(z == 'zzz')
+#
+# 	@pytest.mark.asyncio
+# 	async def test(self):
+# 		sf = TestWOnionBaseSessionFlow.SessionFlow('layer1', 'layer-foo', 'layer-bar')
+# 		result = []
+# 		async for i, j in WOnionBaseSessionFlow.iterate_inner_flow(sf, WEnvelope(1)):
+# 			result.append(i)
+# 			assert(asyncio.isfuture(j) is True)
+# 			j.set_result('zzz')
+# 		assert(result == ['layer1', 'layer-foo', 'layer-bar'])
+#
+#
+#
 
 class TestWOnionDirectSessionFlow:
 
@@ -111,19 +109,17 @@ class TestWOnionDirectSessionFlow:
 		def __init__(self, *layers):
 			self.__layers = layers
 
-		async def iterate(self, envelope):
-			loop = asyncio.get_event_loop()
-			for l in self.__layers:
-				f = loop.create_future()
-				yield WOnionSessionFlowProto.LayerInfo(l), f
-				z = await f
-				assert(isinstance(z, WEnvelopeProto) is True)
-				assert(z.data() == 'zzz')
+		def next(self, envelope):
+			if self.__layers:
+				return (
+					WOnionSessionFlowProto.LayerInfo(self.__layers[0]),
+					TestWOnionDirectSessionFlow.SessionFlow(*(self.__layers[1:]))
+				)
+			return None, None
 
-	@pytest.mark.asyncio
-	async def test(self):
+	def test(self):
 		sf = WOnionDirectSessionFlow()
-		assert(isinstance(sf, WOnionBaseSessionFlow) is True)
+		assert(isinstance(sf, WOnionSessionFlowProto) is True)
 
 		sf = WOnionDirectSessionFlow(
 			WOnionSessionFlowProto.LayerInfo('layer-qaz1'),
@@ -132,33 +128,65 @@ class TestWOnionDirectSessionFlow:
 			WOnionSessionFlowProto.LayerInfo('layer-qaz3')
 		)
 
-		async def test_iter(flow, *envelopes):
+		def test_iter(flow, *envelopes):
 			iter_result = []
 			envelopes = [WEnvelope(x) for x in envelopes]
-			async for next_layer, envelope_future in flow.iterate(envelopes.pop(0)):
+
+			for e in envelopes:
+				if not flow:
+					break
+				next_layer, flow = flow.next(e)
 				iter_result.append(next_layer)
-				envelope_future.set_result(envelopes.pop(0))
+
 			return iter_result
 
-		result = await test_iter(sf, None, 1, 'zzz', 'zzz', None, 'q')
+		result = test_iter(sf, None, 1, 'zzz', 'zzz', None)
 		for i in result:
 			assert(isinstance(i, WOnionSessionFlowProto.LayerInfo) is True)
 
-		assert(
-			[x.layer_name() for x in result] == [
-				'layer-qaz1', 'foo-layer', 'bar-layer', 'layer-qaz2', 'layer-qaz3'
-			]
+		expected_result = ['layer-qaz1', 'foo-layer', 'bar-layer', 'layer-qaz2', 'layer-qaz3']
+		assert([x.layer_name() for x in result] == expected_result)
+
+		result = test_iter(sf, None, 1, 'zzz', 'zzz', 7, None, 'a')
+		assert([(x.layer_name() if x else None) for x in result] == (expected_result + [None]))
+
+		class SFlow(WOnionSessionFlowProto):
+
+			def next(self, envelope):
+				return WOnionDirectSessionFlow.LayerInfo('mmm-layer'), None
+
+		sf = WOnionDirectSessionFlow(
+			SFlow(), WOnionDirectSessionFlow.LayerInfo('zzz-layer')
+		)
+		result = test_iter(sf, None, 1, 2)
+		assert([(x.layer_name() if x else None) for x in result] == ['mmm-layer', 'zzz-layer', None])
+
+		sf = WOnionDirectSessionFlow(
+			WOnionDirectSessionFlow.LayerInfo('zzz-layer'), SFlow()
+		)
+		result = test_iter(sf, None, 1, 2)
+		assert([(x.layer_name() if x else None) for x in result] == ['zzz-layer', 'mmm-layer', None])
+
+		sf = WOnionDirectSessionFlow(
+			WOnionDirectSessionFlow(
+				WOnionSessionFlowProto.LayerInfo('zzz-layer'),
+				WOnionSessionFlowProto.LayerInfo('foo-layer')
+			),
+			WOnionDirectSessionFlow(
+				WOnionSessionFlowProto.LayerInfo('zzz-layer'),
+				WOnionSessionFlowProto.LayerInfo('bar-layer'),
+				WOnionSessionFlowProto.LayerInfo('mmm-layer')
+			)
 		)
 
-		with pytest.raises(AssertionError):
-			# there is no 'zzz' for a TestWOnionDirectSessionFlow.SessionFlow
-			await test_iter(sf, None, 1, 2, 3, None, 'q')
+		result = test_iter(sf, None, 1, 2, 3, 4, 5, 6)
+		expected_result = ['zzz-layer', 'foo-layer', 'zzz-layer', 'bar-layer', 'mmm-layer', None]
+		assert([(x.layer_name() if x else None) for x in result] == expected_result)
 
 
 class TestWOnionConditionalSessionFlow:
 
-	@pytest.mark.asyncio
-	async def test(self):
+	def test(self):
 		sf = WOnionConditionalSessionFlow(
 			WOnionConditionalSessionFlow.ReComparator(
 				'^qaz$', WOnionDirectSessionFlow(
@@ -189,25 +217,28 @@ class TestWOnionConditionalSessionFlow:
 			)
 		)
 
-		async def test_iter(flow, *envelopes):
-			result = []
+		def test_iter(flow, *envelopes):
+			iter_result = []
 			envelopes = [WEnvelope(x) for x in envelopes]
-			async for next_layer, envelope_future in flow.iterate(envelopes.pop(0)):
-				result.append(next_layer)
-				envelope_future.set_result(envelopes.pop(0))
-			return result
 
-		layers = await test_iter(sf, 'wsx', 'foo', 'foo', 'foo')
-		assert(len(layers) == 3)
-		assert([x.layer_name() for x in layers] == ['layer-wsx1', 'layer-foo1', 'layer-foo2'])
+			for e in envelopes:
+				if not flow:
+					break
+				next_layer, flow = flow.next(e)
+				iter_result.append(next_layer)
 
-		layers = await test_iter(sf, 'qaz', 'foo')
-		assert(len(layers) == 1)
-		assert([x.layer_name() for x in layers] == ['layer-qaz1'])
+			return iter_result
 
-		layers = await test_iter(sf, 'mmm', 'mmm', 'mmm')
-		assert(len(layers) == 2)
-		assert([x.layer_name() for x in layers] == ['layer-default1', 'layer-default2'])
+		layers = test_iter(sf, 'wsx', 'foo', 'foo', 'foo')
+
+		assert(len(layers) == 4)
+		assert([(x.layer_name() if x else None) for x in layers] == ['layer-wsx1', 'layer-foo1', 'layer-foo2', None])
+
+		layers = test_iter(sf, 'qaz', 'foo')
+		assert([(x.layer_name() if x else None) for x in layers] == ['layer-qaz1', None])
+
+		layers = test_iter(sf, 'mmm', 'mmm', 'mmm')
+		assert([(x.layer_name() if x else None) for x in layers] == ['layer-default1', 'layer-default2', None])
 
 		sf = WOnionConditionalSessionFlow(
 			WOnionConditionalSessionFlow.ReComparator(
@@ -216,8 +247,8 @@ class TestWOnionConditionalSessionFlow:
 				)
 			)
 		)
-		layers = await test_iter(sf, 'zzz')
-		assert(len(layers) == 0)  # nothing criminal just no suitable layers were found
+		layers = test_iter(sf, 'zzz')
+		assert(layers == [None])
 
 
 class TestWOnion:

@@ -21,7 +21,6 @@
 
 from abc import ABCMeta, abstractmethod
 import re
-import asyncio
 
 from wasp_general.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
 from wasp_general.verify import verify_type, verify_value, verify_subclass
@@ -88,36 +87,7 @@ class WEnvelope(WEnvelopeProto):
 		return tuple(self.__meta)
 
 
-# noinspection PyAbstractClass
-class WOnionBaseSessionFlow(WOnionSessionFlowProto):
-	""" This class extends the :class:`.WOnionSessionFlowProto` abstract class by defining a single useful method
-	"""
-
-	@classmethod
-	@verify_type('strict', session_flow=WOnionSessionFlowProto, envelope=WEnvelopeProto)
-	async def iterate_inner_flow(cls, session_flow, envelope):
-		""" Iterate over a specified session flow and an envelope. This method is helpful for
-		the :meth:`.WOnionSessionFlowProto.iterate` method implementation
-
-		:param session_flow:
-		:type session_flow: WOnionSessionFlowProto
-
-		:param envelope:
-		:type envelope: WEnvelopeProto
-
-		:rtype: async generator
-		"""
-		loop = asyncio.get_event_loop()
-		envelope_future = loop.create_future()
-		# noinspection PyTypeChecker
-		async for layer_info, inner_envelope_future in session_flow.iterate(envelope):
-			yield layer_info, envelope_future
-			await envelope_future
-			inner_envelope_future.set_result(envelope_future.result())
-			envelope_future = loop.create_future()
-
-
-class WOnionDirectSessionFlow(WOnionBaseSessionFlow):
+class WOnionDirectSessionFlow(WOnionSessionFlowProto):
 	""" A simple :class:`.WOnionSessionFlowProto` class implementation that iterates directly over
 	a specified layers, which may be set as :class:`.WOnionSessionFlowProto.LayerInfo` objects or as
 	:class:`.WOnionSessionFlowProto` objects
@@ -128,30 +98,35 @@ class WOnionDirectSessionFlow(WOnionBaseSessionFlow):
 		""" Create new session flow
 
 		:param info: layers that this flow should iterate over
-		:type info: WOnionSessionFlowProto.LayerInfo | WOnionSessionFlowProt
+		:type info: WOnionSessionFlowProto.LayerInfo | WOnionSessionFlowProto
 		"""
-		WOnionBaseSessionFlow.__init__(self)
+		WOnionSessionFlowProto.__init__(self)
 		self.__info = info
 
-	@verify_type('paranoid', envelope=WEnvelopeProto)
-	async def iterate(self, envelope):
-		""" :meth:`.WOnionSessionFlowProto.iterate` method implementation
+	@verify_type('strict', envelope=WEnvelopeProto)
+	def next(self, envelope):
+		""" :meth:`.WOnionSessionFlowProto.next` method implementation
 		:type envelope: WEnvelopeProto
-		:rtype: async generator
+		:rtype: (WOnionSessionFlowProto.LayerInfo | None, WOnionSessionFlowProto | None)
 		"""
-		loop = asyncio.get_event_loop()
-		for i in self.__info:
+		if self.__info:
+			i = self.__info[0]
 			if isinstance(i, WOnionSessionFlowProto.LayerInfo):
-				envelope_future = loop.create_future()
-				yield i, envelope_future
-				await envelope_future
-				envelope = envelope_future.result()
-			else:
-				async for j in self.iterate_inner_flow(i, envelope):
-					yield j
+				return i, WOnionDirectSessionFlow(*(self.__info[1:]))
+
+			assert(isinstance(i, WOnionSessionFlowProto))
+
+			layer_info, flow = i.next(envelope)
+			if layer_info is None:
+				return WOnionDirectSessionFlow(*(self.__info[1:])).next(envelope)
+			elif flow is None:
+				return layer_info, WOnionDirectSessionFlow(*(self.__info[1:]))
+			return layer_info, WOnionDirectSessionFlow(flow, *(self.__info[1:]))
+
+		return None, None
 
 
-class WOnionConditionalSessionFlow(WOnionBaseSessionFlow):
+class WOnionConditionalSessionFlow(WOnionSessionFlowProto):
 	""" A conditional flow that choose one of the given flows. An exact flow depends on a given envelope. If there
 	are no no suitable flow then a default one may be chosen
 	"""
@@ -210,15 +185,14 @@ class WOnionConditionalSessionFlow(WOnionBaseSessionFlow):
 		:param default_flow: the next flow that will be used if no suitable flow were found in selectors
 		:type default_flow: WOnionSessionFlowProto
 		"""
-		WOnionBaseSessionFlow.__init__(self)
+		WOnionSessionFlowProto.__init__(self)
 		self.__selectors = selectors
 		self.__default_flow = default_flow
 
-	@verify_type('paranoid', envelope=WEnvelopeProto)
-	async def iterate(self, envelope):
-		""" :meth:`.WOnionSessionFlowProto.iterate` method implementation
+	def next(self, envelope):
+		""" :meth:`.WOnionSessionFlowProto.next` method implementation
 		:type envelope: WEnvelopeProto
-		:rtype: async generator
+		:rtype: (WOnionSessionFlowProto.LayerInfo | None, WOnionSessionFlowProto | None)
 		"""
 		next_flow = None
 		for s in self.__selectors:
@@ -226,12 +200,11 @@ class WOnionConditionalSessionFlow(WOnionBaseSessionFlow):
 			if next_flow is not None:
 				break
 
-		if next_flow is None and self.__default_flow is not None:
-			next_flow = self.__default_flow
-
 		if next_flow is not None:
-			async for j in self.iterate_inner_flow(next_flow, envelope):
-				yield j
+			return next_flow.next(envelope)
+		elif self.__default_flow is not None:
+			return self.__default_flow.next(envelope)
+		return None, None
 
 
 class WOnion(WOnionProto):
@@ -272,15 +245,16 @@ class WOnion(WOnionProto):
 		""" :meth:`.WOnionProto.process` method implementation
 		:type session_flow: WOnionSessionFlowProto
 		:type envelope: WEnvelopeProto
+
 		:rtype: WEnvelopeProto
 		"""
-		# noinspection PyTypeChecker
-		async for next_layer, envelope_future in session_flow.iterate(envelope):
-			layer_cls = self.layer(next_layer.layer_name())
-			layer = layer_cls.layer(*next_layer.layer_args(), **next_layer.layer_kwargs())
 
+		layer_info, session_flow = session_flow.next(envelope)
+		while layer_info is not None and session_flow is not None:
+			layer_cls = self.layer(layer_info.layer_name())
+			layer = layer_cls.layer(*layer_info.layer_args(), **layer_info.layer_kwargs())
 			envelope = await layer.process(envelope)
-			envelope_future.set_result(envelope)
+			layer_info, session_flow = session_flow.next(envelope)
 		return envelope
 
 	@verify_subclass('strict', layers=WOnionLayerProto)
@@ -290,7 +264,7 @@ class WOnion(WOnionProto):
 		:param layers: layer to add
 		:type layers: WOnionLayerProto
 
-		:return: None
+		:rtype: None
 		"""
 		for layer in layers:
 			if layer.name() in self.__layers.keys():
