@@ -4,11 +4,7 @@ language: python
 matrix:
   include:
 
-# Python 3.4 ignored due to tornado requirement of python >= 3.4
-
-    - name: "3.4 without checks"
-      python: "3.4"
-      env: WASP_ENABLE_CHECKS=
+# Python 3.4 ignored due to lxml requirement of python >= 3.5 (lxml is a transitional requirement of webdavclient3)
 
     - name: "3.5 without checks"
       python: "3.5"
@@ -28,10 +24,6 @@ matrix:
       env: WASP_ENABLE_CHECKS=
       dist: xenial
 
-    - name: "3.4 all checks"
-      python: "3.4"
-      env: WASP_ENABLE_CHECKS=*
-
     - name: "3.5 all checks"
       python: "3.5"
       env: WASP_ENABLE_CHECKS=*
@@ -49,10 +41,6 @@ matrix:
       python: "pypy3.5"
       env: WASP_ENABLE_CHECKS=*
       dist: xenial
-
-    - name: "3.4 strict, paranoid checks"
-      python: "3.4"
-      env: WASP_ENABLE_CHECKS=strict:paranoid
 
     - name: "3.5 strict, paranoid checks"
       python: "3.5"
