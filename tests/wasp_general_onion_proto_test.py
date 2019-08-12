@@ -36,7 +36,6 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WOnionSessionFlowProto.next, None, Envelope())
 
 	pytest.raises(TypeError, WOnionLayerProto)
-	pytest.raises(NotImplementedError, WOnionLayerProto.layer)
 	pytest.raises(NotImplementedError, WOnionLayerProto.name)
 
 

@@ -260,10 +260,6 @@ class TestWOnion:
 			WOnionLayerProto.__init__(self)
 			self.__result = envelope
 
-		@classmethod
-		def layer(cls, output_envelope, *args, **kwargs):
-			return cls(output_envelope)
-
 		async def process(self, envelope):
 			return self.__result
 

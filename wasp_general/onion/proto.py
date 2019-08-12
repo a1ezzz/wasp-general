@@ -65,18 +65,6 @@ class WOnionLayerProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
-	@classmethod
-	@abstractmethod
-	def layer(cls, *args, **kwargs):
-		""" Create new layer with the specified args
-
-		:type args: any
-		:type kwargs: any
-
-		:rtype: WOnionLayerProto
-		"""
-		raise NotImplementedError('This method is abstract')
-
 	@abstractmethod
 	@verify_type('strict', envelope=WEnvelopeProto)
 	async def process(self, envelope):
@@ -106,10 +94,12 @@ class WOnionSessionFlowProto(metaclass=ABCMeta):
 			:param layer_name: Layer name to be executed
 			:type layer_name: str
 
-			:param args: Layer arguments. see :meth:`.WOnionLayerProto.process` method
+			:param args: Layer arguments with which exact :class:`.WOnionLayerProto` subclass object will
+			be constructed
 			:type args: any
 
-			:param kwargs: Layer arguments. see :meth:`.WOnionLayerProto.process` method
+			:param kwargs: Layer arguments with which exact :class:`.WOnionLayerProto` subclass object will
+			be constructed
 			:type kwargs: any
 			"""
 			self.__layer_name = layer_name

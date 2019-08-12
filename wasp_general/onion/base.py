@@ -217,7 +217,7 @@ class WOnion(WOnionProto):
 		""" Construct new onion
 
 		:param layers: layers to store
-		:type layers: WOnionLayerProto
+		:type layers: type (subclass of WOnionLayerProto)
 		"""
 		self.__layers = {}
 		self.add_layers(*layers)
@@ -233,7 +233,7 @@ class WOnion(WOnionProto):
 	def layer(self, layer_name):
 		""" :meth:`.WOnionProto.layer` method implementation
 		:type layer_name: str
-		:rtype: WOnionLayerProto
+		:rtype: type (subclass of WOnionLayerProto)
 		"""
 		try:
 			return self.__layers[layer_name]
@@ -252,7 +252,7 @@ class WOnion(WOnionProto):
 		layer_info, session_flow = session_flow.next(envelope)
 		while layer_info is not None and session_flow is not None:
 			layer_cls = self.layer(layer_info.layer_name())
-			layer = layer_cls.layer(*layer_info.layer_args(), **layer_info.layer_kwargs())
+			layer = layer_cls(*layer_info.layer_args(), **layer_info.layer_kwargs())
 			envelope = await layer.process(envelope)
 			layer_info, session_flow = session_flow.next(envelope)
 		return envelope
@@ -262,7 +262,7 @@ class WOnion(WOnionProto):
 		""" Append given layers to this onion
 
 		:param layers: layer to add
-		:type layers: WOnionLayerProto
+		:type layers: type (subclass of WOnionLayerProto)
 
 		:rtype: None
 		"""
