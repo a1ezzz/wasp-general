@@ -33,6 +33,25 @@ class TestWAPIRegistry:
 		assert(registry['foo'] == 1)
 		assert(registry['bar'] == 1)
 
+		secondary_registry = WAPIRegistry(fallback_registry=registry)
+		assert(secondary_registry['foo'] == 1)
+		assert(secondary_registry['bar'] == 1)
+		pytest.raises(WNoSuchAPIIdError, secondary_registry.get, 'zzz')
+		pytest.raises(WNoSuchAPIIdError, secondary_registry.get, 'xxx')
+
+		registry.register('zzz', 1)
+		assert(secondary_registry['foo'] == 1)
+		assert(secondary_registry['bar'] == 1)
+		assert(secondary_registry['zzz'] == 1)
+		pytest.raises(WNoSuchAPIIdError, secondary_registry.get, 'xxx')
+
+		secondary_registry.register('xxx', 1)
+		assert(secondary_registry['foo'] == 1)
+		assert(secondary_registry['bar'] == 1)
+		assert(secondary_registry['zzz'] == 1)
+		assert(secondary_registry['xxx'] == 1)
+		pytest.raises(WNoSuchAPIIdError, registry.get, 'xxx')
+
 
 def test_register_api():
 
