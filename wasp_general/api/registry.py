@@ -78,11 +78,18 @@ class WAPIRegistry(WAPIRegistryProto):
 	""" This is a basic registry implementation. It behaves like a dict mostly
 	"""
 
-	def __init__(self):
+	@verify_type(base_registry=(WAPIRegistryProto, None))
+	def __init__(self, fallback_registry=None):
 		""" Create new registry
+
+		:param fallback_registry: a registry where entries will be looked up if they are not found in
+		this registry. This parameter helps to use all the items that are registered in other registry
+		without registrations repeat
+		:type fallback_registry: WAPIRegistryProto | None
 		"""
 		WAPIRegistryProto.__init__(self)
 		self.__descriptors = {}
+		self.__fallback_registry = fallback_registry
 
 	def register(self, api_id, api_descriptor):
 		""" :meth:`.WAPIRegistryProto.register` method implementation
@@ -97,7 +104,12 @@ class WAPIRegistry(WAPIRegistryProto):
 		try:
 			return self.__descriptors[api_id]
 		except KeyError:
-			raise WNoSuchAPIIdError('No such entry: %s' % api_id)
+			pass
+
+		if self.__fallback_registry is not None:
+			return self.__fallback_registry.get(api_id)
+
+		raise WNoSuchAPIIdError('No such entry: %s' % api_id)
 
 	def __getitem__(self, item):
 		""" Return descriptor by its API id
@@ -107,7 +119,7 @@ class WAPIRegistry(WAPIRegistryProto):
 
 		:rtype: any
 		"""
-		return self.__descriptors[item]
+		return self.get(item)
 
 
 @verify_type('strict', registry=WAPIRegistry)
