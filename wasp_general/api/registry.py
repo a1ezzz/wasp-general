@@ -23,8 +23,6 @@ from wasp_general.verify import verify_type
 
 from abc import ABCMeta, abstractmethod
 
-# TODO: document the code
-
 
 class WNoSuchAPIIdError(Exception):
 	""" This exception is raised when a looked up API id is not found
@@ -48,10 +46,10 @@ class WAPIRegistryProto(metaclass=ABCMeta):
 	def register(self, api_id, api_descriptor):
 		""" Save the specified descriptor by the specified id
 
-		:param api_id:
+		:param api_id: unique id by which a descriptor may be found
 		:type api_id: any (hashable only)
 
-		:param api_descriptor:
+		:param api_descriptor: descriptor that should be stored in this registry
 		:type api_descriptor: any
 
 		:raise WDuplicateAPIIdError: when the specified API id has been registered already
@@ -61,15 +59,47 @@ class WAPIRegistryProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
+	def unregister(self, api_id):
+		""" Remove the specified descriptor from registry
+
+		:param api_id: id that will be removed from this registry
+		:type api_id: any
+
+		:raise WNoSuchAPIIdError: when the specified API id has not been registered
+
+		:rtype: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
 	def get(self, api_id):
 		""" Retrieve previously saved descriptor by an id
 
-		:param api_id:
+		:param api_id: id of a target descriptor
 		:type api_id: any (hashable only)
 
 		:raise WNoSuchAPIIdError: when the specified API id has been registered already
 
 		:rtype: any
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def has(self, api_id):
+		""" Check if this registry has the specified id
+
+		:param api_id: id to check
+		:type api_id: any
+
+		:rtype: bool
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def ids(self):
+		""" Return generator that will return all ids that this registry have
+
+		:rtype: generator
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -98,6 +128,13 @@ class WAPIRegistry(WAPIRegistryProto):
 			raise WDuplicateAPIIdError('The specified id "%s" has been used already' % str(api_id))
 		self.__descriptors[api_id] = api_descriptor
 
+	def unregister(self, api_id):
+		""" :meth:`.WAPIRegistryProto.unregister` method implementation
+		"""
+		if api_id not in self.__descriptors:
+			raise WNoSuchAPIIdError('No such entry: %s' % api_id)
+		del self.__descriptors[api_id]
+
 	def get(self, api_id):
 		""" :meth:`.WAPIRegistryProto.register` method implementation
 		"""
@@ -112,21 +149,31 @@ class WAPIRegistry(WAPIRegistryProto):
 		raise WNoSuchAPIIdError('No such entry: %s' % api_id)
 
 	def __getitem__(self, item):
-		""" Return descriptor by its API id
-
-		:param item: API id
-		:type item: any (hashable only)
-
-		:rtype: any
+		""" Shortcut to :meth:`.WAPIRegistryProto.get`
 		"""
 		return self.get(item)
+
+	def ids(self):
+		""" :meth:`.WAPIRegistryProto.ids` method implementation
+		"""
+		return (x for x in self.__descriptors.keys())
+
+	def has(self, api_id):
+		""" :meth:`.WAPIRegistryProto.has` method implementation
+		"""
+		return api_id in self.__descriptors
+
+	def __contains__(self, item):
+		""" Shortcut to :meth:`.WAPIRegistryProto.has`
+		"""
+		return self.has(item)
 
 
 @verify_type('strict', registry=WAPIRegistry)
 def register_api(registry, api_id=None):
 	""" This decorator helps to register function or static method in the specified registry
 
-	:param registry:
+	:param registry: registry to which a function should be registered
 	:type registry: WAPIRegistry
 
 	:param api_id: id with which function will be registered. If it is not specified then function qualification \
