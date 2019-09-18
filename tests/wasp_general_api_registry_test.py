@@ -13,7 +13,10 @@ def test_exceptions():
 def test_abstract():
 	pytest.raises(TypeError, WAPIRegistryProto)
 	pytest.raises(NotImplementedError, WAPIRegistryProto.register, None, None, None)
+	pytest.raises(NotImplementedError, WAPIRegistryProto.unregister, None, None)
 	pytest.raises(NotImplementedError, WAPIRegistryProto.get, None, None)
+	pytest.raises(NotImplementedError, WAPIRegistryProto.ids, None)
+	pytest.raises(NotImplementedError, WAPIRegistryProto.has, None, None)
 
 
 class TestWAPIRegistry:
@@ -27,11 +30,23 @@ class TestWAPIRegistry:
 		assert(registry.get('foo') == 1)
 		pytest.raises(WNoSuchAPIIdError, registry.get, 'bar')
 
+		assert(registry.has('foo') is True)
+		assert('foo' in registry)
+
+		assert(registry.has('bar') is False)
+		assert('bar' not in registry)
+
 		pytest.raises(WDuplicateAPIIdError, registry.register, 'foo', 1)
 
 		registry.register('bar', 1)
 		assert(registry['foo'] == 1)
 		assert(registry['bar'] == 1)
+
+		assert(registry.has('foo') is True)
+		assert('foo' in registry)
+
+		assert(registry.has('bar') is True)
+		assert('bar' in registry)
 
 		secondary_registry = WAPIRegistry(fallback_registry=registry)
 		assert(secondary_registry['foo'] == 1)
@@ -51,6 +66,28 @@ class TestWAPIRegistry:
 		assert(secondary_registry['zzz'] == 1)
 		assert(secondary_registry['xxx'] == 1)
 		pytest.raises(WNoSuchAPIIdError, registry.get, 'xxx')
+
+		secondary_registry.register('zzz', 2)
+		assert(secondary_registry['foo'] == 1)
+		assert(secondary_registry['bar'] == 1)
+		assert(secondary_registry['zzz'] == 2)
+		assert(secondary_registry['xxx'] == 1)
+		pytest.raises(WNoSuchAPIIdError, registry.get, 'xxx')
+
+		registry.unregister('zzz')
+		assert(secondary_registry['foo'] == 1)
+		assert(secondary_registry['bar'] == 1)
+		assert(secondary_registry['xxx'] == 1)
+		pytest.raises(WNoSuchAPIIdError, registry.get, 'xxx')
+		pytest.raises(WNoSuchAPIIdError, registry.get, 'zzz')
+
+		pytest.raises(WNoSuchAPIIdError, registry.unregister, 'zzz')
+
+		registry_ids_gen = tuple(registry.ids())
+		assert(registry_ids_gen == ('foo', 'bar'))
+
+		secondary_registry_ids_gen = tuple(secondary_registry.ids())
+		assert(secondary_registry_ids_gen == ('xxx', 'zzz'))
 
 
 def test_register_api():
