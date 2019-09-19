@@ -271,14 +271,17 @@ def set_composer(obj_dump, registry):
 	return set([registry.compose(x) for x in obj_dump])
 
 
-@verify_type('strict', registry=(WTransformationRegistry, None), compose_fn=(str, None), dismantle_fn=(str, None))
+@verify_type('strict', registry=(WTransformationRegistry, type, None), compose_fn=(str, None), dismantle_fn=(str, None))
 def register_cls(registry=None, compose_fn=None, dismantle_fn=None):
 	""" Return a class decorator that will register its composition and dismantling functions in a registry.
 	Composition and dismantling functions must be members of a class, so it is better to decorate them with
 	'staticmethod'. 'classmethod' will also work, but this may have side effects.
 
+	This decorator may be used without a call, in that case the first argument will be a class to decorate and
+	default values of registry and functions names will be used
+
 	:param registry: registry in which functions will be registered (default registry is used for the 'None' value)
-	:type registry: WTransformationRegistry | None
+	:type registry: WTransformationRegistry | type | None
 
 	:param compose_fn: name of a composition function to use ("compose" by default)
 	:type compose_fn: str | None
