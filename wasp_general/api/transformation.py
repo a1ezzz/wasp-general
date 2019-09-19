@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/api/composer.py
+# wasp_general/api/transformation.py
 #
 # Copyright (C) 2017-2019 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -27,13 +27,13 @@ from wasp_general.verify import verify_type, verify_value
 from wasp_general.api.registry import WAPIRegistry, WNoSuchAPIIdError
 
 
-class WAggregationError(Exception):
+class WTransformationError(Exception):
 	""" This exception is raised if an object can not be dismantled or dismantled object can not be compiled
 	"""
 	pass
 
 
-class WAggregationRegistry(WAPIRegistry):
+class WTransformationRegistry(WAPIRegistry):
 	""" This registry stores functions that may dismantle objects and may compile dismantled objects into
 	original ones. "Dismantling" is a procedure that simplify object structure so it may be converted to
 	JSON or YAML formats. Simple types such as None, int, float, str, list are not modified. Dict or custom
@@ -73,21 +73,21 @@ class WAggregationRegistry(WAPIRegistry):
 		""" This method must be omitted, because of additional restrictions to api_id that may be used
 		"""
 		raise NotImplementedError(
-			'This method must be omitted. Use the "WAggregationRegistry.register_function"'
+			'This method must be omitted. Use the "WTransformationRegistry.register_function"'
 			'method instead'
 		)
 
 	@verify_type('strict', cls=(type, str), func_type=RegFunctionType)
 	@verify_value('strict', func=lambda x: callable(x))
 	def register_function(self, cls, func_type, func):
-		""" This is alternate to :meth:`.WAggregationRegistry.register` function that register the
+		""" This is alternate to :meth:`.WTransformationRegistry.register` function that register the
 		specified callable object.
 
 		:param cls: class which may be composed or dismantled by the function
 		:type cls: type | str
 
 		:param func_type: defines operation that will by the function
-		:type func_type: WAggregationRegistry.RegFunctionType
+		:type func_type: WTransformationRegistry.RegFunctionType
 
 		:param func: function that may do the specified operation (composition or dismantling) on the
 		specified class
@@ -104,7 +104,7 @@ class WAggregationRegistry(WAPIRegistry):
 	@verify_type('strict', obj=(object, None))
 	def compose(self, obj_dump):
 		""" Create an object from a previously created dump. A dump is a result of
-		:meth:`.WAggregationRegistry.dismantle` method call
+		:meth:`.WTransformationRegistry.dismantle` method call
 
 		:param obj_dump: structure from which an object should be created
 		:type obj_dump: object | None
@@ -123,11 +123,11 @@ class WAggregationRegistry(WAPIRegistry):
 
 		hook_name = obj_dump[self.__composer_hook_attr__]
 		try:
-			api_id = self.__api_id(WAggregationRegistry.RegFunctionType.compose_fn, hook_name)
+			api_id = self.__api_id(WTransformationRegistry.RegFunctionType.compose_fn, hook_name)
 			fn = self.get(api_id)
 			return fn(obj_dump[self.__composer_dump_attr__], self)
 		except WNoSuchAPIIdError:
-			raise WAggregationError('Unable to compose unknown class "%s"' % hook_name)
+			raise WTransformationError('Unable to compose unknown class "%s"' % hook_name)
 
 	@verify_type('strict', obj=(object, None))
 	def dismantle(self, obj):
@@ -147,7 +147,7 @@ class WAggregationRegistry(WAPIRegistry):
 		hook_name = self.__hook_name(cls)
 
 		try:
-			api_id = self.__api_id(WAggregationRegistry.RegFunctionType.dismantle_fn, cls)
+			api_id = self.__api_id(WTransformationRegistry.RegFunctionType.dismantle_fn, cls)
 			fn = self.get(api_id)
 			obj_dump = fn(obj, self)
 
@@ -156,7 +156,7 @@ class WAggregationRegistry(WAPIRegistry):
 				self.__composer_dump_attr__: obj_dump
 			}
 		except WNoSuchAPIIdError:
-			raise WAggregationError('Unable to dismantle unknown class "%s"' % hook_name)
+			raise WTransformationError('Unable to dismantle unknown class "%s"' % hook_name)
 
 	@verify_type('strict', cls=(str, type))
 	@verify_value('strict', cls=lambda x: isinstance(x, type) or len(x) > 0)
@@ -178,7 +178,7 @@ class WAggregationRegistry(WAPIRegistry):
 		""" Return registry's api_id
 
 		:param registry_type: function type for which api_id should be generated
-		:type registry_type: WAggregationRegistry.RegFunctionType
+		:type registry_type: WTransformationRegistry.RegFunctionType
 
 		:param cls: name of a class or a type for which api_id should be generated
 		:type cls: str | type
@@ -188,12 +188,12 @@ class WAggregationRegistry(WAPIRegistry):
 		return registry_type.value + self.__hook_name(cls)
 
 
-__default_aggregation_registry__ = WAggregationRegistry()
-""" Instance of a default aggregation registry
+__default_transformation_registry__ = WTransformationRegistry()
+""" Instance of a default transformation registry
 """
 
 
-@verify_type('strict', cls=(str, type), registry=(WAggregationRegistry, None))
+@verify_type('strict', cls=(str, type), registry=(WTransformationRegistry, None))
 @verify_value('strict', cls=lambda x: isinstance(x, type) or len(x) > 0)
 def register_composer(cls, registry=None):
 	""" Return a function decorator that will register a function in a registry. This function will be used for an
@@ -203,20 +203,20 @@ def register_composer(cls, registry=None):
 	:type cls: str | type
 
 	:param registry: registry in which the decorated function should be registered or None for the default registry
-	:type registry: WAggregationRegistry | None
+	:type registry: WTransformationRegistry | None
 
 	:rtype: callable
 	"""
 	if registry is None:
-		registry = __default_aggregation_registry__
+		registry = __default_transformation_registry__
 
 	def decorator_fn(decorated_function):
-		registry.register_function(cls, WAggregationRegistry.RegFunctionType.compose_fn, decorated_function)
+		registry.register_function(cls, WTransformationRegistry.RegFunctionType.compose_fn, decorated_function)
 
 	return decorator_fn
 
 
-@verify_type('strict', cls=(str, type), registry=(WAggregationRegistry, None))
+@verify_type('strict', cls=(str, type), registry=(WTransformationRegistry, None))
 @verify_value('strict', cls=lambda x: isinstance(x, type) or len(x) > 0)
 def register_dismantler(cls, registry=None):
 	""" Return a decorator that will register a function in a registry. This function will be used for an
@@ -226,15 +226,15 @@ def register_dismantler(cls, registry=None):
 	:type cls: str | type
 
 	:param registry: registry in which the decorated function should be registered or None for the default registry
-	:type registry: WAggregationRegistry | None
+	:type registry: WTransformationRegistry | None
 
 	:rtype: callable
 	"""
 	if registry is None:
-		registry = __default_aggregation_registry__
+		registry = __default_transformation_registry__
 
 	def decorator_fn(decorated_function):
-		registry.register_function(cls, WAggregationRegistry.RegFunctionType.dismantle_fn, decorated_function)
+		registry.register_function(cls, WTransformationRegistry.RegFunctionType.dismantle_fn, decorated_function)
 
 	return decorator_fn
 
@@ -271,14 +271,14 @@ def set_composer(obj_dump, registry):
 	return set([registry.compose(x) for x in obj_dump])
 
 
-@verify_type('strict', registry=(WAggregationRegistry, None), compose_fn=(str, None), dismantle_fn=(str, None))
+@verify_type('strict', registry=(WTransformationRegistry, None), compose_fn=(str, None), dismantle_fn=(str, None))
 def register_cls(registry=None, compose_fn=None, dismantle_fn=None):
 	""" Return a class decorator that will register its composition and dismantling functions in a registry.
 	Composition and dismantling functions must be members of a class, so it is better to decorate them with
 	'staticmethod'. 'classmethod' will also work, but this may have side effects.
 
 	:param registry: registry in which functions will be registered (default registry is used for the 'None' value)
-	:type registry: WAggregationRegistry | None
+	:type registry: WTransformationRegistry | None
 
 	:param compose_fn: name of a composition function to use ("compose" by default)
 	:type compose_fn: str | None
@@ -306,6 +306,6 @@ def register_cls(registry=None, compose_fn=None, dismantle_fn=None):
 
 	if registry is not None and isinstance(registry, type):
 		# decorator was specified for class but was not called with arguments
-		return decorator_fn(registry, reg=__default_aggregation_registry__)
+		return decorator_fn(registry, reg=__default_transformation_registry__)
 
 	return functools.partial(decorator_fn, reg=registry, c_fn=compose_fn, d_fn=dismantle_fn)

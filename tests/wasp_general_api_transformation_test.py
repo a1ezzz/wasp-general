@@ -3,19 +3,19 @@
 import pytest
 
 from wasp_general.api.registry import WAPIRegistry
-from wasp_general.api.composer import WAggregationError, WAggregationRegistry, __default_aggregation_registry__
-from wasp_general.api.composer import register_cls
+from wasp_general.api.transformation import WTransformationError, WTransformationRegistry
+from wasp_general.api.transformation import __default_transformation_registry__, register_cls
 
 
 def test_exceptions():
-	assert(issubclass(WAggregationError, Exception) is True)
+	assert(issubclass(WTransformationError, Exception) is True)
 
 
-class TestWAggregationRegistry:
+class TestWTransformationRegistry:
 
 	def test(self):
-		registry = WAggregationRegistry()
-		assert(isinstance(registry, WAggregationRegistry) is True)
+		registry = WTransformationRegistry()
+		assert(isinstance(registry, WTransformationRegistry) is True)
 		assert(isinstance(registry, WAPIRegistry) is True)
 
 		assert(registry.dismantle(7) == 7)
@@ -42,11 +42,11 @@ class TestWAggregationRegistry:
 			return obj.i
 
 		registry.register_function(
-			A, WAggregationRegistry.RegFunctionType.compose_fn, a_compose
+			A, WTransformationRegistry.RegFunctionType.compose_fn, a_compose
 		)
 
 		registry.register_function(
-			'A', WAggregationRegistry.RegFunctionType.dismantle_fn, a_dismantle
+			'A', WTransformationRegistry.RegFunctionType.dismantle_fn, a_dismantle
 		)
 
 		pytest.raises(NotImplementedError, registry.register, 'foo_id', lambda x, y: None)
@@ -54,25 +54,25 @@ class TestWAggregationRegistry:
 		a = A(1)
 		dismantled_a = registry.dismantle(a)
 		assert(isinstance(dismantled_a, dict) is True)
-		assert(WAggregationRegistry.__composer_hook_attr__ in dismantled_a)
-		assert(WAggregationRegistry.__composer_dump_attr__ in dismantled_a)
+		assert(WTransformationRegistry.__composer_hook_attr__ in dismantled_a)
+		assert(WTransformationRegistry.__composer_dump_attr__ in dismantled_a)
 		assert(registry.compose(dismantled_a) == a)
 
 		dismantled_copy = dismantled_a.copy()
-		dismantled_copy.pop(WAggregationRegistry.__composer_hook_attr__)
+		dismantled_copy.pop(WTransformationRegistry.__composer_hook_attr__)
 		pytest.raises(ValueError, registry.compose, dismantled_copy)
 
 		dismantled_copy = dismantled_a.copy()
-		dismantled_copy.pop(WAggregationRegistry.__composer_dump_attr__)
+		dismantled_copy.pop(WTransformationRegistry.__composer_dump_attr__)
 		pytest.raises(ValueError, registry.compose, dismantled_copy)
 
-		pytest.raises(WAggregationError, __default_aggregation_registry__.dismantle, a)
-		pytest.raises(WAggregationError, __default_aggregation_registry__.compose, dismantled_a)
+		pytest.raises(WTransformationError, __default_transformation_registry__.dismantle, a)
+		pytest.raises(WTransformationError, __default_transformation_registry__.compose, dismantled_a)
 
 	def test_default(self):
-		assert(isinstance(__default_aggregation_registry__, WAggregationRegistry) is True)
+		assert(isinstance(__default_transformation_registry__, WTransformationRegistry) is True)
 
-		registry = __default_aggregation_registry__
+		registry = __default_transformation_registry__
 		set_obj = {1, '2', 3, 4}
 		composed_set = registry.compose(registry.dismantle(set_obj))
 		assert(composed_set is not set_obj)
@@ -90,12 +90,12 @@ class TestWAggregationRegistry:
 
 @pytest.fixture
 def default_registry_wrap(request):
-	default_ids = set(__default_aggregation_registry__.ids())
+	default_ids = set(__default_transformation_registry__.ids())
 
 	def fin():
-		registered_ids = set(__default_aggregation_registry__.ids())
+		registered_ids = set(__default_transformation_registry__.ids())
 		for api_id in registered_ids.difference(default_ids):
-			__default_aggregation_registry__.unregister(api_id)
+			__default_transformation_registry__.unregister(api_id)
 
 	request.addfinalizer(fin)
 
@@ -110,7 +110,7 @@ def test_class_decorator():
 		def __eq__(self, other):
 			return self.i == other.i
 
-	pytest.raises(WAggregationError, __default_aggregation_registry__.dismantle, A(1))
+	pytest.raises(WTransformationError, __default_transformation_registry__.dismantle, A(1))
 
 	@register_cls
 	class B(A):
@@ -123,7 +123,7 @@ def test_class_decorator():
 			return obj.i
 
 	b = B(1)
-	compiled_b = __default_aggregation_registry__.compose(__default_aggregation_registry__.dismantle(b))
+	compiled_b = __default_transformation_registry__.compose(__default_transformation_registry__.dismantle(b))
 	assert(b == compiled_b)
 
 	@register_cls()
@@ -137,7 +137,7 @@ def test_class_decorator():
 			return obj.i
 
 	c = C(1)
-	compiled_c = __default_aggregation_registry__.compose(__default_aggregation_registry__.dismantle(c))
+	compiled_c = __default_transformation_registry__.compose(__default_transformation_registry__.dismantle(c))
 	assert(c == compiled_c)
 
 	with pytest.raises(TypeError):
@@ -154,7 +154,7 @@ def test_class_decorator():
 			def dismantle(obj, registry):
 				return obj.i
 
-	registry = WAggregationRegistry(fallback_registry=__default_aggregation_registry__)
+	registry = WTransformationRegistry(fallback_registry=__default_transformation_registry__)
 
 	@register_cls(registry=registry, compose_fn='obj_compose', dismantle_fn='obj_dismantle')
 	class F(A):
@@ -171,5 +171,5 @@ def test_class_decorator():
 	compiled_f = registry.compose(dismantled_f)
 	assert(f == compiled_f)
 
-	pytest.raises(WAggregationError, __default_aggregation_registry__.dismantle, f)
-	pytest.raises(WAggregationError, __default_aggregation_registry__.compose, dismantled_f)
+	pytest.raises(WTransformationError, __default_transformation_registry__.dismantle, f)
+	pytest.raises(WTransformationError, __default_transformation_registry__.compose, dismantled_f)
