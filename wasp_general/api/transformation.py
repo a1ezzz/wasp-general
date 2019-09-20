@@ -101,7 +101,7 @@ class WTransformationRegistry(WAPIRegistry):
 		api_id = self.__api_id(func_type, cls)
 		WAPIRegistry.register(self, api_id, func)
 
-	@verify_type('strict', obj=(object, None))
+	@verify_type('strict', obj_dump=(object, None))
 	def compose(self, obj_dump):
 		""" Create an object from a previously created dump. A dump is a result of
 		:meth:`.WTransformationRegistry.dismantle` method call
