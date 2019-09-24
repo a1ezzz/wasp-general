@@ -3,8 +3,11 @@
 import pytest
 import asyncio
 
-from wasp_general.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
-from wasp_general.onion.base import WEnvelope, WOnionDirectSessionFlow, WOnionConditionalSessionFlow, WOnion
+from wasp_general.api.registry import WNoSuchAPIIdError, WAPIRegistry
+
+from wasp_general.api.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
+from wasp_general.api.onion.base import WEnvelope, WOnionDirectSessionFlow, WOnionConditionalSessionFlow, WOnion
+from wasp_general.api.onion.base import __default_onion_registry__, register_class
 
 
 def test_abstract():
@@ -73,34 +76,6 @@ class TestWEnvelope:
 			('ooo', 7)
 		))
 
-
-# class TestWOnionBaseSessionFlow:
-#
-# 	class SessionFlow(WOnionSessionFlowProto):
-#
-# 		def __init__(self, *layers):
-# 			self.__layers = layers
-#
-# 		async def iterate(self, envelope):
-# 			loop = asyncio.get_event_loop()
-# 			for l in self.__layers:
-# 				f = loop.create_future()
-# 				yield l, f
-# 				z = await f
-# 				assert(z == 'zzz')
-#
-# 	@pytest.mark.asyncio
-# 	async def test(self):
-# 		sf = TestWOnionBaseSessionFlow.SessionFlow('layer1', 'layer-foo', 'layer-bar')
-# 		result = []
-# 		async for i, j in WOnionBaseSessionFlow.iterate_inner_flow(sf, WEnvelope(1)):
-# 			result.append(i)
-# 			assert(asyncio.isfuture(j) is True)
-# 			j.set_result('zzz')
-# 		assert(result == ['layer1', 'layer-foo', 'layer-bar'])
-#
-#
-#
 
 class TestWOnionDirectSessionFlow:
 
@@ -251,6 +226,18 @@ class TestWOnionConditionalSessionFlow:
 		assert(layers == [None])
 
 
+@pytest.fixture
+def default_registry_wrap(request):
+	default_ids = set(__default_onion_registry__.ids())
+
+	def fin():
+		registered_ids = set(__default_onion_registry__.ids())
+		for api_id in registered_ids.difference(default_ids):
+			__default_onion_registry__.unregister(api_id)
+
+	request.addfinalizer(fin)
+
+
 class TestWOnion:
 
 	# noinspection PyAbstractClass
@@ -263,12 +250,14 @@ class TestWOnion:
 		async def process(self, envelope):
 			return self.__result
 
+	@pytest.mark.usefixtures('default_registry_wrap')
 	@pytest.mark.asyncio
 	async def test(self):
 		onion = WOnion()
 		assert(isinstance(onion, WOnionProto) is True)
-		assert(onion.layers_names() == tuple())
-		pytest.raises(ValueError, onion.layer, 'foo')
+		assert(isinstance(onion, WAPIRegistry) is True)
+		assert(tuple(onion.layers_names()) == tuple())
+		pytest.raises(WNoSuchAPIIdError, onion.layer, 'foo')
 
 		input_e = WEnvelope(1)
 		sf = WOnionDirectSessionFlow()
@@ -276,33 +265,24 @@ class TestWOnion:
 		assert(input_e is output_e)
 
 		class CustomLayer1(TestWOnion.BaseLayer):
+			pass
 
-			@classmethod
-			def name(cls):
-				return 'custom-layer-1'
+		onion.register('custom-layer-1', CustomLayer1)
 
+		@register_class(registry=onion)
 		class CustomLayer2(TestWOnion.BaseLayer):
+			__layer_name__ = 'custom-layer-2'
 
-			@classmethod
-			def name(cls):
-				return 'custom-layer-2'
-
-		onion.add_layers(CustomLayer1, CustomLayer2)
-		layers = onion.layers_names()
+		layers = tuple(onion.layers_names())
 		assert(len(layers) == 2)
 		assert('custom-layer-1' in layers)
 		assert('custom-layer-2' in layers)
 
-		pytest.raises(ValueError, onion.add_layers, CustomLayer1)
-
+		@register_class(registry=onion, layer_name='custom-layer-3')
 		class CustomLayer3(TestWOnion.BaseLayer):
+			pass
 
-			@classmethod
-			def name(cls):
-				return 'custom-layer-3'
-
-		onion.add_layers(CustomLayer3)
-		layers = onion.layers_names()
+		layers = tuple(onion.layers_names())
 		assert(len(layers) == 3)
 		assert('custom-layer-1' in layers)
 		assert('custom-layer-2' in layers)
@@ -345,14 +325,68 @@ class TestWOnion:
 		output_e = await onion.process(sf, WEnvelope('qaz'))
 		assert(output_e is foo_envelope)
 
-		with pytest.raises(ValueError):
+		with pytest.raises(WNoSuchAPIIdError):
 			await onion.process(sf, WEnvelope('wsx'))
 
 		output_e = await onion.process(sf, WEnvelope("1"))
 		assert(output_e is bar2_envelope)
 
-		onion = WOnion(CustomLayer2, CustomLayer3)
-		layers = onion.layers_names()
-		assert(len(layers) == 2)
-		assert('custom-layer-2' in layers)
-		assert('custom-layer-3' in layers)
+	@pytest.mark.usefixtures('default_registry_wrap')
+	def test_default(self):
+		assert(isinstance(__default_onion_registry__, WOnion) is True)
+		layers_names = tuple(__default_onion_registry__.layers_names())
+		assert('custom-layer-1' not in layers_names)
+		assert('custom-layer-2' not in layers_names)
+		assert('custom-layer-3' not in layers_names)
+
+		@register_class(layer_name='custom-layer-1')
+		class CustomLayer1(TestWOnion.BaseLayer):
+			pass
+
+		layers_names = tuple(__default_onion_registry__.layers_names())
+		assert('custom-layer-1' in layers_names)
+		assert('custom-layer-2' not in layers_names)
+		assert('custom-layer-3' not in layers_names)
+		assert(__default_onion_registry__.layer('custom-layer-1') is CustomLayer1)
+
+		@register_class()
+		class CustomLayer2(TestWOnion.BaseLayer):
+			__layer_name__ = 'custom-layer-2'
+
+		layers_names = tuple(__default_onion_registry__.layers_names())
+		assert('custom-layer-1' in layers_names)
+		assert('custom-layer-2' in layers_names)
+		assert('custom-layer-3' not in layers_names)
+		assert(__default_onion_registry__.layer('custom-layer-1') is CustomLayer1)
+		assert(__default_onion_registry__.layer('custom-layer-2') is CustomLayer2)
+
+		@register_class
+		class CustomLayer3(TestWOnion.BaseLayer):
+			__layer_name__ = 'custom-layer-3'
+
+		layers_names = tuple(__default_onion_registry__.layers_names())
+		assert('custom-layer-1' in layers_names)
+		assert('custom-layer-2' in layers_names)
+		assert('custom-layer-3' in layers_names)
+		assert(__default_onion_registry__.layer('custom-layer-1') is CustomLayer1)
+		assert(__default_onion_registry__.layer('custom-layer-2') is CustomLayer2)
+		assert(__default_onion_registry__.layer('custom-layer-3') is CustomLayer3)
+
+	@pytest.mark.usefixtures('default_registry_wrap')
+	def test_exceptions(self):
+		with pytest.raises(TypeError):
+			@register_class
+			class CustomLayer(TestWOnion.BaseLayer):
+				pass
+
+		with pytest.raises(TypeError):
+			@register_class
+			class CustomLayer(TestWOnion.BaseLayer):
+				__layer_name__ = 1
+
+		with pytest.raises(TypeError):
+			@register_class
+			class CustomLayer(TestWOnion.BaseLayer):
+				__layer_name__ = ''
+
+

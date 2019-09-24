@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/onion/base.py
+# wasp_general/api/onion/base.py
 #
 # Copyright (C) 2017-2019 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -19,11 +19,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-from abc import ABCMeta, abstractmethod
+import functools
 import re
+from abc import ABCMeta, abstractmethod
 
-from wasp_general.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
+from wasp_general.api.registry import WAPIRegistry
 from wasp_general.verify import verify_type, verify_value, verify_subclass
+
+from wasp_general.api.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
 
 
 class WEnvelope(WEnvelopeProto):
@@ -207,38 +210,19 @@ class WOnionConditionalSessionFlow(WOnionSessionFlowProto):
 		return None, None
 
 
-class WOnion(WOnionProto):
-	""" Simple :class:`.WOnionProto` class implementation that stores layers and is able to process an envelope
-	with a session flow
+class WOnion(WOnionProto, WAPIRegistry):
+	""" Simple :class:`.WOnionProto` class implementation
 	"""
 
-	@verify_subclass('paranoid', layers=WOnionLayerProto)
-	def __init__(self, *layers):
-		""" Construct new onion
+	@verify_type('strict', fallback_registry=(WOnionProto, None))
+	def __init__(self, fallback_registry=None):
+		""" Create new onion
 
-		:param layers: layers to store
-		:type layers: type (subclass of WOnionLayerProto)
+		:param fallback_registry: a fallback registry that may be used for searching
+		:type fallback_registry: WOnionProto | None
 		"""
-		self.__layers = {}
-		self.add_layers(*layers)
-
-	def layers_names(self):
-		""" :meth:`.WOnionProto.layers_names` method implementation
-		:rtype: tuple of str
-		"""
-		return tuple(self.__layers.keys())
-
-	@verify_type('strict', layer_name=str)
-	@verify_value('strict', layer_name=lambda x: len(x) > 0)
-	def layer(self, layer_name):
-		""" :meth:`.WOnionProto.layer` method implementation
-		:type layer_name: str
-		:rtype: type (subclass of WOnionLayerProto)
-		"""
-		try:
-			return self.__layers[layer_name]
-		except KeyError:
-			raise ValueError('No suitable layer were found for id: %s' % layer_name)
+		WOnionProto.__init__(self)
+		WAPIRegistry.__init__(self, fallback_registry=fallback_registry)
 
 	@verify_type('strict', session_flow=WOnionSessionFlowProto, envelope=WEnvelopeProto)
 	async def process(self, session_flow, envelope):
@@ -257,16 +241,68 @@ class WOnion(WOnionProto):
 			layer_info, session_flow = session_flow.next(envelope)
 		return envelope
 
-	@verify_subclass('strict', layers=WOnionLayerProto)
-	def add_layers(self, *layers):
-		""" Append given layers to this onion
-
-		:param layers: layer to add
-		:type layers: type (subclass of WOnionLayerProto)
-
-		:rtype: None
+	@verify_type('strict', api_id=str, api_descriptor=type)
+	@verify_subclass('strict', api_descriptor=WOnionLayerProto)
+	@verify_value('strict', api_id=lambda x: len(x) > 0)
+	def register(self, api_id, api_descriptor):
+		""" :meth:`.WOnionProto.register` method implementation
+		:rtype: tuple of str
 		"""
-		for layer in layers:
-			if layer.name() in self.__layers.keys():
-				raise ValueError('Layer "%s" already exists' % layer.name())
-			self.__layers[layer.name()] = layer
+		return WAPIRegistry.register(self, api_id, api_descriptor)
+
+
+__default_onion_registry__ = WOnion()
+""" Instance of the default onion
+"""
+
+
+@verify_type('strict', registry=(WOnion, type, None), layer_name=(str, None))
+@verify_value('strict', layer_name=lambda x: x is None or len(x) > 0)
+def register_class(registry=None, layer_name=None):
+	""" Return a class decorator that will register original class in a onion instances. If
+	the 'layer_name' argument is not specified, then original class must have '__layer_name__' attribute
+	with a name of a layer
+
+	This decorator may be used without a call, in that case the first argument will be a class to decorate and
+	default values will be used
+
+	:param registry: registry in which functions will be registered (default registry is used for the 'None' value)
+	:type registry: WOnion | type | None
+
+	:param layer_name: name of a layer a decorated class represents
+	:type layer_name: str | None
+
+	:rtype: callable | type
+	"""
+
+	def decorator_fn(cls, reg=None, name=None):
+		if name is None:
+			if hasattr(cls, '__layer_name__') is False:
+				raise TypeError(
+					'Class "%s" should have "__layer_name__" attribute If no layer name is '
+					'specified for a registration call' % cls.__name__
+				)
+			if isinstance(cls.__layer_name__, str) is False:
+				raise TypeError(
+					'The specified "__layer_name__" attribute for "%s" class must be a str object' %
+					cls.__name__
+				)
+			if len(cls.__layer_name__) == 0:
+				raise TypeError(
+					'Unable to find a layer name for the class "%s". Empty strings can not be '
+					'used as a layer name' % cls.__name__
+				)
+
+			name = cls.__layer_name__
+
+		if reg is None:
+			reg = __default_onion_registry__
+		reg.register(name, cls)
+
+		return cls
+
+	if registry is not None and isinstance(registry, type):
+		# decorator was specified for class but was not called with arguments
+		return decorator_fn(registry, name=layer_name)
+
+	return functools.partial(decorator_fn, reg=registry, name=layer_name)
