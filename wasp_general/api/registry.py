@@ -108,7 +108,7 @@ class WAPIRegistry(WAPIRegistryProto):
 	""" This is a basic registry implementation. It behaves like a dict mostly
 	"""
 
-	@verify_type(base_registry=(WAPIRegistryProto, None))
+	@verify_type('strict', fallback_registry=(WAPIRegistryProto, None))
 	def __init__(self, fallback_registry=None):
 		""" Create new registry
 
