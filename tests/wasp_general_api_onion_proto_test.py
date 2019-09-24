@@ -33,12 +33,12 @@ def test_abstract():
 	pytest.raises(TypeError, WOnionProto)
 	pytest.raises(NotImplementedError, WOnionProto.get, None, None)
 	pytest.raises(NotImplementedError, WOnionProto.ids, None)
+	pytest.raises(NotImplementedError, WOnionProto.register, None, 'proto', WOnionLayerProto)
 
 	pytest.raises(TypeError, WOnionSessionFlowProto)
 	pytest.raises(NotImplementedError, WOnionSessionFlowProto.next, None, Envelope())
 
 	pytest.raises(TypeError, WOnionLayerProto)
-	pytest.raises(NotImplementedError, WOnionLayerProto.name)
 
 
 @pytest.mark.asyncio
@@ -73,6 +73,9 @@ class TestWOnionProto:
 
 			async def process(self, session_flow, envelope):
 				return envelope
+
+			def register(self, api_id, api_descriptor):
+				WAPIRegistry.register(self, api_id, api_descriptor)
 
 		class L1:
 			pass

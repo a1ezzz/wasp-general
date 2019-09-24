@@ -21,7 +21,7 @@
 
 from abc import ABCMeta, abstractmethod
 
-from wasp_general.verify import verify_type, verify_value
+from wasp_general.verify import verify_type, verify_value, verify_subclass
 
 from wasp_general.api.registry import WAPIRegistryProto
 
@@ -57,15 +57,6 @@ class WEnvelopeProto(metaclass=ABCMeta):
 class WOnionLayerProto(metaclass=ABCMeta):
 	""" A single layer, that do one simple job like encryption, encoding, parsing and etc.
 	"""
-
-	@classmethod
-	@abstractmethod
-	def name(cls):
-		""" Return this layer's name
-
-		:rtype: str
-		"""
-		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
 	@verify_type('strict', envelope=WEnvelopeProto)
@@ -191,5 +182,15 @@ class WOnionProto(WAPIRegistryProto):
 		:type envelope: WEnvelopeProto
 
 		:rtype: WEnvelopeProto
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@verify_type('strict', api_id=str)
+	@verify_subclass('strict', api_descriptor=WOnionLayerProto)
+	@verify_value('strict', api_id=lambda x: len(x) > 0)
+	def register(self, api_id, api_descriptor):
+		""" This is the overridden method :meth:`.WAPIRegistryProto.register` that restricts supported values
+
+		:rtype: None
 		"""
 		raise NotImplementedError('This method is abstract')
