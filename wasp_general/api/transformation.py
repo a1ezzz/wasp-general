@@ -189,7 +189,7 @@ class WTransformationRegistry(WAPIRegistry):
 
 
 __default_transformation_registry__ = WTransformationRegistry()
-""" Instance of a default transformation registry
+""" Instance of the default transformation registry
 """
 
 
@@ -272,7 +272,7 @@ def set_composer(obj_dump, registry):
 
 
 @verify_type('strict', registry=(WTransformationRegistry, type, None), compose_fn=(str, None), dismantle_fn=(str, None))
-def register_cls(registry=None, compose_fn=None, dismantle_fn=None):
+def register_class(registry=None, compose_fn=None, dismantle_fn=None):
 	""" Return a class decorator that will register its composition and dismantling functions in a registry.
 	Composition and dismantling functions must be members of a class, so it is better to decorate them with
 	'staticmethod'. 'classmethod' will also work, but this may have side effects.
@@ -289,7 +289,7 @@ def register_cls(registry=None, compose_fn=None, dismantle_fn=None):
 	:param dismantle_fn: name of a dismantling function to use ("dismantle" by default)
 	:type dismantle_fn: str | None
 
-	:rtype: callable
+	:rtype: callable | type
 	"""
 
 	def decorator_fn(cls, reg=None, c_fn=None, d_fn=None):
