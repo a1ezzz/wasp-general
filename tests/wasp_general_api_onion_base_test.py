@@ -334,7 +334,21 @@ class TestWOnion:
 	@pytest.mark.usefixtures('default_registry_wrap')
 	def test_default(self):
 		assert(isinstance(__default_onion_registry__, WOnion) is True)
+
 		layers_names = tuple(__default_onion_registry__.layers_names())
+
+		# predefined layers
+		assert('com.binblob.wasp-general.asyncio-layer' in layers_names)
+		assert('com.binblob.wasp-general.json-layer' in layers_names)
+		assert('com.binblob.wasp-general.wrapping-layer' in layers_names)
+		assert('com.binblob.wasp-general.encoding-layer' in layers_names)
+		assert('com.binblob.wasp-general.hex-layer' in layers_names)
+
+		assert('com.binblob.wasp-general.base64-layer' in layers_names)
+		assert('com.binblob.wasp-general.aes-layer' in layers_names)
+		assert('com.binblob.wasp-general.rsa-layer' in layers_names)
+		assert('com.binblob.wasp-general.transformation-layer' in layers_names)
+
 		assert('custom-layer-1' not in layers_names)
 		assert('custom-layer-2' not in layers_names)
 		assert('custom-layer-3' not in layers_names)
@@ -388,5 +402,3 @@ class TestWOnion:
 			@register_class
 			class CustomLayer(TestWOnion.BaseLayer):
 				__layer_name__ = ''
-
-
