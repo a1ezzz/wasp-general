@@ -2,7 +2,9 @@
 
 import pytest
 
-from wasp_general.onion.proto import WEnvelopeProto, WOnionLayerProto, WOnionSessionFlowProto, WOnionProto
+from wasp_general.api.registry import WAPIRegistryProto, WAPIRegistry, WNoSuchAPIIdError
+
+from wasp_general.api.onion.proto import WEnvelopeProto, WOnionLayerProto, WOnionSessionFlowProto, WOnionProto
 
 
 class Envelope(WEnvelopeProto):
@@ -29,8 +31,8 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WEnvelopeProto.layers, None)
 
 	pytest.raises(TypeError, WOnionProto)
-	pytest.raises(NotImplementedError, WOnionProto.layer, None, 'foo')
-	pytest.raises(NotImplementedError, WOnionProto.layers_names, None)
+	pytest.raises(NotImplementedError, WOnionProto.get, None, None)
+	pytest.raises(NotImplementedError, WOnionProto.ids, None)
 
 	pytest.raises(TypeError, WOnionSessionFlowProto)
 	pytest.raises(NotImplementedError, WOnionSessionFlowProto.next, None, Envelope())
@@ -60,3 +62,38 @@ class TestWOnionSessionFlow:
 		assert(li.layer_name() == 'name2')
 		assert(li.layer_args() == tuple())
 		assert(li.layer_kwargs() == dict())
+
+
+class TestWOnionProto:
+
+	def test(self):
+		assert(issubclass(WOnionProto, WAPIRegistryProto) is True)
+
+		class Onion(WOnionProto, WAPIRegistry):
+
+			async def process(self, session_flow, envelope):
+				return envelope
+
+		class L1:
+			pass
+
+		class L2:
+			pass
+
+		onion = Onion()
+		assert(tuple(onion.layers_names()) == tuple())
+		pytest.raises(WNoSuchAPIIdError, onion.layer, 'l1')
+		pytest.raises(WNoSuchAPIIdError, onion.layer, 'l2')
+
+		onion.register('l1', L1)
+		assert(tuple(onion.layers_names()) == ('l1', ))
+		assert(onion.layer('l1') is L1)
+		pytest.raises(WNoSuchAPIIdError, onion.layer, 'l2')
+
+		onion.register('l2', L2)
+		layers = tuple(onion.layers_names())
+		assert(len(layers) == 2)
+		assert('l1' in layers)
+		assert('l2' in layers)
+		assert(onion.layer('l1') is L1)
+		assert(onion.layer('l2') is L2)

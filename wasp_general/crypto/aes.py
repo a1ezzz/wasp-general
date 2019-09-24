@@ -453,19 +453,19 @@ class WAES:
 
 		def __init__(self, aes_cipher):
 			self.__aes_cipher = aes_cipher
-			self.__encryptor = self.__aes_cipher.encryptor()
-			self.__descryptor = self.__aes_cipher.decryptor()
+			self.__encrypt_cipher = self.__aes_cipher.encryptor()
+			self.__decrypt_cipher = self.__aes_cipher.decryptor()
 
 		def block_size(self):
 			return int(self.__aes_cipher.algorithm.block_size / 8)
 
 		@verify_type(data=bytes)
 		def encrypt_block(self, data):
-			return self.__encryptor.update(data)
+			return self.__encrypt_cipher.update(data)
 
 		@verify_type(data=bytes)
 		def decrypt_block(self, data):
-			return self.__descryptor.update(data)
+			return self.__decrypt_cipher.update(data)
 
 	@verify_type(mode=WAESMode)
 	def __init__(self, mode):
@@ -488,7 +488,6 @@ class WAES:
 
 		:return: Crypto.Cipher.AES.AESCipher
 		"""
-		#cipher = pyAES.new(*self.mode().aes_args(), **self.mode().aes_kwargs())
 		cipher = Cipher(*self.mode().aes_args(), **self.mode().aes_kwargs())
 		return WAES.WAESCipher(cipher)
 
@@ -504,7 +503,6 @@ class WAES:
 			data = padding.pad(data, WAESMode.__data_padding_length__)
 
 		return self.cipher().encrypt_block(data)
-		#return self.cipher().encrypt(data)
 
 	@verify_type(data=bytes, decode=bool)
 	def decrypt(self, data, decode=False):
@@ -515,7 +513,6 @@ class WAES:
 		:return: bytes or str (depends on decode flag)
 		"""
 
-		#result = self.cipher().decrypt(data)
 		result = self.cipher().decrypt_block(data)
 
 		padding = self.mode().padding()

@@ -23,6 +23,8 @@ from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_value
 
+from wasp_general.api.registry import WAPIRegistryProto
+
 
 class WEnvelopeProto(metaclass=ABCMeta):
 	""" Each real data is wrapped in this class. These object keep meta data, that may be generated/processed
@@ -145,7 +147,7 @@ class WOnionSessionFlowProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 
-class WOnionProto(metaclass=ABCMeta):
+class WOnionProto(WAPIRegistryProto):
 	""" Abstract class for a onion - a collection of layers and layers processor. A processing job is splitted
 	into onions layers. Where each layer do it's own small job. Layers are united in a session, that manages
 	job's workflow. Each layer has a name, which must be unique within a single onion.
@@ -154,28 +156,28 @@ class WOnionProto(metaclass=ABCMeta):
 	layers (base64, utf8,...), structure packing/unpacking layers (json, pickle, ...),
 	serialization/deserialization layers (shlex, json, pickle, ...), authentication/authorization layers and
 	many more.
+
+	All the layers this onion process are stored inside
 	"""
 
-	@abstractmethod
 	@verify_type('strict', layer_name=str)
 	@verify_value('strict', layer_name=lambda x: len(x) > 0)
 	def layer(self, layer_name):
-		""" Return layer by its name
+		""" Return layer by its name. This is an alias to :meth:`.WAPIRegistryProto.get` method
 
 		:param layer_name: name of a layer
 		:type layer_name: str
 
-		:rtype: WOnionLayerProto
+		:rtype: type (subclass of WOnionLayerProto)
 		"""
-		raise NotImplementedError('This method is abstract')
+		return self.get(layer_name)
 
-	@abstractmethod
 	def layers_names(self):
-		""" Available layers names
+		""" Available layers names. This is an alias to :meth:`.WAPIRegistryProto.ids` method
 
-		:rtype: tuple of str
+		:rtype: generator of str
 		"""
-		raise NotImplementedError('This method is abstract')
+		return self.ids()
 
 	@abstractmethod
 	@verify_type('strict', session_flow=WOnionSessionFlowProto, envelope=WEnvelopeProto)
