@@ -4,7 +4,7 @@ import pytest
 
 from wasp_general.api.registry import WAPIRegistry
 from wasp_general.api.transformation import WTransformationError, WTransformationRegistry
-from wasp_general.api.transformation import __default_transformation_registry__, register_cls
+from wasp_general.api.transformation import __default_transformation_registry__, register_class
 
 
 def test_exceptions():
@@ -112,7 +112,7 @@ def test_class_decorator():
 
 	pytest.raises(WTransformationError, __default_transformation_registry__.dismantle, A(1))
 
-	@register_cls
+	@register_class
 	class B(A):
 		@staticmethod
 		def compose(obj_dump, registry):
@@ -126,7 +126,7 @@ def test_class_decorator():
 	compiled_b = __default_transformation_registry__.compose(__default_transformation_registry__.dismantle(b))
 	assert(b == compiled_b)
 
-	@register_cls()
+	@register_class()
 	class C(A):
 		@staticmethod
 		def compose(obj_dump, registry):
@@ -141,14 +141,14 @@ def test_class_decorator():
 	assert(c == compiled_c)
 
 	with pytest.raises(TypeError):
-		@register_cls
+		@register_class
 		class D(A):
 			@staticmethod
 			def compose(obj_dump, registry):
 				return D(obj_dump)
 
 	with pytest.raises(TypeError):
-		@register_cls
+		@register_class
 		class E(A):
 			@staticmethod
 			def dismantle(obj, registry):
@@ -156,7 +156,7 @@ def test_class_decorator():
 
 	registry = WTransformationRegistry(fallback_registry=__default_transformation_registry__)
 
-	@register_cls(registry=registry, compose_fn='obj_compose', dismantle_fn='obj_dismantle')
+	@register_class(registry=registry, compose_fn='obj_compose', dismantle_fn='obj_dismantle')
 	class F(A):
 		@staticmethod
 		def obj_compose(obj_dump, registry):
