@@ -300,7 +300,7 @@ def register_class(registry=None, layer_name=None):
 
 		try:
 			reg.register(name, cls)
-		except WDuplicateAPIIdError as e:
+		except WDuplicateAPIIdError:
 			current_entry = reg.get(name)
 			if current_entry is not cls:
 				raise
