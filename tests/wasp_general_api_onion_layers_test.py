@@ -41,7 +41,7 @@ class TestWAsyncIOLayer:
 		await c
 
 		c = foo(0)
-		pytest.raises(TypeError, WAsyncIOLayer, asyncio.get_running_loop().create_task(c))
+		pytest.raises(TypeError, WAsyncIOLayer, asyncio.get_event_loop().create_task(c))
 
 		asyncio_layer = WAsyncIOLayer(foo)
 		r = await asyncio_layer.process(WEnvelope(1))
