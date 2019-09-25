@@ -23,7 +23,7 @@ import functools
 import re
 from abc import ABCMeta, abstractmethod
 
-from wasp_general.api.registry import WAPIRegistry
+from wasp_general.api.registry import WAPIRegistry, WDuplicateAPIIdError
 from wasp_general.verify import verify_type, verify_value, verify_subclass
 
 from wasp_general.api.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
@@ -297,7 +297,13 @@ def register_class(registry=None, layer_name=None):
 
 		if reg is None:
 			reg = __default_onion_registry__
-		reg.register(name, cls)
+
+		try:
+			reg.register(name, cls)
+		except WDuplicateAPIIdError as e:
+			current_entry = reg.get(name)
+			if current_entry is not cls:
+				raise
 
 		return cls
 
