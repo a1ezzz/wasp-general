@@ -84,10 +84,14 @@ class TestWAPIRegistry:
 		pytest.raises(WNoSuchAPIIdError, registry.unregister, 'zzz')
 
 		registry_ids_gen = tuple(registry.ids())
-		assert(registry_ids_gen == ('foo', 'bar'))
+		assert(len(registry_ids_gen) == 2)
+		assert('foo' in registry_ids_gen)
+		assert('bar' in registry_ids_gen)
 
 		secondary_registry_ids_gen = tuple(secondary_registry.ids())
-		assert(secondary_registry_ids_gen == ('xxx', 'zzz'))
+		assert(len(secondary_registry_ids_gen) == 2)
+		assert('xxx' in secondary_registry_ids_gen)
+		assert('zzz' in secondary_registry_ids_gen)
 
 
 def test_register_api():
