@@ -121,24 +121,24 @@ class WOnionBaseLayerModes(WOnionLayerProto):
 class WLayerSerializationMode(enum.Enum):
 	""" This enum may be used by layers that may serialize and deserialize some objects
 	"""
-	serialize = enum.auto()
-	deserialize = enum.auto()
+	serialize = 1
+	deserialize = 2
 
 
 @enum.unique
 class WLayerEncodingMode(enum.Enum):
 	""" This enum may be used by layers that may encode and decode data
 	"""
-	encode = enum.auto()
-	decode = enum.auto()
+	encode = 1
+	decode = 2
 
 
 @enum.unique
 class WLayerEncryptionMode(enum.Enum):
 	""" This enum may be used by cryptographic layers
 	"""
-	encrypt = enum.auto()
-	decrypt = enum.auto()
+	encrypt = 1
+	decrypt = 2
 
 
 @register_class
@@ -180,17 +180,17 @@ class WOnionWrappingLayer(WOnionBaseLayerModes):
 	class Mode(enum.Enum):
 		""" This layer operation modes
 		"""
-		append = enum.auto()
-		remove = enum.auto()
+		append = 1
+		remove = 2
 
 	@enum.unique
 	class Target(enum.Enum):
 		""" Defines a target where a fixed block will be appended to or will be removed from
 		"""
-		head = enum.auto()
+		head = 1
 		""" A fixed block will be applied to a beginning 
 		"""
-		tail = enum.auto()
+		tail = 2
 		""" A fixed block will be applied to an end 
 		"""
 
