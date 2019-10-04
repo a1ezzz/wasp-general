@@ -19,12 +19,17 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+import warnings
 from abc import ABCMeta
 
 from wasp_general.verify import verify_type
 
 
-# TODO: think of merging with wasp_genral.api
+warnings.warn(
+	'This module ("wasp_general.capability") is deprecated. The "wasp_general.api.capability" module '
+	'should be used instead',
+	DeprecationWarning
+)
 
 
 class WCapabilitiesHolderMeta(ABCMeta):
