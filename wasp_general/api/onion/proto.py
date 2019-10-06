@@ -185,11 +185,15 @@ class WOnionProto(WAPIRegistryProto):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@abstractmethod
 	@verify_type('strict', api_id=str)
 	@verify_subclass('strict', api_descriptor=WOnionLayerProto)
 	@verify_value('strict', api_id=lambda x: len(x) > 0)
 	def register(self, api_id, api_descriptor):
 		""" This is the overridden method :meth:`.WAPIRegistryProto.register` that restricts supported values
+
+		:type api_id: str
+		:type api_descriptor: type
 
 		:rtype: None
 		"""
