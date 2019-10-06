@@ -223,7 +223,7 @@ class TestWMulticastNetworkTransport:
 		)
 
 		pytest.raises(ValueError, transport.target_socket, config)
-		config['section']['client_address'] = '239.200.1.2'
+		config['section']['client_address'] = '239.200.1.3'
 		assert(isinstance(transport.target_socket(config), WIPV4SocketInfo) is True)
 
 		s1 = transport.server_socket(config)
