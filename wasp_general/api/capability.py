@@ -117,10 +117,10 @@ class WCapabilitiesHolderMeta(ABCMeta):
 		return result
 
 
-@verify_type('strict', obj=object, obj_capability=WCapabilityDescriptor)
+@verify_type('strict', obj_capability=WCapabilityDescriptor)
 def iscapable(obj, obj_capability):
-	""" Check if the specified object is capable of something. I.e. check if a function from a descriptor
-	has been overridden in the object. Return True if function has been overridden and False otherwise
+	""" Check if the specified object (or type) is capable of something. I.e. check if a function from a descriptor
+	has been overridden in the derived class. Return True if function has been overridden and False otherwise
 
 	:param obj: object to check
 	:type obj: object
@@ -130,7 +130,12 @@ def iscapable(obj, obj_capability):
 
 	:rtype: bool
 	"""
-	if isinstance(obj, obj_capability.cls()) is True:
+
+	if isinstance(obj, type):
+		if issubclass(obj, obj_capability.cls()) is True:
+			f = getattr(obj, obj_capability.name())
+			return not isinstance(f, WCapabilityDescriptor)
+	elif isinstance(obj, obj_capability.cls()) is True:
 		f = getattr(obj, obj_capability.name())
 		return not hasattr(f, '__wasp_capability__')
 	return False
