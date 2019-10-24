@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+import functools
+
 from wasp_general.api.registry import WAPIRegistry, WDuplicateAPIIdError
 from wasp_general.api.task.proto import WTaskRegistryProto, WTaskProto
 
@@ -45,7 +47,7 @@ class WTaskRegistry(WTaskRegistryProto, WAPIRegistry):
 	def register(self, api_id, api_descriptor):
 		""" :meth:`.WTaskRegistryProto.register` method implementation
 		:type api_id: str
-		:type api_descriptor: WTaskProto
+		:type api_descriptor: type
 		:rtype: None
 		"""
 		return WAPIRegistry.register(self, api_id, api_descriptor)
@@ -56,30 +58,32 @@ __default_task_registry__ = WTaskRegistry()
 """
 
 
-@verify_type('strict', registry=(WTaskRegistryProto, type, None), task_tag=(str, None))
-@verify_value('strict', task_tag=lambda x: x is None or len(x) > 0)
-def register_class(task_tag, registry=None):
+@verify_type('strict', registry=(WTaskRegistryProto, type, None))
+def register_class(registry=None):
 	""" Return a class decorator that will register original class
 
-	:param task_tag: tag (name) of a task a decorated class represents
-	:type task_tag: str | None
-
 	:param registry: registry in which task will be registered (default registry is used for the 'None' value)
-	:type registry: WTaskRegistryProto | None
+	:type registry: WTaskRegistryProto | type | None
 
 	:rtype: callable
 	"""
 
-	def decorator_fn(cls):
-		reg = registry
-		if reg is None:
-			reg = __default_task_registry__
+	def decorator_fn(cls, reg=None):
+		task_tag = cls.__task_tag__
+		if task_tag is None or isinstance(task_tag, str) is False:
+			raise TypeError('__task_tag__ must be set in the task "%s"' % cls.__name__)
 		try:
 			reg.register(task_tag, cls)
 		except WDuplicateAPIIdError:
 			current_entry = reg.get(task_tag)
 			if current_entry is not cls:
 				raise
-
 		return cls
-	return decorator_fn
+
+	if registry is None:
+		registry = __default_task_registry__
+	elif isinstance(registry, type) is True:
+		# decorator was specified for class but was not called with arguments
+		return decorator_fn(registry, reg=__default_task_registry__)
+
+	return functools.partial(decorator_fn, reg=registry)

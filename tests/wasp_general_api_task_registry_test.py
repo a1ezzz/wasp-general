@@ -33,21 +33,45 @@ def default_registry_wrap(request):
 
 @pytest.mark.usefixtures('default_registry_wrap')
 def test_registry_class():
+
+	class T1(WTaskProto):
+		__task_tag__ = 'task1'
+
+	class T2(WTaskProto):
+		__task_tag__ = 'task2'
+
+	class T3(WTaskProto):
+		__task_tag__ = 'task3'
+
 	registry = WTaskRegistry(fallback_registry=__default_task_registry__)
 	assert(registry.has('task1') is False)
 	assert(registry.has('task2') is False)
+	assert(registry.has('task3') is False)
 	assert(__default_task_registry__.has('task1') is False)
 	assert(__default_task_registry__.has('task2') is False)
+	assert(__default_task_registry__.has('task3') is False)
 
-	register_class('task1', registry=registry)(WTaskProto)
-	register_class('task2')(WTaskProto)
-	assert(registry['task1'] is WTaskProto)
-	assert(registry['task2'] is WTaskProto)
+	register_class(registry=registry)(T1)
+	register_class(T2)
+	register_class()(T3)
+	assert(registry['task1'] is T1)
+	assert(registry['task2'] is T2)
+	assert(registry['task3'] is T3)
 	assert(__default_task_registry__.has('task1') is False)
-	assert(__default_task_registry__['task2'] is WTaskProto)
+	assert(__default_task_registry__['task2'] is T2)
+	assert(__default_task_registry__['task3'] is T3)
 
-	register_class('task1', registry=registry)(WTaskProto)  # no exception is raised since a class is the same
+	register_class(registry=registry)(T1)  # no exception is raised since a class is the same
 	with pytest.raises(WDuplicateAPIIdError):
-		class T(WTaskProto):
+		class T(T1):
 			pass
-		register_class('task1', registry=registry)(T)
+		register_class(registry=registry)(T)
+
+	with pytest.raises(TypeError):
+		class T4(WTaskProto):
+
+			@classmethod
+			def start(cls):
+				return
+
+		register_class(registry=registry)(T4)
