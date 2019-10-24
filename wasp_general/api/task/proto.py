@@ -31,21 +31,23 @@ class WTaskProto(WCapabilitiesHolder):
 	""" Basic task prototype. Derived classes must implement the only thing - to start
 	"""
 
+	__task_tag__ = None  # this is a unique identifier of a task. Must be redefined in derived classes
+
 	@classmethod
 	@abstractmethod
-	def start(cls, *args, **kwargs):
+	def start(cls):
 		""" Start this task
 
-		:return: None
+		:return: WTaskProto
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@classmethod
 	def requirements(cls):
-		""" Return tuple of task's names that are required to start in order this task to work. Or return
-		None if this task may be started without any condition
+		""" Return task's names that are required to start in order this task to work. Or return
+		None if this task may be started without any prerequisites
 
-		:rtype: tuple of str | None
+		:rtype: tuple of str | set of str | None
 		"""
 		return None
 
@@ -90,73 +92,112 @@ class WTaskRegistryProto(WAPIRegistryProto):
 
 
 class WTaskLauncherProto(metaclass=ABCMeta):
-	""" This launcher tracks started tasks
+	""" This launcher tracks started tasks from a linked registry
 	"""
+
+	@abstractmethod
+	def registry(self):
+		""" Return a registry with which this launcher is linked
+
+		:rtype: WTaskRegistryProto
+		"""
+		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
 	@verify_type('strict', task_tag=(str, None))
 	@verify_value('strict', task_tag=lambda x: x is None or len(x) > 0)
 	def started_tasks(self, task_tag=None):
-		""" Return tasks that were started
+		""" Return a generator that will yield tuple of task's tag and instance id
 
 		:param task_tag: filter tasks by tag. If this tag is specified, then only that type of tasks will
 		be returned
 		:type task_tag: str | None
 
-		:rtype: tuple of WTaskProto
+		:raise WNoSuchTask: raises if the specified task can not be found
+
+		:rtype: generator
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', registry=WTaskRegistryProto, task_tag=str, skip_unresolved=bool)
+	@verify_type('strict', task_tag=str, skip_unresolved=bool, deep_requirements_check=bool)
 	@verify_value('strict', task_tag=lambda x: len(x) > 0)
-	def start_task(self, registry, task_tag, *args, skip_unresolved=False, **kwargs):
+	def start_task(self, task_tag, skip_unresolved=False, deep_requirements_check=False):
 		""" Star task from a registry and return it's id (instance id)
-
-		:param registry: a registry from which a task will be get
-		:type registry: WTaskRegistryProto
 
 		:param task_tag: tag of task that should be started
 		:type task_tag: str
 
-		:param args: arguments that will be passed to :meth:`.WTaskProto.start` method
-		:type args: any
-
 		:param skip_unresolved: whether a task should be started if all the requirements was not met
 		:type skip_unresolved: bool
 
-		:param kwargs: named arguments that will be passed to :meth:`.WTaskProto.start` method
-		:type kwargs: any
+		:param deep_requirements_check: whether a recursive requirements check should be made. If this value
+		is True then requirements of requirements should be checked
+		:type deep_requirements_check: bool
+
+		:raise WNoSuchTask: raises if the specified task or it's requirements can not be found
+		:raise WRequirementsLoop: raises if there is a mutual dependency between tasks
 
 		:rtype: str
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', task_tag=str, stop_dependent=bool, stop_requirements=bool, instance_id=(str, None))
-	@verify_value('strict', task_tag=lambda x: len(x) > 0)
-	def stop_task(self, task_tag, stop_dependent=True, stop_requirements=False, instance_id=None):
+	@verify_type('strict', task_tag=str, instance_id=(str, None), stop=bool, terminate=bool)
+	@verify_value('strict', task_tag=lambda x: len(x) > 0, instance_id=lambda x: x is None or len(x) > 0)
+	def stop_task(self, task_tag, instance_id=None, stop=True, terminate=False):
+		# TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
 		""" Stop a previously started task
 
 		:param task_tag: a tag of task that should be stopped
 		:type task_tag: str
 
-		:param stop_dependent: whether to stop tasks that require a specified task
-		:type stop_dependent: bool
-
-		:param stop_requirements: whether to stop tasks that are requirement for a specifieds task
-		:type stop_requirements: bool
-
-		:param instance_id: stop a specific task instance but not all of them
+		:param instance_id: a task's instance id that should be stopped
 		:type instance_id: str
+
+		:param stop: whether to call a WTaskProto.stop capability if is supported by a task
+		:type stop: bool
+
+		:param terminate: whether to call a WTaskProto.terminate capability if is supported by a task
+		:type terminate: bool
+
+		:raise WNoSuchTask: raises if the specified task can not be found
+		:raise WDependenciesLoop: raises if there is a mutual dependency between tasks
 
 		:rtype: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	def all_stop(self):
+	@verify_type('strict', task_tag=str, stop=bool, terminate=bool)
+	@verify_value('strict', task_tag=lambda x: len(x) > 0)
+	def stop_dependent_tasks(self, task_tag, stop=True, terminate=False):
+		""" Stop tasks that are dependent by a specified one or tasks that are dependent by found dependencies
+
+		:param task_tag: task that will be searched in a requirements of running tasks
+		:type task_tag: str
+
+		:param stop: whether to call a WTaskProto.stop capability if is supported by a task
+		:type stop: bool
+
+		:param terminate: whether to call a WTaskProto.terminate capability if is supported by a task
+		:type terminate: bool
+
+		:rtype: None
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	@verify_type('strict', stop=bool, terminate=bool)
+	def all_stop(self, stop=True, terminate=True):
+		# TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
 		""" Stop all the started tasks
+
+		:param stop: whether to call a WTaskProto.stop capability if is supported by a task
+		:type stop: bool
+
+		:param terminate: whether to call a WTaskProto.terminate capability if is supported by a task
+		:type terminate: bool
 
 		:rtype: None
 		"""
