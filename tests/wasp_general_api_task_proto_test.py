@@ -3,7 +3,14 @@
 import pytest
 
 from wasp_general.api.capability import WCapabilityDescriptor
+from wasp_general.api.task.proto import WNoSuchTask, WRequirementsLoop, WDependenciesLoop
 from wasp_general.api.task.proto import WTaskProto, WTaskRegistryProto, WTaskLauncherProto
+
+
+def test_exceptions():
+	assert(issubclass(WNoSuchTask, Exception) is True)
+	assert(issubclass(WRequirementsLoop, Exception) is True)
+	assert(issubclass(WDependenciesLoop, Exception) is True)
 
 
 def test_abstract_classes():
