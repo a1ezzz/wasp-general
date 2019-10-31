@@ -318,25 +318,6 @@ class WTaskLauncher(WTaskLauncherProto, WCriticalResource):
 			return result + (task_tag, )
 		return result
 
-	@verify_type('strict', task_tag=str, stop=bool, terminate=bool)
-	@verify_value('strict', task_tag=lambda x: len(x) > 0)
-	def __stop_dependent_tasks(self, task_tag, stop=True, terminate=False):
-		""" This is a NOT-thread safe method that is used by the :meth:`.WTaskLauncher.stop_dependent_tasks`
-		and the :meth:`.WTaskLauncher.all_stop` methods. This method do the same as the original one -
-		:meth:`.WTaskLauncherProto.stop_dependent_tasks`
-
-		:type task_tag: str
-		:type stop: bool
-		:type terminate: bool
-		:rtype: int
-
-		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
-		"""
-		result = 0
-		for task_tag in self.__dependent_tasks(task_tag):
-			result += self.__stop_task(task_tag, stop=stop, terminate=terminate)
-		return result
-
 	@verify_type('paranoid', task_tag=str, stop=bool, terminate=bool)
 	@verify_value('paranoid', task_tag=lambda x: len(x) > 0)
 	@WCriticalResource.critical_section(timeout=__critical_section_timeout__)
@@ -352,10 +333,12 @@ class WTaskLauncher(WTaskLauncherProto, WCriticalResource):
 
 		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
 		"""
-		return self.__stop_dependent_tasks(task_tag=task_tag, stop=stop, terminate=terminate)
+		result = 0
+		for task_tag in self.__dependent_tasks(task_tag):
+			result += self.__stop_task(task_tag, stop=stop, terminate=terminate)
+		return result
 
 	@verify_type('strict', stop=bool, terminate=bool)
-	@WCriticalResource.critical_section(timeout=__critical_section_timeout__)
 	def all_stop(self, stop=True, terminate=True):
 		""" This is a thread safe :meth:`.WTaskLauncherProto.all_stop` method implementation. Task
 		or requirements that are going to start must not call this or any 'start' or 'stop' methods due to
@@ -367,10 +350,12 @@ class WTaskLauncher(WTaskLauncherProto, WCriticalResource):
 
 		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
 		"""
-		result = 0
-		while len(self.__started_tasks) > 0:
-			task_tag = next(iter(self.__started_tasks))
-			result += self.__stop_dependent_tasks(task_tag, stop=stop, terminate=terminate)
-			result += self.__stop_task(task_tag, stop=stop, terminate=terminate)
 
-		return result
+		with self.critical_context(timeout=self.__critical_section_timeout__) as c:
+			result = 0
+			while len(self.__started_tasks) > 0:
+				task_tag = next(iter(self.__started_tasks))
+				result += c.stop_dependent_tasks(task_tag, stop=stop, terminate=terminate)
+				result += self.__stop_task(task_tag, stop=stop, terminate=terminate)
+
+			return result
