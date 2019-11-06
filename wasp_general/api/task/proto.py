@@ -53,8 +53,12 @@ class WTaskProto(WCapabilitiesHolder):
 
 	@classmethod
 	@abstractmethod
-	def start(cls):
+	def start(cls, **kwargs):
 		""" Start this task
+
+		:param kwargs: arguments with which task should be started
+
+		:note: A task may be used as a requirement if it may be started without arguments
 
 		:return: WTaskProto
 		"""

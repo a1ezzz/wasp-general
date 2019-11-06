@@ -15,7 +15,7 @@ class TestWTaskLauncher:
 
 	class BaseTask(WTaskProto):
 		@classmethod
-		def start(cls):
+		def start(cls, **kwargs):
 			TestWTaskLauncher.start_exec_counter += 1
 			return cls()
 

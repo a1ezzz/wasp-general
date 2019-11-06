@@ -71,7 +71,7 @@ def test_registry_class():
 		class T4(WTaskProto):
 
 			@classmethod
-			def start(cls):
+			def start(cls, **kwargs):
 				return
 
 		register_class(registry=registry)(T4)
