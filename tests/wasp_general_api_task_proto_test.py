@@ -36,7 +36,7 @@ class TestWTaskProto:
 	class Task(WTaskProto):
 
 		@classmethod
-		def start(cls, *args, **kwargs):
+		def start(cls, **kwargs):
 			return TestWTaskProto.Task()
 
 	def test(self):
