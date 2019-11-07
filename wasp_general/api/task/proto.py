@@ -45,6 +45,18 @@ class WDependenciesLoop(Exception):
 	pass
 
 
+class WStartedTaskError(Exception):
+	""" This exception is raised when there is an attempt to start a task that is started already
+	"""
+	pass
+
+
+class WStoppedTaskError(Exception):
+	""" This exception is raised when there is an attempt to stop a task that is started already
+	"""
+	pass
+
+
 class WTaskProto(WCapabilitiesHolder):
 	""" Basic task prototype. Derived classes must implement the only thing - to start
 	"""
@@ -53,14 +65,22 @@ class WTaskProto(WCapabilitiesHolder):
 
 	@classmethod
 	@abstractmethod
-	def start(cls, **kwargs):
-		""" Start this task
+	def init_task(cls, **kwargs):
+		""" Initialize this task
 
 		:param kwargs: arguments with which task should be started
 
 		:note: A task may be used as a requirement if it may be started without arguments
 
 		:return: WTaskProto
+		"""
+		raise NotImplementedError('This method is abstract')
+
+	@abstractmethod
+	def start(self):
+		""" Start a task
+
+		:rtype: None
 		"""
 		raise NotImplementedError('This method is abstract')
 

@@ -3,19 +3,22 @@
 import pytest
 
 from wasp_general.api.capability import WCapabilityDescriptor
-from wasp_general.api.task.proto import WNoSuchTask, WRequirementsLoop, WDependenciesLoop
-from wasp_general.api.task.proto import WTaskProto, WTaskRegistryProto, WTaskLauncherProto
+from wasp_general.api.task.proto import WNoSuchTask, WRequirementsLoop, WDependenciesLoop, WStartedTaskError
+from wasp_general.api.task.proto import WStoppedTaskError, WTaskProto, WTaskRegistryProto, WTaskLauncherProto
 
 
 def test_exceptions():
 	assert(issubclass(WNoSuchTask, Exception) is True)
 	assert(issubclass(WRequirementsLoop, Exception) is True)
 	assert(issubclass(WDependenciesLoop, Exception) is True)
+	assert(issubclass(WStartedTaskError, Exception) is True)
+	assert(issubclass(WStoppedTaskError, Exception) is True)
 
 
 def test_abstract_classes():
 	pytest.raises(TypeError, WTaskProto)
-	pytest.raises(NotImplementedError, WTaskProto.start)
+	pytest.raises(NotImplementedError, WTaskProto.init_task)
+	pytest.raises(NotImplementedError, WTaskProto.start, None)
 
 	pytest.raises(TypeError, WTaskRegistryProto)
 	pytest.raises(NotImplementedError, WTaskRegistryProto.register, None, 'task_id', WTaskProto)
@@ -36,8 +39,11 @@ class TestWTaskProto:
 	class Task(WTaskProto):
 
 		@classmethod
-		def start(cls, **kwargs):
+		def init_task(cls, **kwargs):
 			return TestWTaskProto.Task()
+
+		def start(self):
+			pass
 
 	def test(self):
 		assert(WTaskProto.requirements() is None)
