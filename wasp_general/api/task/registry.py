@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/task/registry.py
+# wasp_general/api/task/registry.py
 #
 # Copyright (C) 2019 the wasp-general authors and contributors
 # <see AUTHORS file>
