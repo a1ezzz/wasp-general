@@ -15,9 +15,12 @@ class TestWTaskLauncher:
 
 	class BaseTask(WTaskProto):
 		@classmethod
-		def start(cls, **kwargs):
+		def init_task(cls, **kwargs):
 			TestWTaskLauncher.start_exec_counter += 1
 			return cls()
+
+		def start(self):
+			pass
 
 	class Task1(BaseTask):
 

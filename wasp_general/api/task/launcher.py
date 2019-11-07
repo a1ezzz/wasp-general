@@ -195,7 +195,8 @@ class WTaskLauncher(WTaskLauncherProto, WCriticalResource):
 			if task_tag in started_tasks:
 				continue
 
-			instance = task_cls.start()
+			instance = task_cls.init_task()
+			instance.start()
 			last_instance_id = str(uuid.uuid4())
 
 			instances_dict = self.__started_tasks.get(task_tag, {})
