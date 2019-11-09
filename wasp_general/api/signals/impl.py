@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/signals/signals.py
+# wasp_general/api/signals/impl.py
 #
 # Copyright (C) 2019 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -24,12 +24,12 @@ import weakref
 from wasp_c_extensions.threads import awareness_wait
 from wasp_c_extensions.queue import WMCQueue, WMCQueueSubscriber
 
-from wasp_general.verify import verify_type, verify_value
+from wasp_general.verify import verify_type, verify_value, TypeVerifier
 
 from wasp_general.platform import WPlatformThreadEvent
 
-from wasp_general.signals.proto import WSignalWatcherProto, WSignalSourceProto, WSignalProxyProto, WSignalCallbackProto
-from wasp_general.signals.proto import WUnknownSignalException
+from wasp_general.api.signals.proto import WSignalWatcherProto, WSignalSourceProto, WSignalProxyProto
+from wasp_general.api.signals.proto import WSignalCallbackProto, WUnknownSignalException
 
 
 class WSignalSource(WSignalSourceProto):
@@ -96,6 +96,8 @@ class WSignalSource(WSignalSourceProto):
 		def has_next(self):
 			""" Check if there is unhandled signal in a queue already
 
+			:raise RuntimeError: if this watcher is unsubscribed
+
 			:return: True - if there is unhandled signal, False - otherwise
 			:rtype:  bool
 			"""
@@ -103,67 +105,65 @@ class WSignalSource(WSignalSourceProto):
 
 		def next(self):
 			"""
-			Return next unhandled signal. It must be in a queue already, otherwise Exception will be raised
+			Return a payload of the next unhandled signal. It must be in a queue already,
+			otherwise exception will be raised
+
+			:raise KeyError: if there is no the next signal
+			:raise RuntimeError: if this watcher is unsubscribed
 
 			:rtype: any
 			"""
 			return WMCQueueSubscriber.next(self)
 
-	@verify_type('strict', signal_names=str)
-	def __init__(self, *signal_names):
+	def __init__(self, *signal_ids):
 		""" Create new signal source
 
-		:param signal_names: names of signals that this object may send
-		:type signal_names: str
+		:param signal_ids: names of signals that this object may send
+		:type signal_ids: any
 		"""
 
-		WSignalSourceProto.__init__(self)
-		self.__signal_names = signal_names
-		self.__queues = {x: WMCQueue(callback=self.__watchers_callbacks_exec(x)) for x in signal_names}
-		self.__watchers_callbacks = {x: weakref.WeakSet() for x in signal_names}
-		self.__direct_callbacks = {x: weakref.WeakSet() for x in signal_names}
+		if len(signal_ids) != len(set(signal_ids)):
+			raise ValueError('Signal identifiers must be unique')
 
-	def __watchers_callbacks_exec(self, signal_name):
+		WSignalSourceProto.__init__(self)
+		self.__queues = {x: WMCQueue(callback=self.__watchers_callbacks_exec(x)) for x in signal_ids}
+		self.__watchers_callbacks = {x: weakref.WeakSet() for x in signal_ids}
+		self.__direct_callbacks = {x: weakref.WeakSet() for x in signal_ids}
+
+	def __watchers_callbacks_exec(self, signal_id):
 		""" Generate callback for a queue
 
-		:param signal_name: name of a signal that callback is generated for
-		:type signal_name: str
+		:param signal_id: name of a signal that callback is generated for
+		:type signal_id: any
 
 		:rtype: callable
 		"""
 		def callback_fn():
-			for watcher in self.__watchers_callbacks[signal_name]:
+			for watcher in self.__watchers_callbacks[signal_id]:
 				if watcher is not None:
 					watcher.notify()
 		return callback_fn
 
-	@verify_type('strict', signal_name=str)
-	def send_signal(self, signal_name, signal_args=None):
+	def send_signal(self, signal_id, payload=None):
 		""" :meth:`.WSignalSourceProto.send_signal` implementation
 		"""
 		try:
-			self.__queues[signal_name].push(signal_args)
-			for callback in self.__direct_callbacks[signal_name]:
+			self.__queues[signal_id].push(payload)
+			for callback in self.__direct_callbacks[signal_id]:
 				if callback is not None:
-					callback(self, signal_name, signal_args)
+					callback(self, signal_id, payload)
 		except KeyError:
-			raise WUnknownSignalException('Unknown signal "%s"' % signal_name)
+			raise WUnknownSignalException('Unknown signal "%s"' % signal_id)
 
-	def signals(self):
-		""" :meth:`.WSignalSourceProto.signals` implementation
-		"""
-		return self.__signal_names
-
-	@verify_type('strict', signal_name=str)
-	def watch(self, signal_name):
+	def watch(self, signal_id):
 		""" :meth:`.WSignalSourceProto.watch` implementation
 
 		:rtype: watcher: WSignalSource.Watcher
 		"""
 		watcher = WSignalSource.Watcher(
-			self.__queues[signal_name], lambda x: self.__watchers_callbacks[signal_name].remove(x)
+			self.__queues[signal_id], lambda x: self.__watchers_callbacks[signal_id].remove(x)
 		)
-		self.__watchers_callbacks[signal_name].add(watcher)
+		self.__watchers_callbacks[signal_id].add(watcher)
 		return watcher
 
 	@verify_type('strict', watcher=Watcher)
@@ -174,67 +174,65 @@ class WSignalSource(WSignalSourceProto):
 		"""
 		watcher.unsubscribe()
 
-	@verify_type('strict', signal_name=str)
 	@verify_value('strict', callback=lambda x: callable(x))
-	def callback(self, signal_name, callback):
+	def callback(self, signal_id, callback):
 		""" :meth:`.WSignalSourceProto.callback` implementation
 		"""
-		self.__direct_callbacks[signal_name].add(callback)
+		self.__direct_callbacks[signal_id].add(callback)
 
-	@verify_type('strict', signal_name=str)
 	@verify_value('strict', callback=lambda x: callable(x))
-	def remove_callback(self, signal_name, callback):
+	def remove_callback(self, signal_id, callback):
 		""" :meth:`.WSignalSourceProto.remove_callback` implementation
 		"""
 		try:
-			self.__direct_callbacks[signal_name].remove(callback)
+			self.__direct_callbacks[signal_id].remove(callback)
 		except KeyError:
-			raise ValueError('Signal "%s" does not have the specified callback' % signal_name)
+			raise ValueError('Signal "%s" does not have the specified callback' % signal_id)
 
 
 class WSignalProxy(WSignalProxyProto):
 	""" :class:`.WSignalProxyProto` implementation that is based on :class:`.WSignalSource`
 	"""
 
-	__proxy_signal_name__ = ""  # name of a signal for internal usage
+	__proxy_signal_id__ = object()  # id of a signal for internal usage
 
 	class ProxiedSignal(WSignalProxyProto.ProxiedSignalProto):
 		""" :class:`.WSignalProxyProto.ProxiedSignalProto` implementation that is used by class
 		:class:`.WSignalProxy`
 		"""
 
-		@verify_type('strict', signal_source=(WSignalSource, weakref.ReferenceType), signal_name=str)
-		def __init__(self, signal_source, signal_name, signal_arg):
+		@verify_type('strict', signal_source=(WSignalSource, weakref.ReferenceType))
+		def __init__(self, signal_source, signal_id, payload):
 			""" Create new signal descriptor
 
 			:param signal_source: origin source
 			:type signal_source: WSignalSource | weak reference to WSignalSource
 
-			:param signal_name: origin signal name
-			:type signal_name: str
+			:param signal_id: origin signal id
+			:type signal_id: any
 
-			:param signal_arg: signal argument
-			:type signal_arg: any
+			:param payload: signal argument
+			:type payload: any
 			"""
 
 			self.__signal_source = signal_source
-			self.__signal_name = signal_name
-			self.__signal_arg = signal_arg
+			self.__signal_id = signal_id
+			self.__payload = payload
 
 		def signal_source(self):
 			""" :meth:`.WSignalProxyProto.ProxiedSignalProto.signal_source` implementation
 			"""
 			return self.__signal_source
 
-		def signal_name(self):
-			""" :meth:`.WSignalProxyProto.ProxiedSignalProto.signal_name` implementation
+		def signal_id(self):
+			""" :meth:`.WSignalProxyProto.ProxiedSignalProto.signal_id` implementation
 			"""
-			return self.__signal_name
+			return self.__signal_id
 
-		def signal_arg(self):
-			""" :meth:`.WSignalProxyProto.ProxiedSignalProto.signal_arg` implementation
+		def payload(self):
+			""" :meth:`.WSignalProxyProto.ProxiedSignalProto.payload` implementation
 			"""
-			return self.__signal_arg
+			return self.__payload
 
 	class ProxyCallback(WSignalCallbackProto):
 		""" This class is used as a callback for proxying original signals. May be used with multiple sources
@@ -254,18 +252,18 @@ class WSignalProxy(WSignalProxyProto):
 			self.__signal_target = signal_target
 			self.__weak_ref = weak_ref
 
-		@verify_type('strict', signal_source=WSignalSourceProto, signal_name=str)
-		def __call__(self, signal_source, signal_name, signal_arg=None):
+		@verify_type('strict', signal_source=WSignalSourceProto)
+		def __call__(self, signal_source, signal_id, payload=None):
 			""" Callback that may be used with :class:`.WSignalSource`
 
 			:param signal_source: a signal origin
 			:type signal_source: WSignalSourceProto
 
-			:param signal_name: a name of a signal
-			:type signal_name: str
+			:param signal_id: a name of a signal
+			:type signal_id: any
 
-			:param signal_arg: a signal argument
-			:type signal_arg: any
+			:param payload: a signal argument
+			:type payload: any
 
 			:rtype: None
 			"""
@@ -273,34 +271,34 @@ class WSignalProxy(WSignalProxyProto):
 				signal_source = weakref.ref(signal_source)
 
 			self.__signal_target.send_signal(
-				WSignalProxy.__proxy_signal_name__,
-				WSignalProxy.ProxiedSignal(signal_source, signal_name, signal_arg)
+				WSignalProxy.__proxy_signal_id__,
+				WSignalProxy.ProxiedSignal(signal_source, signal_id, payload)
 			)
 
 	def __init__(self):
 		""" Create new proxy object
 		"""
 		WSignalProxyProto.__init__(self)
-		self.__signal_source = WSignalSource(WSignalProxy.__proxy_signal_name__)
-		self.__watcher = self.__signal_source.watch(WSignalProxy.__proxy_signal_name__)
+		self.__signal_source = WSignalSource(WSignalProxy.__proxy_signal_id__)
+		self.__watcher = self.__signal_source.watch(WSignalProxy.__proxy_signal_id__)
 		self.__callback = WSignalProxy.ProxyCallback(self.__signal_source)
 		self.__weak_ref_callback = WSignalProxy.ProxyCallback(self.__signal_source, weak_ref=True)
 
 	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str, weak_ref=bool)
 	@verify_value(signal_names=lambda x: len(x) > 0)
-	def proxy(self, signal_source, *signal_names, weak_ref=False):
+	def proxy(self, signal_source, *signal_ids, weak_ref=False):
 		""" :meth:`.WSignalProxyProto.proxy` implementation
 		"""
 		callback = self.__callback if weak_ref is False else self.__weak_ref_callback
-		for signal_name in signal_names:
+		for signal_name in signal_ids:
 			signal_source.callback(signal_name, callback)
 
 	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str)
-	def stop_proxying(self, signal_source, *signal_names, weak_ref=False):
+	def stop_proxying(self, signal_source, *signal_ids, weak_ref=False):
 		""" :meth:`.WSignalProxyProto.stop_proxying` implementation
 		"""
 		callback = self.__callback if weak_ref is False else self.__weak_ref_callback
-		for signal_name in signal_names:
+		for signal_name in signal_ids:
 			signal_source.remove_callback(signal_name, callback)
 
 	def wait(self, timeout=None):
@@ -317,3 +315,44 @@ class WSignalProxy(WSignalProxyProto):
 		""" :meth:`.WSignalProxyProto.next` implementation
 		"""
 		return self.__watcher.next()
+
+
+class WSignal:
+	""" This class helps to specify a signal that signal source may send. Each class object is a single signal.
+	It is possible to set a payload type that may be sent with a signal. It is possible to turn off a payload
+	at all
+	"""
+
+	__payload_default_spec__ = object()  # default payload type. If it is used then there is no payload restrictions
+
+	def __init__(self, payload_type_spec=__payload_default_spec__):
+		""" Create new signal and set a suitable payload
+
+		:param payload_type_spec: specification of a payload type. Value is the same as "type_spec" in
+		the :meth:`.TypeVerifier.check` method with one exception. the None value means that payload is not
+		supported by a signal
+		:type payload_type_spec: any
+		"""
+		self.__type_check = payload_type_spec
+		if payload_type_spec is not WSignal.__payload_default_spec__ and payload_type_spec is not None:
+			self.__type_check = TypeVerifier().check(payload_type_spec, 'payload', self.__call__)
+
+	@verify_type('strict', signal_source=WSignalSource)
+	def __call__(self, signal_source, payload=None):
+		""" Check a payload and emit this signal once more
+
+		:param signal_source: where from this signal should be sent from
+		:type signal_source: WSignalSource
+
+		:param payload: a payload that will be checked and send it if it is valid
+		:type payload: any
+
+		:rtype: None
+		"""
+		if self.__type_check is not WSignal.__payload_default_spec__:
+			if self.__type_check is None:
+				if payload is not None:
+					raise TypeError('This signal does not accept "payload"')
+			else:
+				self.__type_check(payload)
+		signal_source.send_signal(self, payload=payload)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# wasp_general/signals/proto.py
+# wasp_general/api/signals/proto.py
 #
 # Copyright (C) 2019 the wasp-general authors and contributors
 # <see AUTHORS file>
@@ -64,38 +64,30 @@ class WSignalSourceProto(metaclass=ABCMeta):
 	""" An entry class for an object that sends signals. Every callback and watcher is saved as a 'weak' reference.
 	So in most cases in order to stop watching or executing callback it is sufficient just to discard all
 	references
+
+	Any hashable object may be a signal identifier (signal_id)
 	"""
 
 	@abstractmethod
-	@verify_type('strict', signal_name=str)
-	def send_signal(self, signal_name, signal_arg=None):
+	def send_signal(self, signal_id, payload=None):
 		""" Send a signal from this object
 
-		:param signal_name: a name of a signal to send
-		:type signal_name: str
+		:param signal_id: an id of a signal to send
+		:type signal_id: any
 
-		:param signal_arg: a signal argument that may be send with a signal
-		:type signal_arg: any
+		:param payload: a payload that may be send with a signal
+		:type payload: any
 
 		:rtype: None
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	def signals(self):
-		""" Return names of signals that may be sent
-
-		:rtype: tuple of str
-		"""
-		raise NotImplementedError('This method is abstract')
-
-	@abstractmethod
-	@verify_type('strict', signal_name=str)
-	def watch(self, signal_name):
+	def watch(self, signal_id):
 		""" Create a "watcher" that helps to wait for a new (unhandled) signal
 
-		:param signal_name: signal to wait
-		:type signal_name: str
+		:param signal_id: signal to wait
+		:type signal_id: any
 
 		:rtype: WSignalWatcherProto
 		"""
@@ -114,13 +106,12 @@ class WSignalSourceProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', signal_name=str)
 	@verify_value('strict', callback=lambda x: callable(x))
-	def callback(self, signal_name, callback):
+	def callback(self, signal_id, callback):
 		""" Register a callback that will be executed when new signal is sent
 
-		:param signal_name: signal that will trigger a callback
-		:type signal_name: str
+		:param signal_id: signal that will trigger a callback
+		:type signal_id: any
 
 		:param callback: callback that must be executed
 		:type callback: WSignalCallbackProto | callable
@@ -130,13 +121,12 @@ class WSignalSourceProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', signal_name=str)
 	@verify_value('strict', callback=lambda x: callable(x))
-	def remove_callback(self, signal_name, callback):
+	def remove_callback(self, signal_id, callback):
 		""" Unregister the specified callback and prevent it to be executed when new signal is sent
 
-		:param signal_name: signal that should be avoided
-		:type signal_name: str
+		:param signal_id: signal that should be avoided
+		:type signal_id: any
 
 		:param callback: callback that should be unregistered
 		:type callback: WSignalCallbackProto | callable
@@ -151,19 +141,19 @@ class WSignalCallbackProto(metaclass=ABCMeta):
 	"""
 
 	@abstractmethod
-	@verify_type('strict', signal_source=WSignalSourceProto, signal_name=str)
-	def __call__(self, signal_source, signal_name, signal_arg=None):
+	@verify_type('strict', signal_source=WSignalSourceProto)
+	def __call__(self, signal_source, signal_id, payload):
 		""" A callback that will be called when a signal is sent
 
 		:param signal_source: origin of a signal
 		:type signal_source: WSignalSourceProto
 
-		:param signal_name: name of a signal that was send
-		:type signal_name: str
+		:param signal_id: an id of a signal that was send
+		:type signal_id: any
 
-		:param signal_arg: any argument that you want to pass with the specified signal. A specific signal
-		may relay on this argument and may raise an exception if unsupported value is spotted
-		:type signal_arg: any
+		:param payload: any payload that has been sent with a signal. A specific signal
+		may relay on this argument and may raise an exception if an unsupported value is spotted
+		:type payload: any
 
 		:rtype: None
 		"""
@@ -181,7 +171,7 @@ class WSignalProxyProto(WSignalWatcherProto):
 	"""
 
 	class ProxiedSignalProto(metaclass=ABCMeta):
-		""" This class represent proxied signal. Besides signal_arg that is passed with a sending call it will
+		""" This class represent proxied signal. Besides payload that is passed with a sending call it will
 		have information about signal origin
 		"""
 
@@ -194,16 +184,16 @@ class WSignalProxyProto(WSignalWatcherProto):
 			raise NotImplementedError('This method is abstract')
 
 		@abstractmethod
-		def signal_name(self):
-			""" Return signal name that causes this message
+		def signal_id(self):
+			""" Return a signal id that causes this message
 
-			:rtype: str
+			:rtype: any
 			"""
 			raise NotImplementedError('This method is abstract')
 
 		@abstractmethod
-		def signal_arg(self):
-			""" Return signal argument that was passed with a signal
+		def payload(self):
+			""" Return a payload that has been sent with a signal
 
 			:rtype: any
 			"""
@@ -211,14 +201,14 @@ class WSignalProxyProto(WSignalWatcherProto):
 
 	@abstractmethod
 	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str, weak_ref=bool)
-	def proxy(self, signal_source, *signal_names, weak_ref=False):
+	def proxy(self, signal_source, *signal_ids, weak_ref=False):
 		""" Start proxying new signals
 
 		:param signal_source: signal origin to proxy
 		:type signal_source: WSignalSourceProto
 
-		:param signal_names: names of signals to proxy
-		:type signal_names: str
+		:param signal_ids: identifiers of signals to proxy
+		:type signal_ids: any
 
 		:param weak_ref: whether signal origin will be stored as is or as a weak reference
 		:type weak_ref: bool
@@ -228,15 +218,15 @@ class WSignalProxyProto(WSignalWatcherProto):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str, weak_ref=bool)
-	def stop_proxying(self, signal_source, *signal_names, weak_ref=False):
+	@verify_type('strict', signal_source=WSignalSourceProto, weak_ref=bool)
+	def stop_proxying(self, signal_source, *signal_ids, weak_ref=False):
 		""" Stop proxying signals
 
 		:param signal_source: signal origin to stop proxying
 		:type signal_source: WSignalSourceProto
 
-		:param signal_names: names of signals that should not be proxied
-		:type signal_names: str
+		:param signal_ids: identifiers of signals that should not be proxied
+		:type signal_ids: any
 
 		:param weak_ref: whether signal origin was requested as weak ref or as a ordinary object
 		:type weak_ref: bool
@@ -247,7 +237,7 @@ class WSignalProxyProto(WSignalWatcherProto):
 
 
 class WUnknownSignalException(Exception):
-	""" This exception may be raised if there was a request to signal source with unsupported signal name. Usually it
-	means that signal source is not able to send such signal.
+	""" This exception may be raised if there was a request to signal source with unsupported signal name.
+	Usually it means that signal source is not able to send such signal.
 	"""
 	pass
