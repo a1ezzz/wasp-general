@@ -81,12 +81,12 @@ class TestWThreadTask:
 	def test_signals(self):
 		threaded_task = WThreadTask.init_task(task_cls=TestWThreadTask.Task, join_timeout=1)
 
-		stop_watcher = threaded_task.watch('stopped')
-		start_watcher = threaded_task.watch('started')
-		run_watcher = threaded_task.watch('running')
-		ready_watcher = threaded_task.watch('ready')
-		crash_watcher = threaded_task.watch('crashed')
-		freeze_watcher = threaded_task.watch('froze')
+		stop_watcher = threaded_task.watch(WThreadTaskStatus.stopped.value)
+		start_watcher = threaded_task.watch(WThreadTaskStatus.started.value)
+		run_watcher = threaded_task.watch(WThreadTaskStatus.running.value)
+		ready_watcher = threaded_task.watch(WThreadTaskStatus.ready.value)
+		crash_watcher = threaded_task.watch(WThreadTaskStatus.crashed.value)
+		freeze_watcher = threaded_task.watch(WThreadTaskStatus.froze.value)
 
 		assert(stop_watcher.wait(timeout=1) is False)
 
