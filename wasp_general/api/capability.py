@@ -123,7 +123,7 @@ def iscapable(obj, obj_capability):
 	has been overridden in the derived class. Return True if function has been overridden and False otherwise
 
 	:param obj: object to check
-	:type obj: object
+	:type obj: object | type
 
 	:param obj_capability: capability descriptor
 	:type obj_capability: WCapabilityDescriptor
