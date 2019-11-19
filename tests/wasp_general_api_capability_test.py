@@ -219,9 +219,17 @@ class TestWCapabilitiesHolder:
 		assert(iscapable(b, A.foo) is False)
 		assert(iscapable(c, A.foo) is True)
 
+		assert(iscapable(A, A.foo) is False)
+		assert(iscapable(B, A.foo) is False)
+		assert(iscapable(C, A.foo) is True)
+
 		assert(iscapable(a, A.bar) is False)
 		assert(iscapable(b, A.bar) is False)
 		assert(iscapable(c, A.bar) is False)
+
+		assert(iscapable(A, A.bar) is False)
+		assert(iscapable(B, A.bar) is False)
+		assert(iscapable(C, A.bar) is False)
 
 		assert(A.foo not in a)
 		assert(A.foo not in b)
