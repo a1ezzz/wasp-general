@@ -24,9 +24,9 @@ import re
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.api.registry import WAPIRegistry, WDuplicateAPIIdError
-from wasp_general.verify import verify_type, verify_value, verify_subclass
+from wasp_general.verify import verify_type, verify_value
 
-from wasp_general.api.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
+from wasp_general.api.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto
 
 
 class WEnvelope(WEnvelopeProto):
@@ -241,15 +241,6 @@ class WOnion(WOnionProto, WAPIRegistry):
 			layer_info, session_flow = session_flow.next(envelope)
 		return envelope
 
-	@verify_type('strict', api_id=str, api_descriptor=type)
-	@verify_subclass('strict', api_descriptor=WOnionLayerProto)
-	@verify_value('strict', api_id=lambda x: len(x) > 0)
-	def register(self, api_id, api_descriptor):
-		""" :meth:`.WOnionProto.register` method implementation
-		:rtype: tuple of str
-		"""
-		return WAPIRegistry.register(self, api_id, api_descriptor)
-
 
 __default_onion_registry__ = WOnion()
 """ Instance of the default onion
@@ -258,7 +249,7 @@ __default_onion_registry__ = WOnion()
 
 @verify_type('strict', registry=(WOnion, type, None), layer_name=(str, None))
 @verify_value('strict', layer_name=lambda x: x is None or len(x) > 0)
-def register_class(registry=None, layer_name=None):
+def register_layer(registry=None, layer_name=None):
 	""" Return a class decorator that will register original class in a onion instances. If
 	the 'layer_name' argument is not specified, then original class must have '__layer_name__' attribute
 	with a name of a layer
@@ -301,6 +292,7 @@ def register_class(registry=None, layer_name=None):
 		try:
 			reg.register(name, cls)
 		except WDuplicateAPIIdError:
+			# TODO: double check if this is necessary
 			current_entry = reg.get(name)
 			if current_entry is not cls:
 				raise

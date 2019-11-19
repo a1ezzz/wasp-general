@@ -7,7 +7,7 @@ from wasp_general.api.registry import WNoSuchAPIIdError, WAPIRegistry
 
 from wasp_general.api.onion.proto import WEnvelopeProto, WOnionSessionFlowProto, WOnionProto, WOnionLayerProto
 from wasp_general.api.onion.base import WEnvelope, WOnionDirectSessionFlow, WOnionConditionalSessionFlow, WOnion
-from wasp_general.api.onion.base import __default_onion_registry__, register_class
+from wasp_general.api.onion.base import __default_onion_registry__, register_layer
 
 
 def test_abstract():
@@ -269,7 +269,7 @@ class TestWOnion:
 
 		onion.register('custom-layer-1', CustomLayer1)
 
-		@register_class(registry=onion)
+		@register_layer(registry=onion)
 		class CustomLayer2(TestWOnion.BaseLayer):
 			__layer_name__ = 'custom-layer-2'
 
@@ -278,7 +278,7 @@ class TestWOnion:
 		assert('custom-layer-1' in layers)
 		assert('custom-layer-2' in layers)
 
-		@register_class(registry=onion, layer_name='custom-layer-3')
+		@register_layer(registry=onion, layer_name='custom-layer-3')
 		class CustomLayer3(TestWOnion.BaseLayer):
 			pass
 
@@ -353,7 +353,7 @@ class TestWOnion:
 		assert('custom-layer-2' not in layers_names)
 		assert('custom-layer-3' not in layers_names)
 
-		@register_class(layer_name='custom-layer-1')
+		@register_layer(layer_name='custom-layer-1')
 		class CustomLayer1(TestWOnion.BaseLayer):
 			pass
 
@@ -363,7 +363,7 @@ class TestWOnion:
 		assert('custom-layer-3' not in layers_names)
 		assert(__default_onion_registry__.layer('custom-layer-1') is CustomLayer1)
 
-		@register_class()
+		@register_layer()
 		class CustomLayer2(TestWOnion.BaseLayer):
 			__layer_name__ = 'custom-layer-2'
 
@@ -374,7 +374,7 @@ class TestWOnion:
 		assert(__default_onion_registry__.layer('custom-layer-1') is CustomLayer1)
 		assert(__default_onion_registry__.layer('custom-layer-2') is CustomLayer2)
 
-		@register_class
+		@register_layer
 		class CustomLayer3(TestWOnion.BaseLayer):
 			__layer_name__ = 'custom-layer-3'
 
@@ -389,16 +389,16 @@ class TestWOnion:
 	@pytest.mark.usefixtures('default_registry_wrap')
 	def test_exceptions(self):
 		with pytest.raises(TypeError):
-			@register_class
+			@register_layer
 			class CustomLayer(TestWOnion.BaseLayer):
 				pass
 
 		with pytest.raises(TypeError):
-			@register_class
+			@register_layer
 			class CustomLayer(TestWOnion.BaseLayer):
 				__layer_name__ = 1
 
 		with pytest.raises(TypeError):
-			@register_class
+			@register_layer
 			class CustomLayer(TestWOnion.BaseLayer):
 				__layer_name__ = ''

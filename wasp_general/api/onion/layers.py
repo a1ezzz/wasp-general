@@ -31,10 +31,10 @@ from wasp_general.crypto.rsa import WRSA
 from wasp_general.api.transformation import WTransformationRegistry, __default_transformation_registry__
 
 from wasp_general.api.onion.proto import WOnionLayerProto, WEnvelopeProto
-from wasp_general.api.onion.base import WEnvelope, register_class
+from wasp_general.api.onion.base import WEnvelope, register_layer
 
 
-@register_class
+@register_layer
 class WAsyncIOLayer(WOnionLayerProto):
 	""" This layer will call a coroutine function with a single argument, which is a data from an envelope.
 	Then this layer will wait for coroutine to finish and return its result to a following layer
@@ -141,7 +141,7 @@ class WLayerEncryptionMode(enum.Enum):
 	decrypt = 2
 
 
-@register_class
+@register_layer
 class WOnionJSONLayer(WOnionBaseLayerModes):
 	""" This layer may serialize some python objects into JSON format and back
 	"""
@@ -171,7 +171,7 @@ class WOnionJSONLayer(WOnionBaseLayerModes):
 		return json.loads(envelope.data())
 
 
-@register_class
+@register_layer
 class WOnionWrappingLayer(WOnionBaseLayerModes):
 	""" This layer adds (or removes) fixed block to (or from) an envelope.
 	"""
@@ -273,7 +273,7 @@ class WOnionWrappingLayer(WOnionBaseLayerModes):
 			return envelope_data[:-block_length]
 
 
-@register_class
+@register_layer
 class WOnionEncodingLayer(WOnionBaseLayerModes):
 	""" This layer can encode str-object to the related encoding (to the bytes-object). Or decode bytes-object from
 	the specified encoding (from bytes-object to str-object)
@@ -330,7 +330,7 @@ class WOnionEncodingLayer(WOnionBaseLayerModes):
 		return envelope.data().decode()
 
 
-@register_class
+@register_layer
 class WOnionHexLayer(WOnionBaseLayerModes):
 	""" This class translate bytes to corresponding hex-string, or decodes it back
 	"""
@@ -370,7 +370,7 @@ class WOnionHexLayer(WOnionBaseLayerModes):
 		return bytes(WUnHex(envelope.data()))
 
 
-@register_class
+@register_layer
 class WOnionBase64Layer(WOnionBaseLayerModes):
 	""" This class translate bytes to corresponding base64-string, or decodes it back
 	"""
@@ -410,7 +410,7 @@ class WOnionBase64Layer(WOnionBaseLayerModes):
 		return b64decode(envelope.data())
 
 
-@register_class
+@register_layer
 class WOnionAESLayer(WOnionBaseLayerModes):
 	""" This class encrypts or decrypts bytes with the specified AES cipher
 	"""
@@ -461,7 +461,7 @@ class WOnionAESLayer(WOnionBaseLayerModes):
 		return self.__cipher.decrypt(envelope.data(), decode=False)
 
 
-@register_class
+@register_layer
 class WOnionRSALayer(WOnionBaseLayerModes):
 	""" This class encrypts or decrypts bytes with the specified RSA cipher
 	"""
@@ -532,7 +532,7 @@ class WOnionRSALayer(WOnionBaseLayerModes):
 		)
 
 
-@register_class
+@register_layer
 class WTransformationLayer(WOnionBaseLayerModes):
 	""" This layer may "transform" object into with :class:`.WTransformationRegistry`. This layer may be used
 	as a helper for serialization/deserialization layers
