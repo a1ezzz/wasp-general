@@ -1,9 +1,8 @@
 
 import pytest
 
-from wasp_general.api.uri import WURIRestriction, WURIQueryRestriction, WURIAPIRegistry, register_scheme_handler
+from wasp_general.api.uri import WURIRestriction, WURIQueryRestriction
 from wasp_general.api.check import WArgsRestrictionError, WArgsValueRestriction, WChainChecker, WArgsRequirements
-from wasp_general.api.registry import WAPIRegistry, WNoSuchAPIIdError
 from wasp_general.uri import WURI, WURIQuery
 
 
@@ -55,44 +54,3 @@ class TestWURIQueryRestriction:
 		uri_restriction.check('///?')
 		uri_restriction.check(WURI.parse('///?foo=bar&zzz=1'))
 		pytest.raises(WArgsRestrictionError, uri_restriction.check, WURI.parse('///?zzz=1'))
-
-
-class TestWURIAPIRegistry:
-
-	def test(self):
-		registry = WURIAPIRegistry()
-		assert(isinstance(registry, WURIAPIRegistry) is True)
-		assert(isinstance(registry, WAPIRegistry) is True)
-
-		pytest.raises(WNoSuchAPIIdError, registry.open, '///')
-		pytest.raises(WNoSuchAPIIdError, registry.open, 'protocol:///')
-		pytest.raises(WNoSuchAPIIdError, registry.open, 'foo///')
-
-		protocol_descriptor = object()
-		registry.register('protocol', protocol_descriptor)
-		pytest.raises(WNoSuchAPIIdError, registry.open, '///')
-		assert(registry.open('protocol:///') is protocol_descriptor)
-		pytest.raises(WNoSuchAPIIdError, registry.open, 'foo///')
-
-		foo_descriptor = object()
-		registry.register('foo', foo_descriptor)
-		pytest.raises(WNoSuchAPIIdError, registry.open, '///')
-		assert(registry.open('protocol:///') is protocol_descriptor)
-		assert(registry.open('foo:///') is foo_descriptor)
-
-
-def test_register_scheme_handler():
-
-	def foo(a, b):
-		return a + b
-
-	def bar(a, b):
-		return a - b
-
-	registry = WURIAPIRegistry()
-	pytest.raises(TypeError, register_scheme_handler, registry)
-	register_scheme_handler(registry, 'foo')(foo)
-	register_scheme_handler(registry, 'bar')(bar)
-
-	assert(registry.open('foo://')(2, 3) == 5)
-	assert(registry.open('bar://')(2, 3) == -1)
