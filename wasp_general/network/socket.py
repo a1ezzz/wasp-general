@@ -30,9 +30,10 @@ from wasp_general.uri import WURI, WURIQuery
 
 from wasp_general.network.primitives import WIPV4Address, WNetworkIPV4
 
-from wasp_general.api.uri import WURIRestriction, WURIQueryRestriction, WURIAPIRegistry, register_scheme_handler
-from wasp_general.api.check import WSupportedArgs, WArgsRequirements, WNotNullValues, WArgsValueRegExp, WChainChecker
-from wasp_general.api.check import WIterValueRestriction
+from wasp_general.api.registry import WAPIRegistry, register_api
+from wasp_general.api.uri import WURIRestriction, WURIQueryRestriction
+from wasp_general.api.check import WSupportedArgs, WArgsRequirements, WArgsValueRegExp, WChainChecker
+from wasp_general.api.check import WIterValueRestriction, WConflictedArgs
 
 
 class WSocketHandlerProto(metaclass=ABCMeta):
@@ -56,7 +57,7 @@ class WSocketHandlerProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 
-class WSocketAPIRegistry(WURIAPIRegistry):
+class WSocketAPIRegistry(WAPIRegistry):
 	""" This is a registry for socket handlers. Such handlers as a descriptor must be a callable that accepts
 	the specified URI as a first argument
 	"""
@@ -70,7 +71,9 @@ class WSocketAPIRegistry(WURIAPIRegistry):
 
 		:rtype: WSocketHandlerProto
 		"""
-		create_handler_fn = WURIAPIRegistry.open(self, uri)
+		if isinstance(uri, str):
+			uri = WURI.parse(uri)
+		create_handler_fn = WAPIRegistry.get(self, uri.scheme())
 		return create_handler_fn(uri)
 
 
@@ -88,6 +91,7 @@ class WUDPSocketHandler(WSocketHandlerProto):
 		""" Socket options
 		"""
 		multicast = 'multicast'  # set up multicast socket
+		broadcast = 'broadcast'  # set up broadcast socket
 
 	__uri_check__ = WURIRestriction(
 		WChainChecker(
@@ -102,8 +106,14 @@ class WUDPSocketHandler(WSocketHandlerProto):
 				WURI.Component.port.value
 			),
 			WURIQueryRestriction(
-				WSupportedArgs(QueryArg.multicast.value),
-				WNotNullValues(QueryArg.multicast.value)
+				WSupportedArgs(
+					QueryArg.multicast.value,
+					QueryArg.broadcast.value
+				),
+				WConflictedArgs(
+					QueryArg.multicast.value,
+					QueryArg.broadcast.value
+				)
 			)
 		)
 	)  # URI compatibility check
@@ -121,6 +131,7 @@ class WUDPSocketHandler(WSocketHandlerProto):
 
 		address = self.__uri.hostname()
 		multicast_address = None
+		broadcast_address = None
 		uri_query = uri.query()
 		if uri_query is not None:
 			socket_opts = WURIQuery.parse(uri_query)
@@ -132,11 +143,17 @@ class WUDPSocketHandler(WSocketHandlerProto):
 						'The specified address: "%s" is not a multicast address' %
 						str(multicast_address)
 					)
+			elif WUDPSocketHandler.QueryArg.broadcast.value in socket_opts:
+				broadcast_address = socket.gethostbyname(address)
+				broadcast_address = WIPV4Address(broadcast_address)
+
 		self.__socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 		if multicast_address:
 			group = socket.inet_aton(str(multicast_address))
 			group_membership = struct.pack('4sL', group, socket.INADDR_ANY)
 			self.__socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, group_membership)
+		elif broadcast_address:
+			self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
 	def uri(self):
 		""" :meth:`.WSocketHandlerProto.uri` implementation
@@ -153,7 +170,7 @@ class WUDPSocketHandler(WSocketHandlerProto):
 		return self.__socket
 
 	@staticmethod
-	@register_scheme_handler(__default_socket_collection__, 'udp')
+	@register_api(__default_socket_collection__, 'udp')
 	@verify_type('strict', uri=WURI)
 	def create_handler(uri):
 		""" Function that is registered in a default registry
@@ -209,7 +226,7 @@ class WTCPSocketHandler(WSocketHandlerProto):
 		return self.__socket
 
 	@staticmethod
-	@register_scheme_handler(__default_socket_collection__, 'tcp')
+	@register_api(__default_socket_collection__, 'tcp')
 	@verify_type('strict', uri=WURI)
 	def create_handler(uri):
 		""" Function that is registered in a default registry
@@ -292,7 +309,7 @@ class WUnixSocketHandler(WSocketHandlerProto):
 		return self.__socket
 
 	@staticmethod
-	@register_scheme_handler(__default_socket_collection__, 'unix')
+	@register_api(__default_socket_collection__, 'unix')
 	@verify_type('strict', uri=WURI)
 	def create_handler(uri):
 		""" Function that is registered in a default registry
