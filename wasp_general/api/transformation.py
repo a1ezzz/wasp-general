@@ -67,8 +67,6 @@ class WTransformationRegistry(WAPIRegistry):
 	:note: This key is used for registry implementation only and may be changed in future
 	"""
 
-	@verify_type('strict', api_id=str)
-	@verify_value('strict', api_descriptor=lambda x: callable(x))
 	def register(self, api_id, api_descriptor):
 		""" This method must be omitted, because of additional restrictions to api_id that may be used
 		"""
