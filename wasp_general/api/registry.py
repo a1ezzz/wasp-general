@@ -171,7 +171,7 @@ class WAPIRegistry(WAPIRegistryProto):
 
 @verify_type('strict', registry=WAPIRegistry)
 def register_api(registry, api_id=None):
-	""" This decorator helps to register function or static method in the specified registry
+	""" This decorator helps to register function, static method or class in the specified registry
 
 	:param registry: registry to which a function should be registered
 	:type registry: WAPIRegistry
@@ -183,9 +183,9 @@ def register_api(registry, api_id=None):
 	:rtype: callable
 	"""
 
-	def decorator_fn(decorated_function):
-			reg_id = api_id if api_id is not None else decorated_function.__qualname__
-			registry.register(reg_id, decorated_function)
-			return decorated_function
+	def decorator_fn(decorated_obj):
+			reg_id = api_id if api_id is not None else decorated_obj.__qualname__
+			registry.register(reg_id, decorated_obj)
+			return decorated_obj
 
 	return decorator_fn
