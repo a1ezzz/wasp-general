@@ -115,13 +115,11 @@ class WSignalSource(WSignalSourceProto):
 			"""
 			return WMCQueueSubscriber.next(self)
 
-	def __init__(self, *signal_ids):
+	def __init__(self):
 		""" Create new signal source
-
-		:param signal_ids: names of signals that this object may send
-		:type signal_ids: any
 		"""
 
+		signal_ids = self.signals()
 		if len(signal_ids) != len(set(signal_ids)):
 			raise ValueError('Signal identifiers must be unique')
 
@@ -189,19 +187,43 @@ class WSignalSource(WSignalSourceProto):
 		except KeyError:
 			raise ValueError('Signal "%s" does not have the specified callback' % signal_id)
 
+	@classmethod
+	def signals(cls):
+		""" :meth:`.WSignalSourceProto.signals` implementation (returns empty tuple by default)
+		"""
+		return tuple()
+
+
+def anonymous_source(*signals):
+	""" This function returns object of a locally generated class. That object is a WSignalSourceProto
+	implementation that may send a specified signals.
+
+	This function is useful for testing and for internal
+
+	:param signals: signals that a target signal source may send
+	:type signals: any
+
+	:rtype: WSignalSourceProto
+	"""
+
+	class Source(WSignalSource):
+		@classmethod
+		def signals(cls):
+			return signals
+
+	return Source()
+
 
 class WSignalProxy(WSignalProxyProto):
 	""" :class:`.WSignalProxyProto` implementation that is based on :class:`.WSignalSource`
 	"""
-
-	__proxy_signal_id__ = object()  # id of a signal for internal usage
 
 	class ProxiedSignal(WSignalProxyProto.ProxiedSignalProto):
 		""" :class:`.WSignalProxyProto.ProxiedSignalProto` implementation that is used by class
 		:class:`.WSignalProxy`
 		"""
 
-		@verify_type('strict', signal_source=(WSignalSource, weakref.ReferenceType))
+		@verify_type('strict', signal_source=(WSignalSourceProto, weakref.ReferenceType))
 		def __init__(self, signal_source, signal_id, payload):
 			""" Create new signal descriptor
 
@@ -239,17 +261,21 @@ class WSignalProxy(WSignalProxyProto):
 		"""
 
 		@verify_type('strict', signal_target=WSignalSourceProto, weak_ref=bool)
-		def __init__(self, signal_target, weak_ref=False):
+		def __init__(self, signal_target, signal, weak_ref=False):
 			""" Create new callback
 
 			:param signal_target: a target where signal should be proxied to
 			:type signal_target: WSignalSourceProto
+
+			:param signal: a signal that this callback should send in order to notify 'signal_target'
+			:type signal: any
 
 			:param weak_ref: whether to send a source to the target as a weak reference or as an
 			ordinary object. is False by default
 			:type weak_ref: bool
 			"""
 			self.__signal_target = signal_target
+			self.__signal = signal
 			self.__weak_ref = weak_ref
 
 		@verify_type('strict', signal_source=WSignalSourceProto)
@@ -271,18 +297,18 @@ class WSignalProxy(WSignalProxyProto):
 				signal_source = weakref.ref(signal_source)
 
 			self.__signal_target.send_signal(
-				WSignalProxy.__proxy_signal_id__,
-				WSignalProxy.ProxiedSignal(signal_source, signal_id, payload)
+				self.__signal, WSignalProxy.ProxiedSignal(signal_source, signal_id, payload)
 			)
 
 	def __init__(self):
 		""" Create new proxy object
 		"""
 		WSignalProxyProto.__init__(self)
-		self.__signal_source = WSignalSource(WSignalProxy.__proxy_signal_id__)
-		self.__watcher = self.__signal_source.watch(WSignalProxy.__proxy_signal_id__)
-		self.__callback = WSignalProxy.ProxyCallback(self.__signal_source)
-		self.__weak_ref_callback = WSignalProxy.ProxyCallback(self.__signal_source, weak_ref=True)
+		proxy_signal = object()
+		self.__signal_source = anonymous_source(proxy_signal)
+		self.__watcher = self.__signal_source.watch(proxy_signal)
+		self.__callback = WSignalProxy.ProxyCallback(self.__signal_source, proxy_signal)
+		self.__weak_ref_callback = WSignalProxy.ProxyCallback(self.__signal_source, proxy_signal, weak_ref=True)
 
 	@verify_type('strict', signal_source=WSignalSourceProto, signal_names=str, weak_ref=bool)
 	@verify_value(signal_names=lambda x: len(x) > 0)
