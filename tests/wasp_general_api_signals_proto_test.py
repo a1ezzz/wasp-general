@@ -30,6 +30,9 @@ def test_abstract():
 
 	class S(WSignalSourceProto):
 
+		def signals(cls):
+			return tuple()
+
 		def send_signal(self, signal_id, signal_args=None):
 			pass
 
@@ -52,6 +55,7 @@ def test_abstract():
 	pytest.raises(NotImplementedError, WSignalWatcherProto.next, None)
 
 	pytest.raises(TypeError, WSignalSourceProto)
+	pytest.raises(NotImplementedError, WSignalSourceProto.signals)
 	pytest.raises(NotImplementedError, WSignalSourceProto.send_signal, None, 'signal')
 	pytest.raises(NotImplementedError, WSignalSourceProto.send_signal, None, 'signal', 1)
 	pytest.raises(NotImplementedError, WSignalSourceProto.watch, None, 'signal')

@@ -5,27 +5,42 @@ import pytest
 
 from wasp_general.api.signals.proto import WSignalSourceProto, WUnknownSignalException, WSignalWatcherProto
 from wasp_general.api.signals.proto import WSignalProxyProto
-from wasp_general.api.signals.impl import WSignalSource, WSignalProxy, WSignal
+from wasp_general.api.signals.impl import WSignalSource, anonymous_source, WSignalProxy, WSignal
 
 
 def test_imports():
 	import wasp_general.api.signals
 	assert(wasp_general.api.signals.WSignalSource is WSignalSource)
+	assert(wasp_general.api.signals.anonymous_source is anonymous_source)
 	assert(wasp_general.api.signals.WSignalProxy is WSignalProxy)
 	assert(wasp_general.api.signals.WSignal is WSignal)
 
 
 class TestWSignalSource:
 
-	def test(self):
-		pytest.raises(ValueError, WSignalSource, 1, 1)
+	class SignalSource(WSignalSource):
 
-		s = WSignalSource("signal1", "signal2")
+		@classmethod
+		def signals(cls):
+			return 'signal1', 'signal2', 'signal3'
+
+	def test(self):
+		assert(WSignalSource.signals() == tuple())
+
+		class CorruptedClass(WSignalSource):
+
+			@classmethod
+			def signals(cls):
+				return 1, 1
+
+		pytest.raises(ValueError, CorruptedClass)
+
+		s = TestWSignalSource.SignalSource()
 
 		assert(isinstance(s, WSignalSource) is True)
-		assert (isinstance(s, WSignalSourceProto) is True)
+		assert(isinstance(s, WSignalSourceProto) is True)
 
-		pytest.raises(WUnknownSignalException, s.send_signal, "signal3")
+		pytest.raises(WUnknownSignalException, s.send_signal, "unknown_signal")
 
 		test_results = {'callback_called': 0}
 
@@ -69,10 +84,25 @@ class TestWSignalSource:
 		pytest.raises(RuntimeError, w.next)
 
 
+def test_anonymous_source():
+	s1 = anonymous_source()
+	assert(isinstance(s1, WSignalSource) is True)
+	assert(tuple(s1.signals()) == tuple())
+
+	s2 = anonymous_source('signal1', 'signal2')
+	assert(isinstance(s2, WSignalSource) is True)
+	s2_signals = tuple(s2.signals())
+	assert(len(s2_signals) == 2)
+	assert('signal1' in s2_signals)
+	assert('signal2' in s2_signals)
+
+	assert(s1.__class__ is not s2.__class__)
+
+
 class TestWSignalProxy:
 
 	def test_proxy_message(self):
-		s = WSignalSource('signal1')
+		s = anonymous_source('signal1')
 
 		m = WSignalProxy.ProxiedSignal(s, 'signal1', 'foo')
 		assert(isinstance(m, WSignalProxy.ProxiedSignal) is True)
@@ -91,8 +121,8 @@ class TestWSignalProxy:
 		assert(isinstance(p, WSignalProxy) is True)
 		assert(isinstance(p, WSignalProxyProto) is True)
 
-		s1 = WSignalSource('signal1', 'signal2', 'signal3')
-		s2 = WSignalSource('signal1', 'signal2', 'signal3')
+		s1 = anonymous_source('signal1', 'signal2', 'signal3')
+		s2 = anonymous_source('signal1', 'signal2', 'signal3')
 
 		p.proxy(s1, 'signal1', 'signal3')
 		p.proxy(s2, 'signal2', weak_ref=True)
@@ -142,34 +172,34 @@ class TestWSignal:
 		signal_zzz = WSignal(payload_type_spec=(str, int, float, None))  # optional payload str, int, float
 		signal_www = WSignal(payload_type_spec=None)  # payload is not supported
 
-		signal_source = WSignalSource(signal_foo, signal_bar, signal_zzz, signal_www)
-		foo_watcher = signal_source.watch(signal_foo)
-		bar_watcher = signal_source.watch(signal_bar)
+		source = anonymous_source(signal_foo, signal_bar, signal_zzz, signal_www)
+		foo_watcher = source.watch(signal_foo)
+		bar_watcher = source.watch(signal_bar)
 
 		assert(foo_watcher.has_next() is False)
 		assert(bar_watcher.has_next() is False)
 
-		signal_foo(signal_source)
+		signal_foo(source)
 		assert(foo_watcher.has_next() is True)
 		assert(foo_watcher.next() is None)
 		assert(bar_watcher.has_next() is False)
 
-		pytest.raises(TypeError, signal_bar, signal_source)
-		pytest.raises(TypeError, signal_bar, signal_source, '1')
-		pytest.raises(TypeError, signal_bar, signal_source, 0.1)
-		signal_bar(signal_source, 1)
+		pytest.raises(TypeError, signal_bar, source)
+		pytest.raises(TypeError, signal_bar, source, '1')
+		pytest.raises(TypeError, signal_bar, source, 0.1)
+		signal_bar(source, 1)
 		assert(foo_watcher.has_next() is False)
 		assert(bar_watcher.has_next() is True)
 		assert(bar_watcher.next() is 1)
 
-		signal_zzz(signal_source)
-		signal_zzz(signal_source, 1)
-		signal_zzz(signal_source, 0.1)
-		signal_zzz(signal_source, '')
-		pytest.raises(TypeError, signal_zzz, signal_source, object())
+		signal_zzz(source)
+		signal_zzz(source, 1)
+		signal_zzz(source, 0.1)
+		signal_zzz(source, '')
+		pytest.raises(TypeError, signal_zzz, source, object())
 
-		signal_foo(signal_source, 1)
-		signal_foo(signal_source, object())
+		signal_foo(source, 1)
+		signal_foo(source, object())
 
-		pytest.raises(TypeError, signal_www, signal_source, object())
-		signal_www(signal_source)
+		pytest.raises(TypeError, signal_www, source, object())
+		signal_www(source)

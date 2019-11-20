@@ -135,6 +135,15 @@ class WSignalSourceProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
+	@classmethod
+	@abstractmethod
+	def signals(cls):
+		""" Return iterable that consists of items (signals) that this class may send
+
+		:rtype: iterable
+		"""
+		raise NotImplementedError('This method is abstract')
+
 
 class WSignalCallbackProto(metaclass=ABCMeta):
 	""" An example of class that may receive signals
