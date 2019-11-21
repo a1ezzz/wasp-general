@@ -169,8 +169,8 @@ class WAPIRegistry(WAPIRegistryProto):
 		return self.has(item)
 
 
-@verify_type('strict', registry=WAPIRegistry)
-def register_api(registry, api_id=None):
+@verify_type('strict', registry=WAPIRegistry, callable_api_id=bool)
+def register_api(registry, api_id=None, callable_api_id=False):
 	""" This decorator helps to register function, static method or class in the specified registry
 
 	:param registry: registry to which a function should be registered
@@ -180,11 +180,24 @@ def register_api(registry, api_id=None):
 	name will be used
 	:type api_id: any
 
+	:param callable_api_id: whether 'api_id' is not an entry identifier but a callable (function) that accepts
+	decorated object in order to retrieve a real id
+	:type: bool
+
+	:raise ValueError: if the 'callable_api_id' variable is True but the 'api_id' is not callable object
+
 	:rtype: callable
 	"""
-
 	def decorator_fn(decorated_obj):
-			reg_id = api_id if api_id is not None else decorated_obj.__qualname__
+			nonlocal api_id, callable_api_id
+			if callable_api_id is True:
+				if not callable(api_id):
+					raise ValueError('Unable to retrieve an id - "api_id" is non-callable')
+				api_id = api_id(decorated_obj)
+			elif api_id is None:
+				api_id = decorated_obj.__qualname__
+
+			reg_id = api_id
 			registry.register(reg_id, decorated_obj)
 			return decorated_obj
 
