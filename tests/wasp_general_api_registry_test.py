@@ -110,3 +110,14 @@ def test_register_api():
 	assert(registry['zzz'](5, 2) == 3)
 
 	pytest.raises(WNoSuchAPIIdError, registry.get, 'bar')
+
+	class C:
+		api_id = 'bar'
+
+	register_api(registry, api_id=lambda x: x.api_id, callable_api_id=True)(C)
+	assert(registry['bar'] is C)
+
+	with pytest.raises(ValueError):
+		class D:
+			pass
+		register_api(registry, api_id=1, callable_api_id=True)(D)
