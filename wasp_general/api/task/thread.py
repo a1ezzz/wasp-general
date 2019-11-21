@@ -22,7 +22,7 @@
 import enum
 from threading import Thread
 
-from wasp_general.verify import verify_type, verify_value, verify_subclass
+from wasp_general.verify import verify_type
 from wasp_general.api.signals import WSignalSource, WSignal
 
 from wasp_general.api.task.proto import WTaskProto, WStartedTaskError, WStoppedTaskError
@@ -34,62 +34,32 @@ class WJoiningTimeoutError(Exception):
 	pass
 
 
-@enum.unique
-class WThreadTaskStatus(enum.Enum):
-	""" A possible states of a :class:`WThreadTask` objects. Values are corresponding signals
-
-	A 'crashed' signal will send an exception that was raised
-	"""
-	stopped = WSignal(payload_type_spec=None)  # a task was never started or is stopped already
-	started = WSignal(payload_type_spec=None)  # a task was started but a thread is not started yet
-	running = WSignal(payload_type_spec=None)  # a thread is started and and original task is about to start
-	ready = WSignal(payload_type_spec=None)  # a thread function is stopped without exceptions and the thread
-	# is ready to be joined
-	crashed = WSignal(payload_type_spec=Exception)  # a thread function was stopped by an exceptions and the thread
-	# is ready to be joined
-	froze = WSignal(payload_type_spec=None)  # a task was requested to stop but a thread was not joined in a time
-
-
 class WThreadTask(WTaskProto, WSignalSource):
 	""" This class helps to run a task in a separate thread. This class does not prevent any race conditions
-	that may occur with an original task. So the :meth:`.WTaskProto.stop` method of an original task should be
-	implemented and may be called from a separate thread. Also in some situations the :meth:`.WTaskProto.stop`
-	method may be called before the :meth:`.WTaskProto.start` method
+	that may occur with an original task. So the task to run should implement the :meth:`.WTaskProto.stop` method
+	and this method must be able to be called from a separate thread.
+
+	In some circumstances the :meth:`.WTaskProto.stop` method may be called before the :meth:`.WTaskProto.start`
+	method
 	"""
 
-	@classmethod
-	@verify_type('paranoid', thread_name=(str, None), join_timeout=(int, float, None))
-	@verify_value('paranoid', join_timeout=lambda x: x is None or x >= 0)
-	@verify_subclass('paranoid', task_cls=WTaskProto)
-	def init_task(cls, task_cls=None, thread_name=None, join_timeout=None, **kwargs):
-		""" :meth:`.WTaskProto.init_task` method implementation.
+	task_stopped = WSignal(payload_type_spec=None)  # a task was never started or is stopped already
+	task_started = WSignal(payload_type_spec=None)  # a task was started but a thread is not started yet
+	task_running = WSignal(payload_type_spec=None)  # a thread is started and and original task is about to start
+	task_ready = WSignal(payload_type_spec=None)  # a thread function is stopped without exceptions and the thread
+	# is ready to be joined
+	task_crashed = WSignal(payload_type_spec=Exception)  # a thread function was stopped by an exceptions and
+	# the thread is ready to be joined
+	task_froze = WSignal(payload_type_spec=None)  # a task was requested to stop but a thread was not joined
+	# in a time
 
-		:note: the "task_cls" parameter can not be omitted
-
-		:param task_cls: same as the "task_cls" parameter in the :meth:`.WThreadTask.__init__` method
-		:type task_cls: type (WTaskProto subclass)
-
-		:param thread_name: same as the "thread_name" parameter in the :meth:`.WThreadTask.__init__` method
-		:type thread_name: str | None
-
-		:param join_timeout: same as the "join_timeout" parameter in the :meth:`.WThreadTask.__init__` method
-		:type join_timeout: int | float | None
-
-		:param kwargs: same as the "kwargs" parameter in the :meth:`.WThreadTask.__init__` method
-
-		:rtype: WThreadTask
-		"""
-		return WThreadTask(task_cls, thread_name=thread_name, join_timeout=join_timeout, **kwargs)
-
-	@verify_type('strict', thread_name=(str, None), join_timeout=(int, float, None))
-	@verify_value('strict', join_timeout=lambda x: x is None or x >= 0)
-	@verify_subclass('strict', task_cls=WTaskProto)
-	def __init__(self, task_cls, thread_name=None, join_timeout=None, **kwargs):
+	@verify_type('strict', task=WTaskProto, thread_name=(str, None))
+	@verify_type('strict', join_timeout=(int, float, None))
+	def __init__(self, task, thread_name=None, join_timeout=None):
 		""" Create a threaded task
 
-		:param task_cls: an original task that should be run in a thread. This task must have the
-		'WTaskProto.stop' capability
-		:type task_cls: type (WTaskProto subclass)
+		:param task: a task that should be ran in a thread
+		:type task: WTaskProto
 
 		:param thread_name: name of a thread to create
 		:type thread_name: str | None
@@ -97,14 +67,13 @@ class WThreadTask(WTaskProto, WSignalSource):
 		:param join_timeout: if defined then this is a period of time that this task will wait for an
 		original task to stop in a :meth:`.WThreadTask.stop` method.  If this values is None then
 		the :meth:`.WThreadTask.stop` method wait in a block mode forever
-		:type join_timeout: int | float | None
 
-		:param kwargs: arguments with which an original task should be initialized
+		:type join_timeout: int | float | None
 		"""
 		WTaskProto.__init__(self)
-		WSignalSource.__init__(self, *(x.value for x in WThreadTaskStatus))
+		WSignalSource.__init__(self)
 
-		self.__task = task_cls.init_task(**kwargs)
+		self.__task = task
 		self.__thread_name = thread_name
 		self.__join_timeout = join_timeout
 
@@ -157,7 +126,6 @@ class WThreadTask(WTaskProto, WSignalSource):
 		else:
 			raise WStartedTaskError('A thread is running already')
 
-	@verify_type('strict', new_status=WThreadTaskStatus)
 	def __switch_status(self, new_status, payload=None):
 		""" Switch current status and send a signal
 
@@ -190,3 +158,28 @@ class WThreadTask(WTaskProto, WSignalSource):
 			self.__switch_status(WThreadTaskStatus.stopped)
 		else:
 			raise WStoppedTaskError('A thread is stopped already')
+
+	@classmethod
+	def signals(cls):
+		""" Signals that this class may emit
+
+		:rtype: tuple[WSignal]
+		"""
+		return WThreadTask.task_stopped, \
+			WThreadTask.task_started, \
+			WThreadTask.task_running, \
+			WThreadTask.task_ready, \
+			WThreadTask.task_crashed, \
+			WThreadTask.task_froze
+
+
+@enum.unique
+class WThreadTaskStatus(enum.Enum):
+	""" A possible states of a :class:`WThreadTask` objects. Values are corresponding signals
+	"""
+	stopped = WThreadTask.task_stopped
+	started = WThreadTask.task_started
+	running = WThreadTask.task_running
+	ready = WThreadTask.task_ready
+	crashed = WThreadTask.task_crashed
+	froze = WThreadTask.task_froze
