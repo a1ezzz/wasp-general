@@ -19,10 +19,6 @@ class TestWThreadTask:
 		exception = None
 		sleep_event = None
 
-		@classmethod
-		def init_task(cls, **kwargs):
-			return cls()
-
 		def start(self):
 			if self.sleep_event:
 				self.sleep_event.wait()
@@ -34,8 +30,9 @@ class TestWThreadTask:
 			pass
 
 	def test(self):
-		threaded_task = WThreadTask.init_task(task_cls=TestWThreadTask.Task)
-		assert(isinstance(threaded_task.task(), TestWThreadTask.Task))
+		task = TestWThreadTask.Task()
+		threaded_task = WThreadTask(task=task)
+		assert(threaded_task.task() is task)
 		assert(threaded_task.status() is WThreadTaskStatus.stopped)
 		assert(threaded_task.exception() is None)
 		threaded_task.start()
@@ -63,13 +60,14 @@ class TestWThreadTask:
 		threaded_task.stop()
 
 	def test_exceptions(self):
-		threaded_task = WThreadTask.init_task(task_cls=TestWThreadTask.Task)
+		task = TestWThreadTask.Task()
+		threaded_task = WThreadTask(task=task)
 		threaded_task.start()
 		pytest.raises(WStartedTaskError, threaded_task.start)
 		threaded_task.stop()
 		pytest.raises(WStoppedTaskError, threaded_task.stop)
 
-		threaded_task = WThreadTask.init_task(task_cls=TestWThreadTask.Task, join_timeout=1)
+		threaded_task = WThreadTask(task=task, join_timeout=1)
 		TestWThreadTask.Task.sleep_event = WPlatformThreadEvent()
 		threaded_task.start()
 		pytest.raises(WJoiningTimeoutError, threaded_task.stop)
@@ -79,14 +77,15 @@ class TestWThreadTask:
 		TestWThreadTask.Task.sleep_event = None
 
 	def test_signals(self):
-		threaded_task = WThreadTask.init_task(task_cls=TestWThreadTask.Task, join_timeout=1)
+		task = TestWThreadTask.Task()
+		threaded_task = WThreadTask(task=task, join_timeout=1)
 
-		stop_watcher = threaded_task.watch('stopped')
-		start_watcher = threaded_task.watch('started')
-		run_watcher = threaded_task.watch('running')
-		ready_watcher = threaded_task.watch('ready')
-		crash_watcher = threaded_task.watch('crashed')
-		freeze_watcher = threaded_task.watch('froze')
+		stop_watcher = threaded_task.watch(WThreadTask.task_stopped)
+		start_watcher = threaded_task.watch(WThreadTask.task_started)
+		run_watcher = threaded_task.watch(WThreadTask.task_running)
+		ready_watcher = threaded_task.watch(WThreadTask.task_ready)
+		crash_watcher = threaded_task.watch(WThreadTask.task_crashed)
+		freeze_watcher = threaded_task.watch(WThreadTask.task_froze)
 
 		assert(stop_watcher.wait(timeout=1) is False)
 
