@@ -259,10 +259,10 @@ class WTaskPostponePolicy(enum.Enum):
 	""" This is a policy that describes what should be done with a task if a scheduler won't be able to run
 	it (like if the scheduler's limit of running tasks is reached).
 	"""
-	wait = enum.auto()  # will postpone the task to execute it later
-	drop = enum.auto()  # drop this task if it can't be executed at the moment
-	postpone_first = enum.auto()  # keep one task that were started first with the same group id and drop others
-	postpone_last = enum.auto()  # drop all the previous tasks with the same group ID and keep this one
+	wait = 1  # will postpone the task to execute it later
+	drop = 2  # drop this task if it can't be executed at the moment
+	postpone_first = 3  # keep one task that were started first with the same group id and drop others
+	postpone_last = 4  # drop all the previous tasks with the same group ID and keep this one
 
 
 class WScheduleRecordProto(metaclass=ABCMeta):
