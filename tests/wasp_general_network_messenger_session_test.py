@@ -25,18 +25,18 @@ class TestWMessengerOnionSessionFlow:
 		envelope = WMessengerEnvelope(envelope_data)
 		if iterator is not None:
 			result.append(
-				WMessengerOnionSessionFlow.IteratorInfo(iterator.layer_name(), **iterator.layer_args())
+				WMessengerOnionSessionFlow.IteratorInfo(iterator.layer_name(), **(iterator.layer_args()[1]))
 			)
 			result.extend(TestWMessengerOnionSessionFlow.expand(iterator.next(envelope)))
 		return result
 
-	def test(self):
-		i = WMessengerOnionSessionFlowProto.Iterator('layer')
-		sf = WMessengerOnionSessionFlow(i)
-
-		assert(isinstance(sf, WMessengerOnionSessionFlow) is True)
-		assert(isinstance(sf, WMessengerOnionSessionFlowProto) is True)
-		assert(sf.iterator(WMessengerEnvelope(None)) == i)
+	def test_a(self):
+		# i = WMessengerOnionSessionFlowProto.Iterator('layer')
+		# sf = WMessengerOnionSessionFlow(i)
+		#
+		# assert(isinstance(sf, WMessengerOnionSessionFlow) is True)
+		# assert(isinstance(sf, WMessengerOnionSessionFlowProto) is True)
+		# assert(sf.iterator(WMessengerEnvelope(None)) == i)
 
 		info = [
 			WMessengerOnionSessionFlowProto.IteratorInfo('layer1', **{'a': 1, 'b': 'z'}),
@@ -44,13 +44,17 @@ class TestWMessengerOnionSessionFlow:
 			WMessengerOnionSessionFlowProto.IteratorInfo('layer1', **{'a': 3, 'b': 'z'})
 		]
 
-		i = WMessengerOnionSessionFlow.sequence(*info)
-		assert(isinstance(i, WMessengerOnionSessionFlowProto.Iterator) is True)
-		result = TestWMessengerOnionSessionFlow.expand(i)
+		i = WMessengerOnionSessionFlow(*info)
+
+		#assert(isinstance(i, WMessengerOnionSessionFlowProto.Iterator) is True)
+
+		result = i.iterate(WMessengerEnvelope(None))
+		#result = TestWMessengerOnionSessionFlow.expand(i)
+
 		assert([(x.layer_name(), x.layer_args()) for x in result] == [
-			('layer1', {'a': 1, 'b': 'z'}),
-			('layer2', {'a': 2, 'b': 'zz'}),
-			('layer1', {'a': 3, 'b': 'z'})
+			('layer1', (tuple(), {'a': 1, 'b': 'z'})),
+			('layer2', (tuple(), {'a': 2, 'b': 'zz'})),
+			('layer1', (tuple(), {'a': 3, 'b': 'z'}))
 		])
 
 		i = WMessengerOnionSessionFlow.sequence()
@@ -60,7 +64,7 @@ class TestWMessengerOnionSessionFlow:
 		assert(isinstance(sf, WMessengerOnionSessionFlowProto) is True)
 		i = sf.iterator(WMessengerEnvelope(None))
 		result = TestWMessengerOnionSessionFlow.expand(i)
-		assert([(x.layer_name(), x.layer_args()) for x in result] == [
+		assert([(x.layer_name(), x.layer_args()[1]) for x in result] == [
 			('layer1', {'a': 1, 'b': 'z'}),
 			('layer2', {'a': 2, 'b': 'zz'}),
 			('layer1', {'a': 3, 'b': 'z'})

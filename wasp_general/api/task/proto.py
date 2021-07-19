@@ -234,35 +234,15 @@ class WLauncherProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 
-class WScheduledTaskProto(WTaskProto):
-	""" This is a prototype of task that may be started by a :class:`.WSchedulerProto` object
-	"""
-
-	@classmethod
-	@abstractmethod
-	def scheduled_task(cls, *args, **kwargs):
-		""" Create new task that should be started
-
-		:param args: positional arguments with which a task should be created
-		:type args: any
-
-		:param kwargs: named arguments with which a task should be created
-		:type kwargs: any
-
-		:rtype: WScheduledTaskProto
-		"""
-		raise NotImplementedError('This method is abstract')
-
-
 @enum.unique
 class WTaskPostponePolicy(enum.Enum):
 	""" This is a policy that describes what should be done with a task if a scheduler won't be able to run
 	it (like if the scheduler's limit of running tasks is reached).
+
+	TODO: record TTL?
 	"""
 	wait = 1  # will postpone the task to execute it later
 	drop = 2  # drop this task if it can't be executed at the moment
-	postpone_first = 3  # keep one task that were started first with the same group id and drop others
-	postpone_last = 4  # drop all the previous tasks with the same group ID and keep this one
 
 
 class WScheduleRecordProto(metaclass=ABCMeta):
@@ -278,25 +258,11 @@ class WScheduleRecordProto(metaclass=ABCMeta):
 
 	@abstractmethod
 	def task(self):
-		""" Return a task class that should be started
+		""" Return a task that should be started
 
-		:rtype: WScheduledTaskProto
+		:rtype: WTaskProto
 		"""
 		raise NotImplementedError('This method is abstract')
-
-	def args(self):
-		""" Return positional arguments with which a task should be created
-
-		:rtype: tuple
-		"""
-		return tuple()
-
-	def kwargs(self):
-		""" Return named arguments with which a task should be created
-
-		:rtype: dict
-		"""
-		return dict()
 
 	def policy(self):
 		""" Return a postpone policy
@@ -304,13 +270,6 @@ class WScheduleRecordProto(metaclass=ABCMeta):
 		:rtype: WTaskPostponePolicy
 		"""
 		return WTaskPostponePolicy.wait
-
-	def group_id(self):
-		""" Return group id
-
-		:rtype: str or None
-		"""
-		return None
 
 
 # noinspection PyAbstractClass
@@ -332,9 +291,9 @@ class WScheduleSourceProto(WSignalSourceProto):
 
 
 # noinspection PyAbstractClass
-class WSchedulerProto(WSignalSourceProto):
+class WSchedulerProto(WSignalSourceProto, WTaskProto):
 	""" Represent a scheduler. A class that is able to execute tasks (:class:`.WScheduleRecordProto`) scheduled
-	by sources (:class:`.WScheduleSourceProto`)
+	by sources (:class:`.WScheduleSourceProto`). This class tracks state of tasks that are running
 	"""
 
 	task_scheduled = WSignal(payload_type_spec=WScheduleRecordProto)
@@ -373,18 +332,6 @@ class WSchedulerProto(WSignalSourceProto):
 		""" Return generator that will iterate over running tasks (records)
 
 		:rtype: generator (of WScheduleRecordProto instances)
-		"""
-		raise NotImplementedError('This method is abstract')
-
-	@abstractmethod
-	@verify_type('strict', schedule_record=WScheduleRecordProto)
-	def process(self, schedule_record):
-		""" Process (start, postpone or drop) a specified record
-
-		:param schedule_record: a task (record) to start
-		:type schedule_record: WScheduleRecordProto
-
-		:rtype: None
 		"""
 		raise NotImplementedError('This method is abstract')
 

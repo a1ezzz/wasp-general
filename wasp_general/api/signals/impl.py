@@ -198,7 +198,7 @@ def anonymous_source(*signals):
 	""" This function returns object of a locally generated class. That object is a WSignalSourceProto
 	implementation that may send a specified signals.
 
-	This function is useful for testing and for internal
+	This function is useful for testing and for internal implementations
 
 	:param signals: signals that a target signal source may send
 	:type signals: any
@@ -382,3 +382,7 @@ class WSignal:
 			else:
 				self.__type_check(payload)
 		signal_source.send_signal(self, payload=payload)
+
+
+class WSignalPrioritizedProxy(WSignalProxyProto):
+	pass

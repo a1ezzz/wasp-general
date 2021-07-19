@@ -28,6 +28,8 @@ from wasp_general.config import WConfig
 
 from wasp_general.network.primitives import WIPV4SocketInfo, WIPV4Address, WNetworkIPV4
 
+# TODO: replace with wasp_general.network.socket
+
 
 class WNetworkNativeTransportProto(metaclass=ABCMeta):
 	""" This is interface for classes, that implement transport logic for network communication. "Native" means
