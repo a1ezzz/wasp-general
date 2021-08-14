@@ -1,7 +1,7 @@
 
 import pytest
 
-from wasp_general.signals.proto import WSignalSourceProto, WSignalCallbackProto
+from wasp_general.api.signals.proto import WSignalSourceProto, WSignalCallbackProto
 
 
 def test_abstract():
