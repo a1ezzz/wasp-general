@@ -1,87 +1,34 @@
 
+#env:
+#  matrix:
+#    - WASP_ENABLE_CHECKS=
+#    - WASP_ENABLE_CHECKS=*
+#    - WASP_ENABLE_CHECKS=strict:paranoid
+
 language: python
+#python:
+# - "3.3" # ignored due to tornado requirement of python >= 3.4
+#  - "3.4"
+#  - "3.5"
+#  - "3.6"
+#  - "pypy3.5"
+#  - python: "3.9"
+#    dist: bionic
 
 matrix:
   include:
-
-# Python 3.4 ignored due to lxml requirement of python >= 3.5 (lxml is a transitional requirement of webdavclient3)
-
-    - name: "3.5 without checks"
-      python: "3.5"
-      env: WASP_ENABLE_CHECKS=
-
-    - name: "3.6 without checks"
-      python: "3.6"
-      env: WASP_ENABLE_CHECKS=
-
-    - name: "3.7 without checks"
-      python: "3.7"
-      env: WASP_ENABLE_CHECKS=
-      dist: xenial
-
-    - name: "3.8 without checks"
-      python: "3.8"
-      env: WASP_ENABLE_CHECKS=
-      dist: xenial
-
-    - name: "pypy3.5 without checks"
-      python: "pypy3.5"
-      env: WASP_ENABLE_CHECKS=
-      dist: xenial
-
-    - name: "3.5 all checks"
-      python: "3.5"
-      env: WASP_ENABLE_CHECKS=*
-
-    - name: "3.6 all checks"
-      python: "3.6"
-      env: WASP_ENABLE_CHECKS=*
-
-    - name: "3.7 all checks"
-      python: "3.7"
-      env: WASP_ENABLE_CHECKS=*
-      dist: xenial
-
-    - name: "3.8 all checks"
-      python: "3.8"
-      env: WASP_ENABLE_CHECKS=*
-      dist: xenial
-
-    - name: "pypy3.5 all checks"
-      python: "pypy3.5"
-      env: WASP_ENABLE_CHECKS=*
-      dist: xenial
-
-    - name: "3.5 strict, paranoid checks"
-      python: "3.5"
-      env: WASP_ENABLE_CHECKS=strict:paranoid
-
-    - name: "3.6 strict, paranoid checks"
-      python: "3.6"
-      env: WASP_ENABLE_CHECKS=strict:paranoid
-
-    - name: "3.7 strict, paranoid checks"
-      python: "3.7"
-      env: WASP_ENABLE_CHECKS=strict:paranoid
-      dist: xenial
-
-    - name: "3.8 strict, paranoid checks"
-      python: "3.8"
-      env: WASP_ENABLE_CHECKS=strict:paranoid
-      dist: xenial
-
-    - name: "pypy3.5 strict, paranoid checks"
-      python: "pypy3.5"
-      env: WASP_ENABLE_CHECKS=strict:paranoid
-      dist: xenial
-
+    - python: "3.9"
+      dist: bionic
+      
 install:
+  - pip install -r dev-requirements.txt
   - pip install -r requirements.txt
-  - pip install '.[dev,template,test]'
+  - pip install coveralls
+  - pip install -v .
 
 script:
   - cd tests
   - coverage run --source wasp_general -m py.test
 
-after_script:
-  - coveralls
+#after_script:
+#  - coveralls
