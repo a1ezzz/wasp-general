@@ -23,10 +23,49 @@ from abc import ABCMeta, abstractmethod
 import asyncio
 
 from wasp_general.verify import verify_type, verify_subclass
-from wasp_general.api.registry import WAPIRegistryProto, register_api
+from wasp_general.api.registry import WAPIRegistryProto, register_api, WAPIRegistry
 from wasp_general.uri import WURI
 from wasp_general.network.socket import __default_socket_collection__
-from wasp_general.network.aio_network import __default_network_services_collection__
+
+
+class WAIONetworkServiceAPIRegistry(WAPIRegistry):
+    """ This registry may hold class-generated functions. Such classes will use asyncio primitives like
+    "create_datagram_endpoint" for network services to work
+    """
+
+    @verify_type('strict', uri=(WURI, str), socket_collection=(WAPIRegistryProto, None))
+    @verify_subclass('paranoid', protocol_cls=asyncio.BaseProtocol)
+    @verify_type('paranoid', aio_loop=(asyncio.AbstractEventLoop, None))
+    def network_handler(self, uri, protocol_cls, aio_loop=None, socket_collection=None):
+        """ Return an instance for network service defined by a URI
+
+        :param uri: URI with which socket is opened and with which a service is instantiated
+        :type uri: WURI | str
+
+        :param protocol_cls: protocol that do a real work
+        :type protocol_cls: subclass of asyncio.BaseProtocol
+
+        :param aio_loop: a loop with which network service will work (by default a current loop is used)
+        :type aio_loop: asyncio.AbstractEventLoop | None
+
+        :param socket_collection: collection with which socket is opened (by default the
+        "wasp_general.network.socket.__default_socket_collection__" collection is used)
+        :type socket_collection: WAPIRegistryProto | None
+
+        :rtype: AIONetworkServiceProto
+        """
+        if isinstance(uri, str):
+            uri = WURI.parse(uri)
+        if socket_collection is None:
+            socket_collection = __default_socket_collection__
+
+        create_handler_fn = WAPIRegistry.get(self, uri.scheme())
+        return create_handler_fn(uri, protocol_cls, aio_loop=aio_loop, socket_collection=socket_collection)
+
+
+__default_network_services_collection__ = WAIONetworkServiceAPIRegistry()
+""" Default collection for network services instantiation
+"""
 
 
 class AIONetworkServiceProto(metaclass=ABCMeta):
@@ -67,7 +106,7 @@ class WDatagramNetworkService(AIONetworkServiceProto):
         :param protocol_cls: protocol that do a real work
         :type protocol_cls: asyncio.DatagramProtocol
 
-        :param aio_loop: a loop with which network client or service will work (by default a current loop is used)
+        :param aio_loop: a loop with which network service will work (by default a current loop is used)
         :type aio_loop: asyncio.AbstractEventLoop | None
 
         :param socket_collection: collection with which socket is opened (by default the
@@ -92,6 +131,7 @@ class WDatagramNetworkService(AIONetworkServiceProto):
         socket_handler = self.__socket_collection.open(self.__uri)
         sock = socket_handler.socket()
         sock.bind((self.__uri.hostname(), self.__uri.port()))
+        sock.setblocking(False)
 
         loop = self.__aio_loop if self.__aio_loop else asyncio.get_event_loop()
         self.__transport, _ = await loop.create_datagram_endpoint(self.__protocol_cls, sock=sock)
