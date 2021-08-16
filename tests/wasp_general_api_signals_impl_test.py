@@ -1,205 +1,104 @@
 # -*- coding: utf-8 -*-
 
-import weakref
+import gc
+from threading import Thread
 import pytest
 
-from wasp_general.api.signals.proto import WSignalSourceProto, WUnknownSignalException, WSignalWatcherProto
-from wasp_general.api.signals.proto import WSignalProxyProto
-from wasp_general.api.signals.impl import WSignalSource, anonymous_source, WSignalProxy, WSignal
+from wasp_c_extensions.ev_loop import WEventLoop
 
-
-def test_imports():
-	import wasp_general.api.signals
-	assert(wasp_general.api.signals.WSignalSource is WSignalSource)
-	assert(wasp_general.api.signals.anonymous_source is anonymous_source)
-	assert(wasp_general.api.signals.WSignalProxy is WSignalProxy)
-	assert(wasp_general.api.signals.WSignal is WSignal)
+from wasp_general.api.signals.proto import WSignalSourceProto, WSignalCallbackProto, WUnknownSignalException
+from wasp_general.api.signals.impl import WSignalSource, WEventLoopSignalCallback
 
 
 class TestWSignalSource:
 
-	class SignalSource(WSignalSource):
+    def test(self):
+        s = WSignalSource("signal1", "signal2")
 
-		@classmethod
-		def signals(cls):
-			return 'signal1', 'signal2', 'signal3'
+        assert(isinstance(s, WSignalSource) is True)
+        assert(isinstance(s, WSignalSourceProto) is True)
 
-	def test(self):
-		assert(WSignalSource.signals() == tuple())
+        assert(s.signals() == ("signal1", "signal2"))
+        pytest.raises(WUnknownSignalException, s.send_signal, "signal3")
 
-		class CorruptedClass(WSignalSource):
+        test_results = {'callback_called': 0}
 
-			@classmethod
-			def signals(cls):
-				return 1, 1
+        def signal_callback(signal_source, signal_name, signal_arg):
+            test_results['callback_called'] += (signal_arg if signal_arg is not None else 1)
 
-		pytest.raises(ValueError, CorruptedClass)
+        s.callback("signal1", signal_callback)
 
-		s = TestWSignalSource.SignalSource()
+        assert(test_results['callback_called'] == 0)
+        s.send_signal("signal2")
+        assert(test_results['callback_called'] == 0)
+        s.send_signal("signal1")
+        assert(test_results['callback_called'] == 1)
+        s.send_signal("signal1", 5)
+        assert(test_results['callback_called'] == 6)
 
-		assert(isinstance(s, WSignalSource) is True)
-		assert(isinstance(s, WSignalSourceProto) is True)
+        pytest.raises(ValueError, s.remove_callback, "signal2", signal_callback)
+        s.remove_callback("signal1", signal_callback)
+        s.send_signal("signal1")
+        assert(test_results['callback_called'] == 6)
 
-		pytest.raises(WUnknownSignalException, s.send_signal, "unknown_signal")
+    def test_weak_ref(self):
 
-		test_results = {'callback_called': 0}
+        callback_result = []
 
-		def signal_callback(signal_source, signal_name, signal_arg):
-			test_results['callback_called'] += (signal_arg if signal_arg is not None else 1)
+        class CallbackCls:
+            def __call__(self, *args, **kwargs):
+                callback_result.append(1)
 
-		s.callback("signal1", signal_callback)
+        callback_obj = CallbackCls()
+        source = WSignalSource("signal1")
+        assert(callback_result == [])
+        source.callback("signal1", callback_obj)
+        source.send_signal("signal1")
+        callback_obj = None  # force
+        gc.collect()
+        source.send_signal("signal1")
 
-		assert(test_results['callback_called'] == 0)
-		s.send_signal("signal2")
-		assert(test_results['callback_called'] == 0)
-		s.send_signal("signal1")
-		assert(test_results['callback_called'] == 1)
-		s.send_signal("signal1", 5)
-		assert(test_results['callback_called'] == 6)
-
-		pytest.raises(ValueError, s.remove_callback, "signal2", signal_callback)
-		s.remove_callback("signal1", signal_callback)
-		s.send_signal("signal1")
-		assert(test_results['callback_called'] == 6)
-
-		w = s.watch("signal1")
-		assert(isinstance(w, WSignalWatcherProto) is True)
-
-		assert(w.has_next() is False)
-		pytest.raises(KeyError, w.next)
-
-		assert(w.wait(timeout=1) is False)
-
-		s.send_signal("signal1")
-		assert(w.wait() is True)
-		assert(w.next() is None)
-		assert(w.wait(timeout=1) is False)
-
-		s.send_signal("signal1", 'zzz')
-		assert(w.wait() is True)
-		assert(w.next() == 'zzz')
-
-		s.remove_watcher(w)
-		pytest.raises(RuntimeError, w.has_next)
-		pytest.raises(RuntimeError, w.next)
+        assert(callback_result == [1])
 
 
-def test_anonymous_source():
-	s1 = anonymous_source()
-	assert(isinstance(s1, WSignalSource) is True)
-	assert(tuple(s1.signals()) == tuple())
+class TestWEventLoopSignalCallback:
 
-	s2 = anonymous_source('signal1', 'signal2')
-	assert(isinstance(s2, WSignalSource) is True)
-	s2_signals = tuple(s2.signals())
-	assert(len(s2_signals) == 2)
-	assert('signal1' in s2_signals)
-	assert('signal2' in s2_signals)
+    def test(self):
+        loop = WEventLoop()
+        c = WEventLoopSignalCallback(loop, lambda x, y, z: None)
+        assert(isinstance(c, WSignalCallbackProto) is True)
 
-	assert(s1.__class__ is not s2.__class__)
+        thread = Thread(target=loop.start_loop)
+        thread.start()
+        loop.stop_loop()
+        thread.join()
 
+    def test_call(self):
 
-class TestWSignalProxy:
+        callback_result = []
+        def callback_fn(c_source, c_signal, signal_arg = None):
+            callback_result.append({"source": c_source, "signal": c_signal, "signal_arg": signal_arg})
 
-	def test_proxy_message(self):
-		s = anonymous_source('signal1')
+        source = WSignalSource("signal1")
+        loop = WEventLoop(immediate_stop=False)
+        callback = WEventLoopSignalCallback(loop, callback_fn)
+        thread = Thread(target=loop.start_loop)
+        thread.start()
 
-		m = WSignalProxy.ProxiedSignal(s, 'signal1', 'foo')
-		assert(isinstance(m, WSignalProxy.ProxiedSignal) is True)
-		assert(isinstance(m, WSignalProxyProto.ProxiedSignalProto) is True)
-		assert(m.signal_source() == s)
-		assert(m.signal_id() == 'signal1')
-		assert(m.payload() == 'foo')
+        try:
+            assert(callback_result == [])
+            source.callback("signal1", callback)
+            source.send_signal("signal1")
+            source.send_signal("signal1")
+            source.remove_callback("signal1", callback)
+            source.send_signal("signal1")
+        finally:
+            loop.stop_loop()
+            thread.join()
 
-		m = WSignalProxy.ProxiedSignal(weakref.ref(s), 'signal1', 'foo')
-		assert(m.signal_source()() == s)
-		assert(m.signal_id() == 'signal1')
-		assert(m.payload() == 'foo')
-
-	def test(self):
-		p = WSignalProxy()
-		assert(isinstance(p, WSignalProxy) is True)
-		assert(isinstance(p, WSignalProxyProto) is True)
-
-		s1 = anonymous_source('signal1', 'signal2', 'signal3')
-		s2 = anonymous_source('signal1', 'signal2', 'signal3')
-
-		p.proxy(s1, 'signal1', 'signal3')
-		p.proxy(s2, 'signal2', weak_ref=True)
-
-		assert(p.has_next() is False)
-		pytest.raises(Exception, p.next)
-
-		s2.send_signal("signal1")
-		assert(p.has_next() is False)
-
-		s2.send_signal("signal2", 'zzz')
-		assert(p.has_next() is True)
-		n = p.next()
-		assert(isinstance(n, WSignalProxy.ProxiedSignal) is True)
-		assert(isinstance(n.signal_source(), weakref.ReferenceType) is True)
-		assert(n.signal_source()() == s2)
-		assert(n.signal_id() == 'signal2')
-		assert(n.payload() == 'zzz')
-
-		assert(p.wait(timeout=1) is False)
-
-		s1.send_signal("signal1")
-		assert(p.wait() is True)
-		assert(p.next().payload() is None)
-		assert(p.wait(timeout=1) is False)
-
-		s1.send_signal("signal3", 'zzz')
-		assert(p.wait() is True)
-		assert(p.next().payload() == 'zzz')
-
-		p.stop_proxying(s1, 'signal1')
-		assert(p.has_next() is False)
-		s1.send_signal('signal1', 1)
-		assert(p.has_next() is False)
-
-		pytest.raises(Exception, p.stop_proxying, s1, 'signal3', weak_ref=True)
-		s1.send_signal('signal3', 1)
-		assert(p.has_next() is True)
-		assert(p.next().payload() == 1)
-
-
-class TestWSignal:
-
-	def test(self):
-		signal_foo = WSignal()  # may have any payload
-		signal_bar = WSignal(payload_type_spec=int)  # payload must be int
-		signal_zzz = WSignal(payload_type_spec=(str, int, float, None))  # optional payload str, int, float
-		signal_www = WSignal(payload_type_spec=None)  # payload is not supported
-
-		source = anonymous_source(signal_foo, signal_bar, signal_zzz, signal_www)
-		foo_watcher = source.watch(signal_foo)
-		bar_watcher = source.watch(signal_bar)
-
-		assert(foo_watcher.has_next() is False)
-		assert(bar_watcher.has_next() is False)
-
-		signal_foo(source)
-		assert(foo_watcher.has_next() is True)
-		assert(foo_watcher.next() is None)
-		assert(bar_watcher.has_next() is False)
-
-		pytest.raises(TypeError, signal_bar, source)
-		pytest.raises(TypeError, signal_bar, source, '1')
-		pytest.raises(TypeError, signal_bar, source, 0.1)
-		signal_bar(source, 1)
-		assert(foo_watcher.has_next() is False)
-		assert(bar_watcher.has_next() is True)
-		assert(bar_watcher.next() is 1)
-
-		signal_zzz(source)
-		signal_zzz(source, 1)
-		signal_zzz(source, 0.1)
-		signal_zzz(source, '')
-		pytest.raises(TypeError, signal_zzz, source, object())
-
-		signal_foo(source, 1)
-		signal_foo(source, object())
-
-		pytest.raises(TypeError, signal_www, source, object())
-		signal_www(source)
+        assert(
+            callback_result == [
+                {"source": source, "signal": "signal1", "signal_arg": None},
+                {"source": source, "signal": "signal1", "signal_arg": None}
+            ]
+        )
