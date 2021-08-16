@@ -61,7 +61,7 @@ class WSocketAPIRegistry(WAPIRegistry):
 	the specified URI as a first argument
 	"""
 
-	@verify_type('paranoid', uri=(WURI, str))
+	@verify_type('strict', uri=(WURI, str))
 	def open(self, uri):
 		""" Return socket handler by a scheme name in URI
 
@@ -74,6 +74,22 @@ class WSocketAPIRegistry(WAPIRegistry):
 			uri = WURI.parse(uri)
 		create_handler_fn = WAPIRegistry.get(self, uri.scheme())
 		return create_handler_fn(uri)
+
+	@verify_type('paranoid', uri=(WURI, str))
+	def aio_socket(self, uri):
+		""" Create socket by uri from a socket handler and set it non-blocking mode
+
+		:param uri: URI by which socket should be returned
+		:type uri: WURI | str
+
+		:return: Created socket
+		:rtype: socket.socket
+		"""
+		socket_handler = self.open(uri)
+		sock = socket_handler.socket()
+		sock.setblocking(False)
+
+		return sock
 
 
 __default_socket_collection__ = WSocketAPIRegistry()
@@ -122,7 +138,7 @@ class WUDPSocketHandler(WSocketHandlerProto):
 		uri_query = uri.query()
 		if uri_query is not None:
 			socket_opts = WURIQuery.parse(uri_query)
-			if WUDPSocketHandler.QueryArg.multicast.value in socket_opts:
+			if WUDPSocketHandler.QueryArg.multicast in socket_opts:
 				multicast_address = socket.gethostbyname(address)
 				multicast_address = WIPV4Address(multicast_address)
 				if WNetworkIPV4.is_multicast(multicast_address) is False:
@@ -130,7 +146,7 @@ class WUDPSocketHandler(WSocketHandlerProto):
 						'The specified address: "%s" is not a multicast address' %
 						str(multicast_address)
 					)
-			elif WUDPSocketHandler.QueryArg.broadcast.value in socket_opts:
+			elif WUDPSocketHandler.QueryArg.broadcast in socket_opts:
 				broadcast_address = socket.gethostbyname(address)
 				broadcast_address = WIPV4Address(broadcast_address)
 
@@ -172,10 +188,17 @@ class WTCPSocketHandler(WSocketHandlerProto):
 	""" :class:`.WSocketHandlerProto` implementation with which TCP socket may be created
 	"""
 
+	@enum.unique
+	class QueryArg(WStrEnum):
+		""" Socket options
+		"""
+		reuse_addr = enum.auto()  # set up multicast socket
+
 	__uri_check__ = WURIRestriction(
 		WChainChecker(
-			WSupportedArgs(WURI.Component.scheme, WURI.Component.hostname, WURI.Component.port),
+			WSupportedArgs(WURI.Component.scheme, WURI.Component.hostname, WURI.Component.port, WURI.Component.query),
 			WArgsRequirements(WURI.Component.hostname, WURI.Component.port),
+			WURIQueryRestriction(WSupportedArgs(QueryArg.reuse_addr))
 		)
 	)  # URI compatibility check
 
@@ -190,6 +213,12 @@ class WTCPSocketHandler(WSocketHandlerProto):
 		WSocketHandlerProto.__init__(self)
 		self.__uri = uri
 		self.__socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+
+		uri_query = uri.query()
+		if uri_query is not None:
+			socket_opts = WURIQuery.parse(uri_query)
+			if WTCPSocketHandler.QueryArg.reuse_addr in socket_opts:
+				self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 	def uri(self):
 		""" :meth:`.WSocketHandlerProto.uri` implementation
