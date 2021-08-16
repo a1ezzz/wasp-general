@@ -186,7 +186,7 @@ class WByteSizeArgumentHelper(WFloatArgumentCastingHelper):
 	Since string may be used to define data rate this value may be a fraction.
 	"""
 
-	__data_size_re__ = re.compile('^(\\d+((\\.|,|)[\\d]*)?)((K|M|G|T|Ki|Mi|Gi|Ti|)B?)?$')
+	__data_size_re__ = re.compile(r'^(\d+((\.|,|)[\d]*)?)((K|M|G|T|Ki|Mi|Gi|Ti|)B?)?$')
 	""" Regular expression that is used for data size parsing
 	"""
 

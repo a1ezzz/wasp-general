@@ -124,7 +124,7 @@ class WCommandArgumentDescriptor:
 
 	class DataSizeArgumentHelper(ArgumentCastingHelper):
 
-		__write_rate_re__ = re.compile('^(\d+[.\d]*)([KMGT]?)$')
+		__write_rate_re__ = re.compile(r'^(\d+[.\d]*)([KMGT]?)$')
 
 		def __init__(self):
 			WCommandArgumentDescriptor.ArgumentCastingHelper.__init__(
