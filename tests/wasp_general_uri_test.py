@@ -220,7 +220,7 @@ class TestWStrictURIQuery:
 		assert(spec.re_obj() is None)
 
 		spec = WStrictURIQuery.ParameterSpecification(
-			'foo', nullable=False, multiple=False, optional=True, reg_exp='^\\d+$'
+			'foo', nullable=False, multiple=False, optional=True, reg_exp=r'^\d+$'
 		)
 		assert(spec.nullable() is False)
 		assert(spec.multiple() is False)
