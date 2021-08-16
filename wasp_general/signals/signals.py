@@ -26,8 +26,8 @@ from wasp_c_extensions.ev_loop import WEventLoop
 
 from wasp_general.verify import verify_type, verify_value
 
-from wasp_general.signals.proto import WSignalSourceProto, WSignalCallbackProto
-from wasp_general.signals.proto import WUnknownSignalException
+from wasp_general.api.signals.proto import WSignalSourceProto, WSignalCallbackProto
+from wasp_general.api.signals.proto import WUnknownSignalException
 
 
 class WSignalSource(WSignalSourceProto):

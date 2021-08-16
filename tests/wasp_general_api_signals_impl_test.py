@@ -6,8 +6,8 @@ import pytest
 
 from wasp_c_extensions.ev_loop import WEventLoop
 
-from wasp_general.signals.proto import WSignalSourceProto, WSignalCallbackProto, WUnknownSignalException
-from wasp_general.signals.signals import WSignalSource, WEventLoopSignalCallback
+from wasp_general.api.signals.proto import WSignalSourceProto, WSignalCallbackProto, WUnknownSignalException
+from wasp_general.api.signals.impl import WSignalSource, WEventLoopSignalCallback
 
 
 class TestWSignalSource:
