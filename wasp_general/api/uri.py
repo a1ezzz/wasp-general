@@ -26,6 +26,8 @@ from wasp_general.api.registry import register_api, WAPIRegistry
 
 from wasp_general.uri import WURI, WURIQuery
 
+# TODO: rename because of wasp_general.uri
+
 
 class WURIRestriction(WArgsValueRestriction):
 	""" This restriction splits URI into components from the selected arguments. And applies the specified
@@ -88,7 +90,7 @@ class WURIQueryRestriction(WArgsValueRestriction):
 		:type restrictions: WArgsRestrictionProto
 		"""
 		WArgsValueRestriction.__init__(
-			self, WURI.Component.query.value, args_selection=WArgsValueRestriction.ArgsSelection.none
+			self, WURI.Component.query, args_selection=WArgsValueRestriction.ArgsSelection.none
 		)
 		self.__restriction_chain = WChainChecker(*restrictions)
 
