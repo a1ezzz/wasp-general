@@ -210,7 +210,7 @@ class WAESMode:
 	""" Initialization counter size (in bytes)
 	"""
 
-	__mode_re__ = re.compile('AES(\-|_)(\\d+)(\-|_)(\\w+)')
+	__mode_re__ = re.compile(r'AES(\-|_)(\d+)(\-|_)(\w+)')
 	""" Regular expression for parsing cipher name
 	"""
 
