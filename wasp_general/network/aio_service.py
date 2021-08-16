@@ -89,22 +89,26 @@ class AIONetworkServiceProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
 
-@register_api(__default_network_services_collection__, 'udp')
-class WDatagramNetworkService(AIONetworkServiceProto):
-    """ Network service that runs over UDP in (obviously) datagram mode
+# noinspection PyAbstractClass
+class WBaseNetworkService(AIONetworkServiceProto):
+    """ This class helps to implement a real network service
+    """
+
+    __supported_protocol__ = asyncio.BaseProtocol
+    """ This is a protocol class, that derived classes (services) are awaiting for
     """
 
     @verify_type('strict', uri=WURI, aio_loop=(asyncio.AbstractEventLoop, None))
     @verify_type('strict', socket_collection=(WAPIRegistryProto, None))
-    @verify_subclass(protocol_cls=asyncio.DatagramProtocol)
+    @verify_subclass(protocol_cls=__supported_protocol__)
     def __init__(self, uri, protocol_cls, aio_loop=None, socket_collection=None):
-        """ Create a new network service
+        """ Create a basic network service
 
         :param uri: URI with which socket is opened and with which a related client or service is instantiated
         :type uri: WURI
 
         :param protocol_cls: protocol that do a real work
-        :type protocol_cls: asyncio.DatagramProtocol
+        :type protocol_cls: asyncio.BaseProtocol
 
         :param aio_loop: a loop with which network service will work (by default a current loop is used)
         :type aio_loop: asyncio.AbstractEventLoop | None
@@ -114,33 +118,67 @@ class WDatagramNetworkService(AIONetworkServiceProto):
         :type socket_collection: WAPIRegistryProto | None
         """
         AIONetworkServiceProto.__init__(self)
-        self.__uri = uri
-        self.__socket_collection = socket_collection if socket_collection else __default_socket_collection__
-        self.__protocol_cls = protocol_cls
-        self.__aio_loop = aio_loop
-        self.__transport = None
+        self._uri = uri
+        self._socket_collection = socket_collection if socket_collection else __default_socket_collection__
+        self._protocol_cls = protocol_cls
+        self._aio_loop = aio_loop if aio_loop else asyncio.get_event_loop()
+        self._transport = None
+
+
+@register_api(__default_network_services_collection__, 'udp')
+class WUDPNetworkService(WBaseNetworkService):
+    """ Network service that runs over UDP in (obviously) datagram mode
+    """
+
+    __supported_protocol__ = asyncio.DatagramProtocol
+    """ This service require datagram protocol
+    """
 
     async def start(self):
         """ :meth:`.AIONetworkServiceProto.start` implementation
-
         :rtype: None
         """
-        if self.__transport:
+        if self._transport:
             raise RuntimeError('Unable to run service twice!')
 
-        socket_handler = self.__socket_collection.open(self.__uri)
-        sock = socket_handler.socket()
-        sock.bind((self.__uri.hostname(), self.__uri.port()))
-        sock.setblocking(False)
-
-        loop = self.__aio_loop if self.__aio_loop else asyncio.get_event_loop()
-        self.__transport, _ = await loop.create_datagram_endpoint(self.__protocol_cls, sock=sock)
+        sock = self._socket_collection.aio_socket(self._uri)
+        sock.bind((self._uri.hostname(), self._uri.port()))
+        self._transport, _ = await self._aio_loop.create_datagram_endpoint(self._protocol_cls, sock=sock)
 
     async def stop(self):
         """ :meth:`.AIONetworkServiceProto.stop` implementation
-
         :rtype: None
         """
-        if self.__transport:
-            self.__transport.close()  # TODO: more graceful shutdown
-            self.__transport = None
+        if self._transport:
+            self._transport.close()  # TODO: more graceful shutdown
+            self._transport = None
+
+
+@register_api(__default_network_services_collection__, 'tcp')
+class WTCPNetworkService(WBaseNetworkService):
+
+    __supported_protocol__ = asyncio.Protocol
+    """ This service require stream protocol
+    """
+
+    async def start(self):
+        """ :meth:`.AIONetworkServiceProto.start` implementation
+        :rtype: None
+        """
+        if self._transport:
+            raise RuntimeError('Unable to run service twice!')
+
+        sock = self._socket_collection.aio_socket(self._uri)
+        sock.bind((self._uri.hostname(), self._uri.port()))
+
+        self._transport = await self._aio_loop.create_server(self._protocol_cls, sock=sock)
+        await self._transport.start_serving()
+
+    async def stop(self):
+        """ :meth:`.AIONetworkServiceProto.stop` implementation
+        :rtype: None
+        """
+        if self._transport:
+            self._transport.close()  # TODO: more graceful shutdown
+            await self._transport.wait_closed()
+            self._transport = None
