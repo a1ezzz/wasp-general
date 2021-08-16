@@ -149,8 +149,20 @@ def test_default_collection():
 	h = __default_socket_collection__.open(WURI.parse('udp://127.0.0.1:3333'))
 	assert(isinstance(h, WUDPSocketHandler) is True)
 
+	s = __default_socket_collection__.aio_socket('udp://127.0.0.1:3333')
+	assert(isinstance(s, socket.socket) is True)
+	assert(s.getblocking() is False)
+
 	h = __default_socket_collection__.open(WURI.parse('tcp://127.0.0.1:3333'))
 	assert(isinstance(h, WTCPSocketHandler) is True)
 
+	s = __default_socket_collection__.aio_socket('tcp://127.0.0.1:3333')
+	assert(isinstance(s, socket.socket) is True)
+	assert(s.getblocking() is False)
+
 	h = __default_socket_collection__.open(WURI.parse('unix:///'))
 	assert(isinstance(h, WUnixSocketHandler) is True)
+
+	s = __default_socket_collection__.aio_socket('unix:///')
+	assert(isinstance(s, socket.socket) is True)
+	assert(s.getblocking() is False)
