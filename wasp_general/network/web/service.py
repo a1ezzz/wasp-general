@@ -127,7 +127,7 @@ class WWebRoute:
 
 	class BasicArgSearch(ArgSearch):
 		""" This is a simple route argument search, that is looking for simple pattern "{<argument_name>}".
-		In the prepared patter this argument specification will be replaced with "(\w+)" statement
+		In the prepared patter this argument specification will be replaced with r'(\w+)' statement
 		"""
 
 		arg_re = re.compile(wasp_route_arg_name_selection)
@@ -160,7 +160,7 @@ class WWebRoute:
 	class CustomArgSearch(ArgSearch):
 		""" This is more complex argument search than :class:`.WWebRoute.BasicArgSearch`. This class provides
 		an ability to control target argument regular expression. Instead of using simple regexp like
-		:class:`.WWebRoute.BasicArgSearch` does (:class:`.WWebRoute.BasicArgSearch` uses '(\w+)'), this class
+		:class:`.WWebRoute.BasicArgSearch` does (:class:`.WWebRoute.BasicArgSearch` uses r'(\w+)'), this class
 		will search for a special statements that describe and argument name and corresponding regexp.
 		Statements obey the following format "{<argument_name>:"<regular_expression>"}".
 		"""
@@ -216,15 +216,15 @@ class WWebRoute:
 	""" Regexp for removing extra slashes
 	"""
 
-	pattern_parentheses_removing_re = re.compile('(\([^()]*\([^()]*\)[^()]*\))')
+	pattern_parentheses_removing_re = re.compile(r'(\([^()]*\([^()]*\)[^()]*\))')
 	""" Regexp for removing internal parentheses
 	"""
 
-	pattern_parentheses_removing_nested_re = re.compile('(\([^()]*\([^()]*\)[^()]*\([^()]*\)[^()]*\))')
+	pattern_parentheses_removing_nested_re = re.compile(r'(\([^()]*\([^()]*\)[^()]*\([^()]*\)[^()]*\))')
 	""" Regexp for removing internal nested parentheses
 	"""
 
-	pattern_recombination_re = re.compile('(\([^()]*\))')
+	pattern_recombination_re = re.compile(r'(\([^()]*\))')
 	""" Regexp for source argument compilation
 	"""
 
@@ -274,7 +274,7 @@ class WWebRoute:
 		for arg_search in WWebRoute.CustomArgSearch.custom(pattern):
 			route_args.extend(arg_search.args())
 			reduce_fn.append(arg_search.reduce_pattern())
-		# process customized arguments like {param1: "(\d+)"}
+		# process customized arguments like {param1: r'(\d+)'}
 
 		route_args.sort(key=lambda x: x[1])
 		self.route_args = [x[0] for x in route_args]
@@ -496,7 +496,7 @@ class WWebRouteMap(WWebRouteMapProto):
 	""" Regexp for text parsing and custom routes importing
 	"""
 	import_route_arg_re = re.compile(
-		'^\s*(' + wasp_route_arg_name + ')(\s*=\s*(' + wasp_route_arg_value_selection + '))?\s*$'
+		r'^\s*(' + wasp_route_arg_name + r')(\s*=\s*(' + wasp_route_arg_value_selection + r'))?\s*$'
 	)
 	""" Regexp for attribute parsing of imported text
 	"""
