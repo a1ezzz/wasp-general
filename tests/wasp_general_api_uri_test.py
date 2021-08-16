@@ -21,7 +21,7 @@ class TestWURIRestriction:
 		uri_restriction.check(uri=uri)
 
 		uri_restriction = WURIRestriction(
-			WArgsRequirements(WURI.Component.hostname.value),
+			WArgsRequirements(WURI.Component.hostname),
 			'uri'
 		)
 		uri_restriction.check()
