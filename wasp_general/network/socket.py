@@ -25,9 +25,8 @@ import struct
 import enum
 
 from wasp_general.verify import verify_type, verify_value
-
 from wasp_general.uri import WURI, WURIQuery
-
+from wasp_general.types.str_enum import WStrEnum
 from wasp_general.network.primitives import WIPV4Address, WNetworkIPV4
 
 from wasp_general.api.registry import WAPIRegistry, register_api
@@ -87,33 +86,21 @@ class WUDPSocketHandler(WSocketHandlerProto):
 	"""
 
 	@enum.unique
-	class QueryArg(enum.Enum):
+	class QueryArg(WStrEnum):
 		""" Socket options
 		"""
-		multicast = 'multicast'  # set up multicast socket
-		broadcast = 'broadcast'  # set up broadcast socket
+		multicast = enum.auto()  # set up multicast socket
+		broadcast = enum.auto()  # set up broadcast socket
 
 	__uri_check__ = WURIRestriction(
 		WChainChecker(
 			WSupportedArgs(
-				WURI.Component.scheme.value,
-				WURI.Component.hostname.value,
-				WURI.Component.port.value,
-				WURI.Component.query.value
+				WURI.Component.scheme,	WURI.Component.hostname, WURI.Component.port, WURI.Component.query
 			),
-			WArgsRequirements(
-				WURI.Component.hostname.value,
-				WURI.Component.port.value
-			),
+			WArgsRequirements(WURI.Component.hostname, WURI.Component.port),
 			WURIQueryRestriction(
-				WSupportedArgs(
-					QueryArg.multicast.value,
-					QueryArg.broadcast.value
-				),
-				WConflictedArgs(
-					QueryArg.multicast.value,
-					QueryArg.broadcast.value
-				)
+				WSupportedArgs(QueryArg.multicast, QueryArg.broadcast),
+				WConflictedArgs(QueryArg.multicast, QueryArg.broadcast)
 			)
 		)
 	)  # URI compatibility check
@@ -170,7 +157,7 @@ class WUDPSocketHandler(WSocketHandlerProto):
 		return self.__socket
 
 	@staticmethod
-	@register_api(__default_socket_collection__, 'udp')
+	@register_api(__default_socket_collection__, 'udp')  # TODO: may be move to __init__?
 	@verify_type('strict', uri=WURI)
 	def create_handler(uri):
 		""" Function that is registered in a default registry
@@ -187,15 +174,8 @@ class WTCPSocketHandler(WSocketHandlerProto):
 
 	__uri_check__ = WURIRestriction(
 		WChainChecker(
-			WSupportedArgs(
-				WURI.Component.scheme.value,
-				WURI.Component.hostname.value,
-				WURI.Component.port.value
-			),
-			WArgsRequirements(
-				WURI.Component.hostname.value,
-				WURI.Component.port.value
-			),
+			WSupportedArgs(WURI.Component.scheme, WURI.Component.hostname, WURI.Component.port),
+			WArgsRequirements(WURI.Component.hostname, WURI.Component.port),
 		)
 	)  # URI compatibility check
 
@@ -242,10 +222,10 @@ class WUnixSocketHandler(WSocketHandlerProto):
 	"""
 
 	@enum.unique
-	class QueryArg(enum.Enum):
+	class QueryArg(WStrEnum):
 		""" Socket options
 		"""
-		type = 'type'
+		type = enum.auto()
 		""" This option defines the way socket will work. With "stream" value (this is a default value) target
 		socket will be created with SOCK_STREAM type (and listen/bind/connect/accept socket's methods will
 		be used). As the opposite variant datagram mode may be used. In this mode socket with SOCK_DGRAM type
@@ -254,19 +234,11 @@ class WUnixSocketHandler(WSocketHandlerProto):
 
 	__uri_check__ = WURIRestriction(
 		WChainChecker(
-			WSupportedArgs(
-				WURI.Component.scheme.value,
-				WURI.Component.path.value,
-				WURI.Component.query.value
-			),
-			WArgsRequirements(
-				WURI.Component.path.value
-			),
+			WSupportedArgs(WURI.Component.scheme, WURI.Component.path, WURI.Component.query),
+			WArgsRequirements(WURI.Component.path),
 			WURIQueryRestriction(
-				WSupportedArgs(QueryArg.type.value),
-				WIterValueRestriction(
-					WArgsValueRegExp('stream|datagram', QueryArg.type.value), max_length=1
-				)
+				WSupportedArgs(QueryArg.type),
+				WIterValueRestriction(WArgsValueRegExp('stream|datagram', QueryArg.type), max_length=1)
 			),
 		)
 	)  # URI compatibility check
