@@ -26,6 +26,7 @@ from enum import Enum
 from urllib.parse import urlsplit, urlunsplit, parse_qs, urlencode
 from abc import ABCMeta, abstractmethod
 
+from wasp_general.types.str_enum import WStrEnum
 from wasp_general.verify import verify_type, verify_subclass
 
 
@@ -34,17 +35,20 @@ class WURI:
 	Class that represent URI as it is described in RFC 3986
 	"""
 
-	class Component(Enum):
+	@enum.unique
+	class Component(WStrEnum):
 		""" Parts/components names that URI is consists of
 		"""
-		scheme = 'scheme'
-		username = 'username'
-		password = 'password'
-		hostname = 'hostname'
-		port = 'port'
-		path = 'path'
-		query = 'query'
-		fragment = 'fragment'
+		scheme = enum.auto()
+		username = enum.auto()
+		password = enum.auto()
+		hostname = enum.auto()
+		port = enum.auto()
+		path = enum.auto()
+		query = enum.auto()
+		fragment = enum.auto()
+
+	__all_components__ = {str(x) for x in Component}
 
 	def __init__(self, **components):
 		""" Create new WURI object. By default empty URI is created
