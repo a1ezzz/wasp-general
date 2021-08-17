@@ -260,8 +260,8 @@ class WUnixSocketHandler(WSocketHandlerProto):
 		if uri_query is not None:
 			socket_opts = WURIQuery.parse(uri_query)
 
-			if 'type' in socket_opts:
-				if 'datagram' in socket_opts['type']:
+			if WUnixSocketHandler.QueryArg.type in socket_opts:
+				if 'datagram' in socket_opts[WUnixSocketHandler.QueryArg.type]:
 					socket_type = socket.SOCK_DGRAM
 
 		self.__socket = socket.socket(family=socket.AF_UNIX, type=socket_type)
