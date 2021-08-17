@@ -24,8 +24,8 @@ import asyncio
 
 from wasp_general.verify import verify_type, verify_subclass
 from wasp_general.api.registry import WAPIRegistry, WAPIRegistryProto, register_api
-from wasp_general.uri import WURI
-from wasp_general.network.socket import __default_socket_collection__
+from wasp_general.uri import WURI, WURIQuery
+from wasp_general.network.socket import __default_socket_collection__, WUnixSocketHandler
 
 
 class WAIONetworkClientAPIRegistry(WAPIRegistry):
@@ -89,9 +89,7 @@ class AIONetworkClientProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
 
-class WDatagramProtocol(asyncio.DatagramProtocol, metaclass=ABCMeta):
-    """ Prototype for a protocol that is used along with UDP
-    """
+class WGeneralClientProtocol(metaclass=ABCMeta):
 
     @abstractmethod
     async def session_complete(self):
@@ -103,18 +101,18 @@ class WDatagramProtocol(asyncio.DatagramProtocol, metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
 
-class WStreamProtocol(asyncio.Protocol, metaclass=ABCMeta):
-    """ Prototype for a protocol that is used along with TCP
+# noinspection PyAbstractClass
+class WDatagramProtocol(asyncio.DatagramProtocol, WGeneralClientProtocol):
+    """ Prototype for a protocol that is used along with UDP and UNIX-sockets
     """
+    pass
 
-    @abstractmethod
-    async def session_complete(self):
-        """ This coroutine is completed when job is done and connection should be terminated
 
-        :return: Connection result (will be returned via AIONetworkClientProto.connect)
-        :rtype: any
-        """
-        raise NotImplementedError('This method is abstract')
+# noinspection PyAbstractClass
+class WStreamProtocol(asyncio.Protocol, WGeneralClientProtocol):
+    """ Prototype for a protocol that is used along with TCP and UNIX-sockets
+    """
+    pass
 
 
 # noinspection PyAbstractClass
@@ -179,7 +177,6 @@ class WUDPNetworkClient(WBaseNetworkClient):
 
         result = await protocol.session_complete()
         transport.close()
-        sock.close()
         return result
 
 
@@ -193,7 +190,7 @@ class WTCPNetworkClient(WBaseNetworkClient):
     """
 
     async def connect(self):
-        """ :meth:`.WDatagramProtocol.connect` implementation
+        """ :meth:`.WStreamProtocol.connect` implementation
         :rtype: any
         """
         sock = self._socket_collection.aio_socket(self._uri)
@@ -205,5 +202,72 @@ class WTCPNetworkClient(WBaseNetworkClient):
 
         result = await protocol.session_complete()
         transport.close()
+        return result
+
+
+@register_api(__default_network_client_collection__, 'unix')
+@verify_type('paranoid', uri=WURI, aio_loop=(asyncio.AbstractEventLoop, None))
+@verify_type('paranoid', socket_collection=(WAPIRegistryProto, None))
+@verify_subclass('paranoid', protocol_cls=asyncio.BaseProtocol)
+def unix_network_client(uri, protocol_cls, bind_uri=None, aio_loop=None, socket_collection=None):
+    """ Return a network client connected to a UNIX-socket specified by an URI (bind_uri argument is obviously ignored)
+
+    :rtype: WStreamedUnixNetworkClient | WDatagramUnixNetworkClient
+    """
+    uri_query = uri.query()
+    if uri_query is not None:
+        socket_opts = WURIQuery.parse(uri_query)
+        if WUnixSocketHandler.QueryArg.type in socket_opts:
+            if 'datagram' in socket_opts[WUnixSocketHandler.QueryArg.type]:
+                return WDatagramUnixNetworkClient(
+                    uri, protocol_cls, bind_uri=None, aio_loop=aio_loop, socket_collection=socket_collection
+                )
+
+    return WStreamedUnixNetworkClient(
+        uri, protocol_cls, bind_uri=None, aio_loop=aio_loop, socket_collection=socket_collection
+    )
+
+
+class WStreamedUnixNetworkClient(WBaseNetworkClient):
+    """ Network client that runs over UNIX-sockets stream mode
+    """
+
+    __supported_protocol__ = WStreamProtocol
+    """ This service require stream protocol
+    """
+
+    async def connect(self):
+        """ :meth:`.WStreamProtocol.connect` implementation
+        :rtype: any
+        """
+        sock = self._socket_collection.aio_socket(self._uri)
+        await self._aio_loop.sock_connect(sock, self._uri.path())
+
+        transport, protocol = await self._aio_loop.create_connection(self._protocol_cls, sock=sock)
+
+        result = await protocol.session_complete()
+        transport.close()
         sock.close()
+        return result
+
+
+class WDatagramUnixNetworkClient(WBaseNetworkClient):
+    """ Network client that runs over UNIX-sockets in datagram mode
+    """
+
+    __supported_protocol__ = WDatagramProtocol
+    """ This service require stream protocol
+    """
+
+    async def connect(self):
+        """ :meth:`.WDatagramProtocol.connect` implementation
+        :rtype: any
+        """
+        sock = self._socket_collection.aio_socket(self._uri)
+        await self._aio_loop.sock_connect(sock, self._uri.path())
+
+        transport, protocol = await self._aio_loop.create_datagram_endpoint(self._protocol_cls, sock=sock)
+
+        result = await protocol.session_complete()
+        transport.close()
         return result

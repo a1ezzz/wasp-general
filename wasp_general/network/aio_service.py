@@ -24,8 +24,8 @@ import asyncio
 
 from wasp_general.verify import verify_type, verify_subclass
 from wasp_general.api.registry import WAPIRegistryProto, register_api, WAPIRegistry
-from wasp_general.uri import WURI
-from wasp_general.network.socket import __default_socket_collection__
+from wasp_general.uri import WURI, WURIQuery
+from wasp_general.network.socket import __default_socket_collection__, WUnixSocketHandler
 
 
 class WAIONetworkServiceAPIRegistry(WAPIRegistry):
@@ -156,6 +156,8 @@ class WUDPNetworkService(WBaseNetworkService):
 
 @register_api(__default_network_services_collection__, 'tcp')
 class WTCPNetworkService(WBaseNetworkService):
+    """ Network service that runs over TCP in (obviously) datagram mode
+    """
 
     __supported_protocol__ = asyncio.Protocol
     """ This service require stream protocol
@@ -181,4 +183,85 @@ class WTCPNetworkService(WBaseNetworkService):
         if self._transport:
             self._transport.close()  # TODO: more graceful shutdown
             await self._transport.wait_closed()
+            self._transport = None
+
+
+@register_api(__default_network_services_collection__, 'unix')
+@verify_type('paranoid', uri=WURI, aio_loop=(asyncio.AbstractEventLoop, None))
+@verify_type('paranoid', socket_collection=(WAPIRegistryProto, None))
+@verify_subclass('paranoid', protocol_cls=asyncio.BaseProtocol)
+def unix_network_service(uri, protocol_cls, aio_loop=None, socket_collection=None):
+    """ Return a network service connected to a UNIX-socket specified by an URI
+
+    :rtype: WStreamedUnixNetworkService | WDatagramUnixNetworkService
+    """
+    uri_query = uri.query()
+    if uri_query is not None:
+        socket_opts = WURIQuery.parse(uri_query)
+        if WUnixSocketHandler.QueryArg.type in socket_opts:
+            if 'datagram' in socket_opts[WUnixSocketHandler.QueryArg.type]:
+                return WDatagramUnixNetworkService(
+                    uri, protocol_cls, aio_loop=aio_loop, socket_collection=socket_collection
+                )
+
+    return WStreamedUnixNetworkService(uri, protocol_cls, aio_loop=aio_loop, socket_collection=socket_collection)
+
+
+class WStreamedUnixNetworkService(WBaseNetworkService):
+    """ Network service that runs over UNIX-sockets in stream mode
+    """
+
+    __supported_protocol__ = asyncio.Protocol
+    """ This service require stream protocol
+    """
+
+    async def start(self):
+        """ :meth:`.AIONetworkServiceProto.start` implementation
+        :rtype: None
+        """
+        if self._transport:
+            raise RuntimeError('Unable to run service twice!')
+
+        sock = self._socket_collection.aio_socket(self._uri)
+        sock.bind(self._uri.path())
+
+        self._transport = await self._aio_loop.create_unix_server(self._protocol_cls, sock=sock)
+        await self._transport.start_serving()
+
+    async def stop(self):
+        """ :meth:`.AIONetworkServiceProto.stop` implementation
+        :rtype: None
+        """
+        if self._transport:
+            self._transport.close()  # TODO: more graceful shutdown
+            await self._transport.wait_closed()
+            self._transport = None
+
+
+class WDatagramUnixNetworkService(WBaseNetworkService):
+    """ Network service that runs over UNIX-sockets in datagram mode
+    """
+
+    __supported_protocol__ = asyncio.DatagramProtocol
+    """ This service require stream protocol
+    """
+
+    async def start(self):
+        """ :meth:`.AIONetworkServiceProto.start` implementation
+        :rtype: None
+        """
+        if self._transport:
+            raise RuntimeError('Unable to run service twice!')
+
+        sock = self._socket_collection.aio_socket(self._uri)
+        sock.bind(self._uri.path())
+
+        self._transport, _ = await self._aio_loop.create_datagram_endpoint(self._protocol_cls, sock=sock)
+
+    async def stop(self):
+        """ :meth:`.AIONetworkServiceProto.stop` implementation
+        :rtype: None
+        """
+        if self._transport:
+            self._transport.close()  # TODO: more graceful shutdown
             self._transport = None

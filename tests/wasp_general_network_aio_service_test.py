@@ -7,6 +7,7 @@ from wasp_general.uri import WURI
 from wasp_general.api.registry import WAPIRegistryProto
 from wasp_general.network.aio_service import WAIONetworkServiceAPIRegistry, __default_network_services_collection__
 from wasp_general.network.aio_service import AIONetworkServiceProto, WUDPNetworkService, WTCPNetworkService
+from wasp_general.network.aio_service import WStreamedUnixNetworkService, WDatagramUnixNetworkService
 
 
 class TestWAIONetworkAPIRegistry:
@@ -39,21 +40,24 @@ async def test_abstract():
         await AIONetworkServiceProto.stop(None)
 
 
+class PyTestServer(asyncio.Protocol, asyncio.DatagramProtocol):
+
+    def data_received(self, data):
+        PyTestServer.__result__.set_result(data)
+
+    def datagram_received(self, data, addr):
+        PyTestServer.__result__.set_result(data)
+
+    __result__ = None
+
+
 class TestWUDPNetworkService:
 
-    class UDPServer(asyncio.DatagramProtocol):
-
-        def datagram_received(self, data, addr):
-            TestWUDPNetworkService.__udp_server_received__.set_result(data)
-
     __udp_uri__ = WURI.parse('udp://127.0.0.1:30000')
-    __udp_server_received__ = None
 
     @pytest.mark.asyncio
     async def test(self):
-        ns = __default_network_services_collection__.network_handler(
-            TestWUDPNetworkService.__udp_uri__, TestWUDPNetworkService.UDPServer
-        )
+        ns = __default_network_services_collection__.network_handler(TestWUDPNetworkService.__udp_uri__, PyTestServer)
         assert(isinstance(ns, AIONetworkServiceProto))
         assert(isinstance(ns, WUDPNetworkService))
         await ns.start()
@@ -65,11 +69,8 @@ class TestWUDPNetworkService:
     def test_network(self, event_loop):
         test_message = b'test udp message'
 
-        TestWUDPNetworkService.__udp_server_received__ = event_loop.create_future()
-
-        ns = __default_network_services_collection__.network_handler(
-            TestWUDPNetworkService.__udp_uri__, TestWUDPNetworkService.UDPServer
-        )
+        PyTestServer.__result__ = event_loop.create_future()
+        ns = __default_network_services_collection__.network_handler(TestWUDPNetworkService.__udp_uri__, PyTestServer)
         event_loop.run_until_complete(ns.start())
 
         client_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -79,26 +80,18 @@ class TestWUDPNetworkService:
             (TestWUDPNetworkService.__udp_uri__.hostname(), TestWUDPNetworkService.__udp_uri__.port())
         )
 
-        event_loop.run_until_complete(TestWUDPNetworkService.__udp_server_received__)
-        assert(TestWUDPNetworkService.__udp_server_received__.result() == test_message)
+        result = event_loop.run_until_complete(PyTestServer.__result__)
+        assert(result == test_message)
         event_loop.run_until_complete(ns.stop())
 
 
 class TestWTCPNetworkService:
 
-    class TCPServer(asyncio.Protocol):
-
-        def data_received(self, data):
-            TestWTCPNetworkService.__tcp_server_received__.set_result(data)
-
     __tcp_uri__ = WURI.parse('tcp://127.0.0.1:30000?reuse_addr=')
-    __tcp_server_received__ = None
 
     @pytest.mark.asyncio
     async def test(self):
-        ns = __default_network_services_collection__.network_handler(
-            TestWTCPNetworkService.__tcp_uri__, TestWTCPNetworkService.TCPServer
-        )
+        ns = __default_network_services_collection__.network_handler(TestWTCPNetworkService.__tcp_uri__, PyTestServer)
         assert(isinstance(ns, AIONetworkServiceProto))
         assert(isinstance(ns, WTCPNetworkService))
         await ns.start()
@@ -109,11 +102,9 @@ class TestWTCPNetworkService:
 
     def test_network(self, event_loop):
         test_message = b'test tcp message'
-        TestWTCPNetworkService.__tcp_server_received__ = event_loop.create_future()
+        PyTestServer.__result__ = event_loop.create_future()
 
-        ns = __default_network_services_collection__.network_handler(
-            TestWTCPNetworkService.__tcp_uri__, TestWTCPNetworkService.TCPServer
-        )
+        ns = __default_network_services_collection__.network_handler(TestWTCPNetworkService.__tcp_uri__, PyTestServer)
         event_loop.run_until_complete(ns.start())
 
         client_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
@@ -127,8 +118,81 @@ class TestWTCPNetworkService:
 
             await event_loop.sock_sendall(client_socket, test_message)
 
-        event_loop.run_until_complete(
-            asyncio.gather(tcp_client(), TestWTCPNetworkService.__tcp_server_received__)
+        _, result = event_loop.run_until_complete(asyncio.gather(tcp_client(), PyTestServer.__result__))
+        assert(result == test_message)
+        event_loop.run_until_complete(ns.stop())
+
+
+class TestWStreamedUnixNetworkService:
+
+    @pytest.mark.asyncio
+    async def test(self, temp_dir):
+        unix_socket_path = f'{temp_dir}/aio_test.socket'
+        unix_uri = WURI.parse(f'unix://{unix_socket_path}')
+
+        ns = __default_network_services_collection__.network_handler(unix_uri, PyTestServer)
+        assert(isinstance(ns, AIONetworkServiceProto))
+        assert(isinstance(ns, WStreamedUnixNetworkService))
+        await ns.start()
+
+        with pytest.raises(RuntimeError):
+            await ns.start()
+        await ns.stop()
+
+    def test_network(self, temp_dir, event_loop):
+        unix_socket_path = f'{temp_dir}/aio_test.socket'
+        unix_uri = WURI.parse(f'unix://{unix_socket_path}')
+        test_message = b'test unix message'
+
+        PyTestServer.__result__ = event_loop.create_future()
+        ns = __default_network_services_collection__.network_handler(unix_uri, PyTestServer)
+        event_loop.run_until_complete(ns.start())
+
+        client_socket = socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM)
+        client_socket.setblocking(False)
+
+        async def unix_client():
+            await event_loop.sock_connect(client_socket, unix_socket_path)
+            await event_loop.sock_sendall(client_socket, test_message)
+
+        _, result = event_loop.run_until_complete(
+            asyncio.gather(unix_client(), PyTestServer.__result__)
         )
-        assert(TestWTCPNetworkService.__tcp_server_received__.result() == test_message)
+        assert(result == test_message)
+        event_loop.run_until_complete(ns.stop())
+
+
+class TestWDatagramUnixNetworkService:
+
+    __udp_uri__ = WURI.parse('udp://127.0.0.1:30000')
+
+    @pytest.mark.asyncio
+    async def test(self, temp_dir):
+        unix_socket_path = f'{temp_dir}/aio_test.socket?type=datagram'
+        unix_uri = WURI.parse(f'unix://{unix_socket_path}')
+
+        ns = __default_network_services_collection__.network_handler(unix_uri, PyTestServer)
+        assert(isinstance(ns, AIONetworkServiceProto))
+        assert(isinstance(ns, WDatagramUnixNetworkService))
+        await ns.start()
+
+        with pytest.raises(RuntimeError):
+            await ns.start()
+        await ns.stop()
+
+    def test_network(self, temp_dir, event_loop):
+        unix_socket_path = f'{temp_dir}/aio_test.socket'
+        unix_uri = WURI.parse(f'unix://{unix_socket_path}?type=datagram')
+        test_message = b'test unix message'
+
+        PyTestServer.__result__ = event_loop.create_future()
+        ns = __default_network_services_collection__.network_handler(unix_uri, PyTestServer)
+        event_loop.run_until_complete(ns.start())
+
+        client_socket = socket.socket(family=socket.AF_UNIX, type=socket.SOCK_DGRAM)
+        client_socket.setblocking(False)
+        client_socket.sendto(test_message, unix_socket_path)
+
+        result = event_loop.run_until_complete(PyTestServer.__result__)
+        assert(result == test_message)
         event_loop.run_until_complete(ns.stop())
