@@ -56,7 +56,7 @@ class WAIONetworkClientAPIRegistry(WAPIRegistry):
         "wasp_general.network.socket.__default_socket_collection__" collection is used)
         :type socket_collection: WAPIRegistryProto | None
 
-        :rtype: WAIONetworkClientProto
+        :rtype: AIONetworkClientProto
         """
         if isinstance(uri, str):
             uri = WURI.parse(uri)
@@ -76,8 +76,12 @@ __default_network_client_collection__ = WAIONetworkClientAPIRegistry()
 """
 
 
-class WAIONetworkClientProto(metaclass=ABCMeta):
+class AIONetworkClientProto(metaclass=ABCMeta):
     """ Prototype for a custom network client
+    """
+
+    __supported_protocol__ = asyncio.BaseProtocol
+    """ This is a protocol class, that derived classes (services) are awaiting for
     """
 
     @abstractmethod
@@ -91,7 +95,7 @@ class WAIONetworkClientProto(metaclass=ABCMeta):
 
 
 # noinspection PyAbstractClass
-class WBaseNetworkClient(WAIONetworkClientProto):
+class WBaseNetworkClient(AIONetworkClientProto):
     """ This class helps to implement a real network client
     """
 
@@ -101,7 +105,6 @@ class WBaseNetworkClient(WAIONetworkClientProto):
 
     @verify_type('strict', uri=WURI, bind_uri=(WURI, None), aio_loop=(asyncio.AbstractEventLoop, None))
     @verify_type('strict', socket_collection=(WAPIRegistryProto, None))
-    @verify_subclass(protocol_cls=__supported_protocol__)
     def __init__(self, uri, protocol_cls, bind_uri=None, aio_loop=None, socket_collection=None):
         """ Create a new network client
 
@@ -121,7 +124,14 @@ class WBaseNetworkClient(WAIONetworkClientProto):
         "wasp_general.network.socket.__default_socket_collection__" collection is used)
         :type socket_collection: WAPIRegistryProto | None
         """
-        WAIONetworkClientProto.__init__(self)
+        AIONetworkClientProto.__init__(self)
+
+        if issubclass(protocol_cls, self.__supported_protocol__) is False:
+            raise TypeError(
+                'Unsupported protocol spotted "%s" (use "%s" instead)' %
+                (protocol_cls.__name__, self.__supported_protocol__.__name__)
+            )
+
         self._uri = uri
         self._protocol_cls = protocol_cls
         self._bind_uri = bind_uri
