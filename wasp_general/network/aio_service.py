@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # wasp_general/network/aio_service.py
 #
-# Copyright (C) 2021 the wasp-general authors and contributors
+# Copyright (C) 2021, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
