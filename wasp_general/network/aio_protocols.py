@@ -19,13 +19,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-from abc import ABCMeta, abstractmethod
 import asyncio
 
 from wasp_general.verify import verify_type
 
 
-class WGeneralProtocol(asyncio.BaseProtocol, metaclass=ABCMeta):
+class WGeneralProtocol(asyncio.BaseProtocol):
     """ A basic protocol for aio_* transports
     """
 
@@ -92,16 +91,17 @@ class WClientProtocol(WGeneralProtocol):
         instead
         """
         WGeneralProtocol.__init__(self)
+        self._request_complete = None
         self._remote_address = None
 
-    @abstractmethod
     async def session_complete(self):
         """ This coroutine is completed when job is done and connection should be terminated
 
         :return: Connection result
         :rtype: any
         """
-        raise NotImplementedError('This method is abstract')
+        await self._request_complete
+        return self._request_complete.result()
 
     @verify_type('strict', remote_address=(tuple, str))
     @verify_type('paranoid', aio_loop=asyncio.AbstractEventLoop)
@@ -118,6 +118,7 @@ class WClientProtocol(WGeneralProtocol):
         :rtype: None
         """
         WGeneralProtocol._init_protocol(self, aio_loop)
+        self._request_complete = aio_loop.create_future()
         self._remote_address = remote_address
 
 
