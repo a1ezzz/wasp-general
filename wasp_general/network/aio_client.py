@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # wasp_general/network/aio_client.py
 #
-# Copyright (C) 2021 the wasp-general authors and contributors
+# Copyright (C) 2021, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -26,6 +26,7 @@ from wasp_general.verify import verify_type, verify_subclass
 from wasp_general.api.registry import WAPIRegistry, WAPIRegistryProto, register_api
 from wasp_general.uri import WURI, WURIQuery
 from wasp_general.network.socket import __default_socket_collection__, WUnixSocketHandler
+from wasp_general.network.aio_protocols import WClientDatagramProtocol, WClientStreamProtocol
 
 
 class WAIONetworkClientAPIRegistry(WAPIRegistry):
@@ -55,7 +56,7 @@ class WAIONetworkClientAPIRegistry(WAPIRegistry):
         "wasp_general.network.socket.__default_socket_collection__" collection is used)
         :type socket_collection: WAPIRegistryProto | None
 
-        :rtype: AIONetworkClientProto
+        :rtype: WAIONetworkClientProto
         """
         if isinstance(uri, str):
             uri = WURI.parse(uri)
@@ -75,7 +76,7 @@ __default_network_client_collection__ = WAIONetworkClientAPIRegistry()
 """
 
 
-class AIONetworkClientProto(metaclass=ABCMeta):
+class WAIONetworkClientProto(metaclass=ABCMeta):
     """ Prototype for a custom network client
     """
 
@@ -89,34 +90,8 @@ class AIONetworkClientProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
 
-class WGeneralClientProtocol(metaclass=ABCMeta):
-
-    @abstractmethod
-    async def session_complete(self):
-        """ This coroutine is completed when job is done and connection should be terminated
-
-        :return: Connection result (will be returned via AIONetworkClientProto.connect)
-        :rtype: any
-        """
-        raise NotImplementedError('This method is abstract')
-
-
 # noinspection PyAbstractClass
-class WDatagramProtocol(asyncio.DatagramProtocol, WGeneralClientProtocol):
-    """ Prototype for a protocol that is used along with UDP and UNIX-sockets
-    """
-    pass
-
-
-# noinspection PyAbstractClass
-class WStreamProtocol(asyncio.Protocol, WGeneralClientProtocol):
-    """ Prototype for a protocol that is used along with TCP and UNIX-sockets
-    """
-    pass
-
-
-# noinspection PyAbstractClass
-class WBaseNetworkClient(AIONetworkClientProto):
+class WBaseNetworkClient(WAIONetworkClientProto):
     """ This class helps to implement a real network client
     """
 
@@ -146,7 +121,7 @@ class WBaseNetworkClient(AIONetworkClientProto):
         "wasp_general.network.socket.__default_socket_collection__" collection is used)
         :type socket_collection: WAPIRegistryProto | None
         """
-        AIONetworkClientProto.__init__(self)
+        WAIONetworkClientProto.__init__(self)
         self._uri = uri
         self._protocol_cls = protocol_cls
         self._bind_uri = bind_uri
@@ -160,7 +135,7 @@ class WUDPNetworkClient(WBaseNetworkClient):
     """ Network client that runs over UDP in (obviously) datagram mode
     """
 
-    __supported_protocol__ = WDatagramProtocol
+    __supported_protocol__ = WClientDatagramProtocol
     """ This service require datagram protocol
     """
 
@@ -173,7 +148,10 @@ class WUDPNetworkClient(WBaseNetworkClient):
             sock.bind((self._bind_uri.hostname(), self._bind_uri.port()))
         await self._aio_loop.sock_connect(sock, (self._uri.hostname(), self._uri.port()))
 
-        transport, protocol = await self._aio_loop.create_datagram_endpoint(self._protocol_cls, sock=sock)
+        transport, protocol = await self._aio_loop.create_datagram_endpoint(
+            lambda: self._protocol_cls.protocol(self._aio_loop, sock.getpeername()),
+            sock=sock
+        )
 
         result = await protocol.session_complete()
         transport.close()
@@ -185,7 +163,7 @@ class WTCPNetworkClient(WBaseNetworkClient):
     """ Network client that runs over TCP in (obviously) stream mode
     """
 
-    __supported_protocol__ = WStreamProtocol
+    __supported_protocol__ = WClientStreamProtocol
     """ This service require stream protocol
     """
 
@@ -198,7 +176,10 @@ class WTCPNetworkClient(WBaseNetworkClient):
             sock.bind((self._bind_uri.hostname(), self._bind_uri.port()))
         await self._aio_loop.sock_connect(sock, (self._uri.hostname(), self._uri.port()))
 
-        transport, protocol = await self._aio_loop.create_connection(self._protocol_cls, sock=sock)
+        transport, protocol = await self._aio_loop.create_connection(
+            lambda: self._protocol_cls.protocol(self._aio_loop, sock.getpeername()),
+            sock=sock
+        )
 
         result = await protocol.session_complete()
         transport.close()
@@ -232,7 +213,7 @@ class WStreamedUnixNetworkClient(WBaseNetworkClient):
     """ Network client that runs over UNIX-sockets stream mode
     """
 
-    __supported_protocol__ = WStreamProtocol
+    __supported_protocol__ = WClientStreamProtocol
     """ This service require stream protocol
     """
 
@@ -243,7 +224,10 @@ class WStreamedUnixNetworkClient(WBaseNetworkClient):
         sock = self._socket_collection.aio_socket(self._uri)
         await self._aio_loop.sock_connect(sock, self._uri.path())
 
-        transport, protocol = await self._aio_loop.create_connection(self._protocol_cls, sock=sock)
+        transport, protocol = await self._aio_loop.create_connection(
+            lambda: self._protocol_cls.protocol(self._aio_loop, sock.getpeername()),
+            sock=sock
+        )
 
         result = await protocol.session_complete()
         transport.close()
@@ -255,7 +239,7 @@ class WDatagramUnixNetworkClient(WBaseNetworkClient):
     """ Network client that runs over UNIX-sockets in datagram mode
     """
 
-    __supported_protocol__ = WDatagramProtocol
+    __supported_protocol__ = WClientDatagramProtocol
     """ This service require stream protocol
     """
 
@@ -266,7 +250,10 @@ class WDatagramUnixNetworkClient(WBaseNetworkClient):
         sock = self._socket_collection.aio_socket(self._uri)
         await self._aio_loop.sock_connect(sock, self._uri.path())
 
-        transport, protocol = await self._aio_loop.create_datagram_endpoint(self._protocol_cls, sock=sock)
+        transport, protocol = await self._aio_loop.create_datagram_endpoint(
+            lambda: self._protocol_cls.protocol(self._aio_loop, sock.getpeername()),
+            sock=sock
+        )
 
         result = await protocol.session_complete()
         transport.close()

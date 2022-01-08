@@ -5,8 +5,9 @@ import socket
 
 from wasp_general.api.registry import WAPIRegistryProto
 from wasp_general.uri import WURI
-from wasp_general.network.aio_client import WAIONetworkClientAPIRegistry, AIONetworkClientProto, WGeneralClientProtocol
-from wasp_general.network.aio_client import WDatagramProtocol, WStreamProtocol, WUDPNetworkClient, WTCPNetworkClient
+from wasp_general.network.aio_protocols import WClientDatagramProtocol, WClientStreamProtocol
+from wasp_general.network.aio_client import WAIONetworkClientAPIRegistry, WAIONetworkClientProto
+from wasp_general.network.aio_client import WUDPNetworkClient, WTCPNetworkClient
 from wasp_general.network.aio_client import WStreamedUnixNetworkClient, WDatagramUnixNetworkClient
 from wasp_general.network.aio_client import __default_network_client_collection__
 
@@ -36,42 +37,20 @@ class TestWAIONetworkClientAPIRegistry:
 
 @pytest.mark.asyncio
 async def test_abstract():
-    pytest.raises(TypeError, AIONetworkClientProto)
+    pytest.raises(TypeError, WAIONetworkClientProto)
     with pytest.raises(NotImplementedError):
-        await AIONetworkClientProto.connect(None)
-
-    pytest.raises(TypeError, WGeneralClientProtocol)
-    with pytest.raises(NotImplementedError):
-        await WGeneralClientProtocol.session_complete(None)
-
-    assert(issubclass(WDatagramProtocol, WGeneralClientProtocol) is True)
-    pytest.raises(TypeError, WDatagramProtocol)
-    with pytest.raises(NotImplementedError):
-        await WDatagramProtocol.session_complete(None)
-
-    assert(issubclass(WStreamProtocol, WGeneralClientProtocol) is True)
-    pytest.raises(TypeError, WStreamProtocol)
-    with pytest.raises(NotImplementedError):
-        await WStreamProtocol.session_complete(None)
+        await WAIONetworkClientProto.connect(None)
 
 
 class TestWUDPNetworkClient:
 
-    class UDPClient(WDatagramProtocol):
-
-        def __init__(self):
-            loop = asyncio.get_event_loop()
-            self.complete = loop.create_future()
+    class UDPClient(WClientDatagramProtocol):
 
         def connection_made(self, transport):
             transport.sendto(TestWUDPNetworkClient.__test_message__)
 
         def datagram_received(self, data, addr):
-            self.complete.set_result(data)
-
-        async def session_complete(self):
-            await self.complete
-            return self.complete.result()
+            self._request_complete.set_result(data)
 
     __test_message__ = b'test udp message'
     __response_prefix__ = b'response:'
@@ -83,7 +62,7 @@ class TestWUDPNetworkClient:
         nc = __default_network_client_collection__.network_handler(
             TestWUDPNetworkClient.__udp_uri__, TestWUDPNetworkClient.UDPClient
         )
-        assert(isinstance(nc, AIONetworkClientProto))
+        assert(isinstance(nc, WAIONetworkClientProto))
         assert(isinstance(nc, WUDPNetworkClient))
 
     def test_network(self, event_loop):
@@ -115,23 +94,15 @@ class TestWUDPNetworkClient:
         )
 
 
-class PyTestTCPClient(WStreamProtocol):
+class PyTestTCPClient(WClientStreamProtocol):
 
     __test_message__ = b'test tcp message'
-
-    def __init__(self):
-        loop = asyncio.get_event_loop()
-        self.complete = loop.create_future()
 
     def connection_made(self, transport):
         transport.write(PyTestTCPClient.__test_message__)
 
     def data_received(self, data):
-        self.complete.set_result(data)
-
-    async def session_complete(self):
-        await self.complete
-        return self.complete.result()
+        self._request_complete.set_result(data)
 
 
 class TestWTCPNetworkClient:
@@ -143,7 +114,7 @@ class TestWTCPNetworkClient:
     @pytest.mark.asyncio
     async def test(self):
         nc = __default_network_client_collection__.network_handler(TestWTCPNetworkClient.__tcp_uri__, PyTestTCPClient)
-        assert(isinstance(nc, AIONetworkClientProto))
+        assert(isinstance(nc, WAIONetworkClientProto))
         assert(isinstance(nc, WTCPNetworkClient))
 
     def test_network(self, event_loop):
@@ -190,7 +161,7 @@ class TestWStreamedUnixNetworkClient:
         nc = __default_network_client_collection__.network_handler(
             WURI.parse(f'unix:///{temp_dir}/aio_test.socket'), PyTestTCPClient
         )
-        assert(isinstance(nc, AIONetworkClientProto))
+        assert(isinstance(nc, WAIONetworkClientProto))
         assert(isinstance(nc, WStreamedUnixNetworkClient))
 
     def test_network(self, temp_dir, event_loop):
@@ -198,7 +169,7 @@ class TestWStreamedUnixNetworkClient:
         unix_uri = WURI.parse(f'unix://{unix_socket_path}')
 
         nc = __default_network_client_collection__.network_handler(unix_uri, PyTestTCPClient)
-        assert(isinstance(nc, AIONetworkClientProto))
+        assert(isinstance(nc, WAIONetworkClientProto))
         assert(isinstance(nc, WStreamedUnixNetworkClient))
 
         server_socket = socket.socket(family=socket.AF_UNIX, type=socket.SOCK_STREAM)
@@ -219,18 +190,11 @@ class TestWStreamedUnixNetworkClient:
 
 class TestWDatagramUnixNetworkClient:
 
-    class DatagramClient(WDatagramProtocol):
-
-        def __init__(self):
-            loop = asyncio.get_event_loop()
-            self.complete = loop.create_future()
+    class DatagramClient(WClientDatagramProtocol):
 
         def connection_made(self, transport):
             transport.sendto(TestWDatagramUnixNetworkClient.__test_message__)
-            self.complete.set_result(None)
-
-        async def session_complete(self):
-            await self.complete
+            self._request_complete.set_result(None)
 
     __test_message__ = b'test unix message'
 
@@ -240,7 +204,7 @@ class TestWDatagramUnixNetworkClient:
             WURI.parse(f'unix:///{temp_dir}/aio_test.socket?type=datagram'),
             TestWDatagramUnixNetworkClient.DatagramClient
         )
-        assert(isinstance(nc, AIONetworkClientProto))
+        assert(isinstance(nc, WAIONetworkClientProto))
         assert(isinstance(nc, WDatagramUnixNetworkClient))
 
     def test_network(self, temp_dir, event_loop):
