@@ -1,13 +1,40 @@
 # -*- coding: utf-8 -*-
 
+import enum
 import gc
 from threading import Thread
 import pytest
 
 from wasp_c_extensions.ev_loop import WEventLoop
 
-from wasp_general.api.signals.proto import WSignalSourceProto, WSignalCallbackProto, WUnknownSignalException
-from wasp_general.api.signals.impl import WSignalSource, WEventLoopSignalCallback
+from wasp_general.api.signals import ASignalSourceProto, ASignalCallbackProto, WUnknownSignalException
+from wasp_general.api.signals import WSignalSource, WEventLoopSignalCallback, WTypedSignalSource
+
+
+def test_abstract():
+
+    class Source(ASignalSourceProto):
+
+        def signals(self):
+            pass
+
+        def send_signal(self, signal_name, signal_arg=None):
+            pass
+
+        def callback(self, signal_name, callback):
+            pass
+
+        def remove_callback(self, signal_name, callback):
+            pass
+
+    pytest.raises(TypeError, ASignalSourceProto)
+    pytest.raises(NotImplementedError, ASignalSourceProto.signals, None)
+    pytest.raises(NotImplementedError, ASignalSourceProto.send_signal, None, 'signal')
+    pytest.raises(NotImplementedError, ASignalSourceProto.callback, None, 'signal', lambda: None)
+    pytest.raises(NotImplementedError, ASignalSourceProto.remove_callback, None, 'signal', lambda: None)
+
+    pytest.raises(TypeError, ASignalCallbackProto)
+    pytest.raises(NotImplementedError, ASignalCallbackProto.__call__, None, Source(), 'signal', 1)
 
 
 class TestWSignalSource:
@@ -16,7 +43,7 @@ class TestWSignalSource:
         s = WSignalSource("signal1", "signal2")
 
         assert(isinstance(s, WSignalSource) is True)
-        assert(isinstance(s, WSignalSourceProto) is True)
+        assert(isinstance(s, ASignalSourceProto) is True)
 
         assert(s.signals() == ("signal1", "signal2"))
         pytest.raises(WUnknownSignalException, s.send_signal, "signal3")
@@ -66,7 +93,7 @@ class TestWEventLoopSignalCallback:
     def test(self):
         loop = WEventLoop()
         c = WEventLoopSignalCallback(loop, lambda x, y, z: None)
-        assert(isinstance(c, WSignalCallbackProto) is True)
+        assert(isinstance(c, ASignalCallbackProto) is True)
 
         thread = Thread(target=loop.start_loop)
         thread.start()
@@ -102,3 +129,20 @@ class TestWEventLoopSignalCallback:
                 {"source": source, "signal": "signal1", "signal_arg": None}
             ]
         )
+
+
+class TestWTypedSignalSource:
+
+    def test(self):
+        class Signals(enum.Enum):
+            foo = int
+            bar = None
+            zzz = int
+
+        a = WTypedSignalSource(Signals)
+        a.send_signal('foo', 2)
+        a.send_signal(Signals.foo, 1)
+        a.send_signal(Signals.bar)
+
+        pytest.raises(TypeError, a.send_signal, 'foo')
+        pytest.raises(TypeError, a.send_signal, Signals.bar, 1)
