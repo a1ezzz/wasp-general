@@ -26,6 +26,7 @@ from wasp_general.verify import verify_type, verify_subclass
 from wasp_general.api.registry import WAPIRegistryProto, register_api, WAPIRegistry
 from wasp_general.uri import WURI, WURIQuery
 from wasp_general.network.socket import __default_socket_collection__, WUnixSocketHandler
+from wasp_general.network.aio_protocols import WServiceStreamProtocol, WServiceDatagramProtocol
 
 
 class WAIONetworkServiceAPIRegistry(WAPIRegistry):
@@ -70,6 +71,10 @@ __default_network_services_collection__ = WAIONetworkServiceAPIRegistry()
 
 class AIONetworkServiceProto(metaclass=ABCMeta):
     """ Prototype for a custom network service
+    """
+
+    __supported_protocol__ = asyncio.BaseProtocol
+    """ This is a protocol class, that derived classes (services) are awaiting for
     """
 
     @abstractmethod
@@ -118,6 +123,13 @@ class WBaseNetworkService(AIONetworkServiceProto):
         :type socket_collection: WAPIRegistryProto | None
         """
         AIONetworkServiceProto.__init__(self)
+
+        if issubclass(protocol_cls, self.__supported_protocol__) is False:
+            raise TypeError(
+                'Unsupported protocol spotted "%s" (use "%s" instead)' %
+                (protocol_cls.__name__, self.__supported_protocol__.__name__)
+            )
+
         self._uri = uri
         self._socket_collection = socket_collection if socket_collection else __default_socket_collection__
         self._protocol_cls = protocol_cls
@@ -130,7 +142,7 @@ class WUDPNetworkService(WBaseNetworkService):
     """ Network service that runs over UDP in (obviously) datagram mode
     """
 
-    __supported_protocol__ = asyncio.DatagramProtocol
+    __supported_protocol__ = WServiceDatagramProtocol
     """ This service require datagram protocol
     """
 
@@ -143,7 +155,9 @@ class WUDPNetworkService(WBaseNetworkService):
 
         sock = self._socket_collection.aio_socket(self._uri)
         sock.bind((self._uri.hostname(), self._uri.port()))
-        self._transport, _ = await self._aio_loop.create_datagram_endpoint(self._protocol_cls, sock=sock)
+        self._transport, _ = await self._aio_loop.create_datagram_endpoint(
+            lambda: self._protocol_cls.protocol(self._aio_loop), sock=sock
+        )
 
     async def stop(self):
         """ :meth:`.AIONetworkServiceProto.stop` implementation
@@ -156,10 +170,10 @@ class WUDPNetworkService(WBaseNetworkService):
 
 @register_api(__default_network_services_collection__, 'tcp')
 class WTCPNetworkService(WBaseNetworkService):
-    """ Network service that runs over TCP in (obviously) datagram mode
+    """ Network service that runs over TCP in (obviously) streamed mode
     """
 
-    __supported_protocol__ = asyncio.Protocol
+    __supported_protocol__ = WServiceStreamProtocol
     """ This service require stream protocol
     """
 
@@ -173,7 +187,9 @@ class WTCPNetworkService(WBaseNetworkService):
         sock = self._socket_collection.aio_socket(self._uri)
         sock.bind((self._uri.hostname(), self._uri.port()))
 
-        self._transport = await self._aio_loop.create_server(self._protocol_cls, sock=sock)
+        self._transport = await self._aio_loop.create_server(
+            lambda: self._protocol_cls.protocol(self._aio_loop), sock=sock
+        )
         await self._transport.start_serving()
 
     async def stop(self):
@@ -211,7 +227,7 @@ class WStreamedUnixNetworkService(WBaseNetworkService):
     """ Network service that runs over UNIX-sockets in stream mode
     """
 
-    __supported_protocol__ = asyncio.Protocol
+    __supported_protocol__ = WServiceStreamProtocol
     """ This service require stream protocol
     """
 
@@ -225,7 +241,9 @@ class WStreamedUnixNetworkService(WBaseNetworkService):
         sock = self._socket_collection.aio_socket(self._uri)
         sock.bind(self._uri.path())
 
-        self._transport = await self._aio_loop.create_unix_server(self._protocol_cls, sock=sock)
+        self._transport = await self._aio_loop.create_unix_server(
+            lambda: self._protocol_cls.protocol(self._aio_loop), sock=sock
+        )
         await self._transport.start_serving()
 
     async def stop(self):
@@ -242,7 +260,7 @@ class WDatagramUnixNetworkService(WBaseNetworkService):
     """ Network service that runs over UNIX-sockets in datagram mode
     """
 
-    __supported_protocol__ = asyncio.DatagramProtocol
+    __supported_protocol__ = WServiceDatagramProtocol
     """ This service require stream protocol
     """
 
@@ -256,7 +274,9 @@ class WDatagramUnixNetworkService(WBaseNetworkService):
         sock = self._socket_collection.aio_socket(self._uri)
         sock.bind(self._uri.path())
 
-        self._transport, _ = await self._aio_loop.create_datagram_endpoint(self._protocol_cls, sock=sock)
+        self._transport, _ = await self._aio_loop.create_datagram_endpoint(
+            lambda: self._protocol_cls.protocol(self._aio_loop), sock=sock
+        )
 
     async def stop(self):
         """ :meth:`.AIONetworkServiceProto.stop` implementation
