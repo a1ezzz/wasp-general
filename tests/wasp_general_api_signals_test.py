@@ -7,66 +7,117 @@ import pytest
 
 from wasp_c_extensions.ev_loop import WEventLoop
 
-from wasp_general.api.signals import ASignalSourceProto, ASignalCallbackProto, WUnknownSignalException
-from wasp_general.api.signals import WSignalSource, WEventLoopSignalCallback, WTypedSignalSource
+from wasp_general.api.signals import WSignal, ASignalSourceProto, ASignalCallbackProto, WUnknownSignalException
+from wasp_general.api.signals import WSignalSourceMeta, WSignalSource, WEventLoopSignalCallback
 
 
 def test_abstract():
 
     class Source(ASignalSourceProto):
 
-        def signals(self):
+        def emit(self, signal, signal_value=None):
             pass
 
-        def send_signal(self, signal_name, signal_arg=None):
+        def callback(self, signal, callback):
             pass
 
-        def callback(self, signal_name, callback):
+        def remove_callback(self, signal, callback):
             pass
 
-        def remove_callback(self, signal_name, callback):
-            pass
+    signal = WSignal()
 
     pytest.raises(TypeError, ASignalSourceProto)
-    pytest.raises(NotImplementedError, ASignalSourceProto.signals, None)
-    pytest.raises(NotImplementedError, ASignalSourceProto.send_signal, None, 'signal')
-    pytest.raises(NotImplementedError, ASignalSourceProto.callback, None, 'signal', lambda: None)
-    pytest.raises(NotImplementedError, ASignalSourceProto.remove_callback, None, 'signal', lambda: None)
+    pytest.raises(NotImplementedError, ASignalSourceProto.emit, None, signal)
+    pytest.raises(NotImplementedError, ASignalSourceProto.callback, None, signal, lambda: None)
+    pytest.raises(NotImplementedError, ASignalSourceProto.remove_callback, None, signal, lambda: None)
 
     pytest.raises(TypeError, ASignalCallbackProto)
-    pytest.raises(NotImplementedError, ASignalCallbackProto.__call__, None, Source(), 'signal', 1)
+    pytest.raises(NotImplementedError, ASignalCallbackProto.__call__, None, Source(), signal, 1)
+
+
+class TestWSignal:
+
+    def test(self):
+        assert(WSignal() != WSignal())
+
+        WSignal().check_value(1)
+        WSignal().check_value('!')
+
+        signal = WSignal(int, lambda x: x > 0)
+        signal.check_value(10)
+
+        with pytest.raises(TypeError):
+            signal.check_value('!')
+
+        with pytest.raises(ValueError):
+            signal.check_value(-1)
+
+        d = {signal: 1}  # check that signal is hashable
+        assert(d[signal] == 1)
+
+
+class TestWSignalSourceMeta:
+
+    def test_inheritance(self):
+        class A(metaclass=WSignalSourceMeta):
+            signal1 = WSignal()
+            signal3 = WSignal()
+
+        class C:
+            pass
+
+        with pytest.raises(TypeError):
+            class B(A, C):
+                signal2 = WSignal()
+                signal3 = WSignal()
+
+        class D(A, C):
+            signal2 = WSignal()
 
 
 class TestWSignalSource:
 
     def test(self):
-        s = WSignalSource("signal1", "signal2")
-
+        s = WSignalSource()
         assert(isinstance(s, WSignalSource) is True)
         assert(isinstance(s, ASignalSourceProto) is True)
-
-        assert(s.signals() == ("signal1", "signal2"))
-        pytest.raises(WUnknownSignalException, s.send_signal, "signal3")
+        pytest.raises(WUnknownSignalException, s.emit, WSignal())
+        pytest.raises(WUnknownSignalException, s.callback, WSignal(), lambda: None)
 
         test_results = {'callback_called': 0}
 
-        def signal_callback(signal_source, signal_name, signal_arg):
-            test_results['callback_called'] += (signal_arg if signal_arg is not None else 1)
+        def signal_callback(signal_source, signal, signal_value):
+            test_results['callback_called'] += (signal_value if signal_value is not None else 1)
 
-        s.callback("signal1", signal_callback)
+        class Source(WSignalSource):
+            signal1 = WSignal()
+            signal2 = WSignal()
+            signal3 = WSignal(int, lambda x: x > 0)
+
+        s = Source()
+        s.callback(Source.signal1, signal_callback)
 
         assert(test_results['callback_called'] == 0)
-        s.send_signal("signal2")
+        s.emit(Source.signal2)
         assert(test_results['callback_called'] == 0)
-        s.send_signal("signal1")
+        s.emit(Source.signal1)
         assert(test_results['callback_called'] == 1)
-        s.send_signal("signal1", 5)
+        s.emit(Source.signal1, 5)
         assert(test_results['callback_called'] == 6)
 
-        pytest.raises(ValueError, s.remove_callback, "signal2", signal_callback)
-        s.remove_callback("signal1", signal_callback)
-        s.send_signal("signal1")
+        pytest.raises(ValueError, s.remove_callback, Source.signal2, signal_callback)
+        s.remove_callback(Source.signal1, signal_callback)
+        s.emit(Source.signal1)
         assert(test_results['callback_called'] == 6)
+
+        s.emit(Source.signal3, 10)
+        with pytest.raises(TypeError):
+            s.emit(Source.signal3)
+        with pytest.raises(TypeError):
+            s.emit(Source.signal3, '!')
+        with pytest.raises(ValueError):
+            s.emit(Source.signal3, -1)
+
 
     def test_weak_ref(self):
 
@@ -76,14 +127,17 @@ class TestWSignalSource:
             def __call__(self, *args, **kwargs):
                 callback_result.append(1)
 
+        class Source(WSignalSource):
+            signal1 = WSignal()
+
         callback_obj = CallbackCls()
-        source = WSignalSource("signal1")
+        source = Source()
         assert(callback_result == [])
-        source.callback("signal1", callback_obj)
-        source.send_signal("signal1")
+        source.callback(Source.signal1, callback_obj)
+        source.emit(Source.signal1)
         callback_obj = None  # force
         gc.collect()
-        source.send_signal("signal1")
+        source.emit(Source.signal1)
 
         assert(callback_result == [1])
 
@@ -101,12 +155,15 @@ class TestWEventLoopSignalCallback:
         thread.join()
 
     def test_call(self):
-
         callback_result = []
-        def callback_fn(c_source, c_signal, signal_arg = None):
-            callback_result.append({"source": c_source, "signal": c_signal, "signal_arg": signal_arg})
 
-        source = WSignalSource("signal1")
+        def callback_fn(c_source, c_signal, signal_value=None):
+            callback_result.append({"source": c_source, "signal": c_signal, "signal_value": signal_value})
+
+        class Source(WSignalSource):
+            signal1 = WSignal()
+
+        source = Source()
         loop = WEventLoop(immediate_stop=False)
         callback = WEventLoopSignalCallback(loop, callback_fn)
         thread = Thread(target=loop.start_loop)
@@ -114,35 +171,18 @@ class TestWEventLoopSignalCallback:
 
         try:
             assert(callback_result == [])
-            source.callback("signal1", callback)
-            source.send_signal("signal1")
-            source.send_signal("signal1")
-            source.remove_callback("signal1", callback)
-            source.send_signal("signal1")
+            source.callback(source.signal1, callback)
+            source.emit(source.signal1)
+            source.emit(Source.signal1)
+            source.remove_callback(Source.signal1, callback)
+            source.emit(Source.signal1)
         finally:
             loop.stop_loop()
             thread.join()
 
         assert(
             callback_result == [
-                {"source": source, "signal": "signal1", "signal_arg": None},
-                {"source": source, "signal": "signal1", "signal_arg": None}
+                {"source": source, "signal": Source.signal1, "signal_value": None},
+                {"source": source, "signal": Source.signal1, "signal_value": None}
             ]
         )
-
-
-class TestWTypedSignalSource:
-
-    def test(self):
-        class Signals(enum.Enum):
-            foo = int
-            bar = None
-            zzz = int
-
-        a = WTypedSignalSource(Signals)
-        a.send_signal('foo', 2)
-        a.send_signal(Signals.foo, 1)
-        a.send_signal(Signals.bar)
-
-        pytest.raises(TypeError, a.send_signal, 'foo')
-        pytest.raises(TypeError, a.send_signal, Signals.bar, 1)
