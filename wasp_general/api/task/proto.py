@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # wasp_general/task/proto.py
 #
-# Copyright (C) 2016-2019 the wasp-general authors and contributors
+# Copyright (C) 2016-2019, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -19,54 +19,59 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-import enum
 from abc import ABCMeta, abstractmethod
+import enum
+from dataclasses import dataclass
+from typing import Any
 
 from wasp_general.verify import verify_type, verify_value
 
-from wasp_general.api.signals import WSignalSourceProto, WSignal
-from wasp_general.api.capability import WCapabilitiesHolder, capability
+from wasp_general.api.capability import WCapabilitiesHolder, capability, WCapabilitiesHolderMeta
+from wasp_general.api.registry import WAPIRegistry
+from wasp_general.api.signals import WSignal, WSignalSource, WSignalSourceMeta
 
 
-class WNoSuchTask(Exception):
-	""" This exception is raised when a specified by tag was not found
-	"""
-	pass
-
-
-class WRequirementsLoop(Exception):
+class WRequirementsLoopError(Exception):
 	""" This exception is raised when there is an attempt to start tasks with mutual dependencies
 	"""
 	pass
 
 
-class WDependenciesLoop(Exception):
+class WDependenciesLoopError(Exception):
 	""" This exception is raised when there is an attempt to stop tasks with mutual dependencies
 	"""
 	pass
 
 
-class WStartedTaskError(Exception):
-	""" This exception is raised when there is an attempt to start a task that has been started already
+class WCapabilitiesSignalsMeta(WSignalSourceMeta, WCapabilitiesHolderMeta):
+	""" This metaclass is for classes that may send signals and may have capabilities
 	"""
-	pass
+
+	def __init__(cls, name, bases, namespace):
+		""" Initialize class with this metaclass
+
+		:param name: same as 'name' in :meth:`.WSignalSourceMeta.__init__` method
+		:param bases: same as 'bases' in :meth:`.WSignalSourceMeta.__init__` method
+		:param namespace: same as 'namespace' in :meth:`.WSignalSourceMeta.__init__` method
+		"""
+		WSignalSourceMeta.__init__(cls, name, bases, namespace)
+		WCapabilitiesHolderMeta.__init__(cls, name, bases, namespace)
 
 
-class WStoppedTaskError(Exception):
-	""" This exception is raised when there is an attempt to stop a task that has been started already
-	"""
-	pass
-
-
-class WTaskProto(WCapabilitiesHolder):
+class WTaskProto(WSignalSource, WCapabilitiesHolder, metaclass=WCapabilitiesSignalsMeta):
 	""" Basic task prototype. Derived classes must implement the only thing - to start
 	"""
+
+	task_started = WSignal(None)     # a task started
+	task_completed = WSignal()       # a task completed. A signal may have a result of a task
+	task_stopped = WSignal(None)     # a task stopped
+	task_terminated = WSignal(None)  # a task terminated
 
 	@abstractmethod
 	def start(self):
 		""" Start a task
 
-		:rtype: None
+		:rtype: any
 		"""
 		raise NotImplementedError('This method is abstract')
 
@@ -91,24 +96,27 @@ class WTaskProto(WCapabilitiesHolder):
 		raise NotImplementedError('The "terminate" method is not supported')
 
 
-class WLauncherTaskProto(WTaskProto):
-	""" This is a task prototype that may be launched by an :class:`.WLauncherProto` instance. Derived classes
-	must redefine :meth:`.WLauncherTaskProto.launcher_task` method and define a task id (tag) via
-	WLauncherTaskProto.__task_tag__
+@enum.unique
+class WTaskStopMode(enum.Flag):
+	""" Defines ways to stop a task
 	"""
+	stop = enum.auto()       # stop a task gracefully
+	terminate = enum.auto()  # terminate a task
 
-	__task_tag__ = None  # this is a unique identifier of a task. Must be redefined in derived classes
+
+# noinspection PyAbstractClass
+class WLauncherTaskProto(WTaskProto):
+	""" This is a task prototype that may be launched by an :class:`.WLauncherProto` instance. Each type of tasks
+	identified by unique string (called tag)
+	"""
 
 	@classmethod
 	@abstractmethod
-	def launcher_task(cls, launcher):
+	def launcher_task(cls):
 		""" Create and return a task that later will be started by a specified launcher
-
-		:param launcher:  launcher with which this task will be started
-		:type launcher: WLauncherProto
-
 		:rtype: WLauncherTaskProto
 		"""
+
 		raise NotImplementedError('This method is abstract')
 
 	@classmethod
@@ -121,7 +129,7 @@ class WLauncherTaskProto(WTaskProto):
 		return None
 
 
-class WLauncherProto(metaclass=ABCMeta):
+class WLauncherProto(WAPIRegistry):
 	""" This launcher starts and tracks :class:`.WLauncherTaskProto` tasks
 	"""
 
@@ -171,89 +179,74 @@ class WLauncherProto(metaclass=ABCMeta):
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', task_tag=str, stop=bool, terminate=bool)
+	@verify_type('strict', task_tag=str, stop_mode=WTaskStopMode)
 	@verify_value('strict', task_tag=lambda x: len(x) > 0)
-	def stop_task(self, task_tag, stop=True, terminate=False):
+	def stop_task(self, task_tag, stop_mode=WTaskStopMode.stop):
 		""" Stop a previously started task
 
 		:param task_tag: a tag of task that should be stopped
 		:type task_tag: str
 
-		:param stop: whether to call a WTaskProto.stop capability if is supported by a task
-		:type stop: bool
-
-		:param terminate: whether to call a WTaskProto.terminate capability if is supported by a task
-		:type terminate: bool
+		:param stop_mode: whether a task should be stopped gracefully
+		:type stop_mode: WTaskStopMode
 
 		:raise WNoSuchTask: raises if the specified task can not be found
 		:raise WDependenciesLoop: raises if there is a mutual dependency between tasks
 
 		:rtype: None
-
-		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', task_tag=str, stop=bool, terminate=bool)
+	@verify_type('strict', task_tag=str, stop_mode=WTaskStopMode)
 	@verify_value('strict', task_tag=lambda x: len(x) > 0)
-	def stop_dependent_tasks(self, task_tag, stop=True, terminate=False):
+	def stop_dependent_tasks(self, task_tag, stop_mode=WTaskStopMode.stop):
 		""" Stop tasks that are dependent of a specified one or tasks that are dependent of found dependencies.
 		And return number of tasks that were stopped
 
 		:param task_tag: task that will be searched in a requirements of running tasks
 		:type task_tag: str
 
-		:param stop: whether to call a WTaskProto.stop capability if is supported by a task
-		:type stop: bool
-
-		:param terminate: whether to call a WTaskProto.terminate capability if is supported by a task
-		:type terminate: bool
+		:param stop_mode: whether tasks should be stopped gracefully
+		:type stop_mode: WTaskStopMode
 
 		:rtype: int
-
-		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
 		"""
 		raise NotImplementedError('This method is abstract')
 
 	@abstractmethod
-	@verify_type('strict', stop=bool, terminate=bool)
-	def all_stop(self, stop=True, terminate=True):
+	@verify_type('strict', stop_mode=WTaskStopMode)
+	def all_stop(self, stop_mode=WTaskStopMode.stop):
 		""" Stop all the started tasks and return number of tasks that were stopped
 
-		:param stop: whether to call a WTaskProto.stop capability if is supported by a task
-		:type stop: bool
-
-		:param terminate: whether to call a WTaskProto.terminate capability if is supported by a task
-		:type terminate: bool
+		:param stop_mode: whether tasks should be stopped gracefully
+		:type stop_mode: WTaskStopMode
 
 		:rtype: int
-
-		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
 		"""
 		raise NotImplementedError('This method is abstract')
 
 
 @enum.unique
-class WTaskPostponePolicy(enum.Enum):
+class WScheduledTaskPostponePolicy(enum.Flag):
 	""" This is a policy that describes what should be done with a task if a scheduler won't be able to run
 	it (like if the scheduler's limit of running tasks is reached).
-
-	TODO: record TTL?
 	"""
-	wait = 1  # will postpone the task to execute it later
-	drop = 2  # drop this task if it can't be executed at the moment
+	wait = enum.auto()        # will postpone the task to execute it later
+	drop = enum.auto()        # drop this task if it can't be executed at the moment
+	keep_first = enum.auto()  # if there are postponed tasks, then drop this task
+	keep_last = enum.auto()   # if there are postponed tasks, drop them and keep this task
 
 
 class WScheduleRecordProto(metaclass=ABCMeta):
 	""" This class describes a single request that scheduler (:class:`.WSchedulerProto`) should process
-	(should start). It has a :class:`.WScheduledTaskProto` task to be started and a postpone policy
+	(should start). It has a :class:`.WScheduledTaskProto` task to be started and postpone policy
 	(:class:`.WTaskPostponePolicy`)
 
-	A postpone policy will be applied to this task and to tasks with the same group id (if it was set). A postpone
+	Postpone policy will be applied to this task and to tasks with the same group id (if it was set). Postpone
 	policy is a recommendation for a scheduler and a scheduler can omit it if (for example) a scheduler queue
-	is full. 'WTaskPostponePolicy.postpone_first' and 'WTaskPostponePolicy.postpone_last' policies are not allowed
-	without group id
+	is full. 'WScheduledTaskPostponePolicy.keep_first' and 'WScheduledTaskPostponePolicy.keep_last' policies are
+	ignored without group id
 	"""
 
 	@abstractmethod
@@ -264,49 +257,89 @@ class WScheduleRecordProto(metaclass=ABCMeta):
 		"""
 		raise NotImplementedError('This method is abstract')
 
-	def policy(self):
+	# noinspection PyMethodMayBeStatic
+	def group_id(self):
+		""" Return group id that unite records (in order 'WScheduledTaskPostponePolicy.keep_first' and
+		'WScheduledTaskPostponePolicy.keep_last' to work; :meth:`.WScheduleRecordProto.simultaneous_policy` depends on
+		this id also)
+
+		:return: group id or None if this record is standalone
+		:rtype: str | None
+		"""
+		return None
+
+	# noinspection PyMethodMayBeStatic
+	def ttl(self):
+		""" Return unix time when this record should be discarded
+
+		:return: unix time in seconds or None if this record can not be expired
+		:rtype: int | float | None
+		"""
+		return None
+
+	# noinspection PyMethodMayBeStatic
+	def simultaneous_policy(self):
+		""" Return how many records with the same group id may be run simultaneously. If non-positive value is return
+		then there is no restrictions
+
+		:rtype: int
+		"""
+		return 0
+
+	# noinspection PyMethodMayBeStatic
+	def postpone_policy(self):
 		""" Return a postpone policy
 
-		:rtype: WTaskPostponePolicy
+		:rtype: WScheduledTaskPostponePolicy
 		"""
-		return WTaskPostponePolicy.wait
+		return WScheduledTaskPostponePolicy.wait
 
 
-# noinspection PyAbstractClass
-class WScheduleSourceProto(WSignalSourceProto):
+class WScheduleSourceProto(WSignalSource):
 	""" This class may generate :class:`.WScheduleRecordProto` requests for a scheduler (:class:`.WSchedulerProto`).
 	This class decides what tasks and when should be run. When a time is come then this source emits
 	a WScheduleSourceProto.task_scheduled signal
 	"""
 
-	task_scheduled = WSignal(payload_type_spec=WScheduleRecordProto)  # a new task should be started
+	task_scheduled = WSignal(WScheduleRecordProto)   # a new task should be started
 
-	@classmethod
-	def signals(cls):
-		""" :meth:`.WSignalSourceProto.signals` method implementation
 
-		:rtype: tuple[WSignal]
-		"""
-		return cls.task_scheduled,
+@dataclass
+class WTaskCrashReason:
+	""" Used by scheduler signal
+	"""
+	record: WScheduleRecordProto  # record that cause exception
+	exception: BaseException      # raised exception
+
+
+@dataclass
+class WTaskResult:
+	""" Used by scheduler signal
+	"""
+	record: WScheduleRecordProto  # record that return value
+	result: Any = None            # returned value
 
 
 # noinspection PyAbstractClass
-class WSchedulerProto(WSignalSourceProto, WTaskProto):
+class WSchedulerProto(WTaskProto):
 	""" Represent a scheduler. A class that is able to execute tasks (:class:`.WScheduleRecordProto`) scheduled
 	by sources (:class:`.WScheduleSourceProto`). This class tracks state of tasks that are running
 	"""
 
-	task_scheduled = WSignal(payload_type_spec=WScheduleRecordProto)
-	task_dropped = WSignal(payload_type_spec=WScheduleRecordProto)
-	task_postponed = WSignal(payload_type_spec=WScheduleRecordProto)
-	task_started = WSignal(payload_type_spec=WScheduleRecordProto)
-	task_crashed = WSignal(payload_type_spec=tuple)  # two items tuple - scheduledrecord and an exception
-	task_stopped = WSignal(payload_type_spec=tuple)  # two items tuple - scheduledrecord and a task result
+	task_scheduled = WSignal(WScheduleRecordProto)            # a new task received from some source
+	scheduled_task_dropped = WSignal(WScheduleRecordProto)    # a scheduled task dropped and would not start
+	scheduled_task_postponed = WSignal(WScheduleRecordProto)  # a scheduled task dropped and will start later
+	scheduled_task_expired = WSignal(WScheduleRecordProto)    # a scheduled task dropped because of expired ttl
+	scheduled_task_started = WSignal(WScheduleRecordProto)    # a scheduled task started
+	scheduled_task_crashed = WSignal(WTaskCrashReason)        # a scheduled task crashed
+	scheduled_task_completed = WSignal(WTaskResult)           # a scheduled task completed
+	scheduled_task_stopped = WSignal(None)                    # a stop request for a scheduled task completed
+	scheduled_task_terminated = WSignal(None)                 # a termination request for a scheduled task completed
 
 	@abstractmethod
 	@verify_type('strict', schedule_source=WScheduleSourceProto)
 	def subscribe(self, schedule_source):
-		""" Subscribe this scheduler to a specified source in order to and start tasks from it
+		""" Subscribe this scheduler to a specified source in order to start tasks from it
 
 		:param schedule_source: source of records that should be subscribed
 		:type schedule_source: WScheduleSourceProto
@@ -334,16 +367,3 @@ class WSchedulerProto(WSignalSourceProto, WTaskProto):
 		:rtype: generator (of WScheduleRecordProto instances)
 		"""
 		raise NotImplementedError('This method is abstract')
-
-	@classmethod
-	def signals(cls):
-		""" Signals that this class may emit
-
-		:rtype: tuple[WSignal]
-		"""
-		return cls.task_scheduled, \
-			cls.task_dropped, \
-			cls.task_postponed, \
-			cls.task_started, \
-			cls.task_crashed, \
-			cls.task_stopped
