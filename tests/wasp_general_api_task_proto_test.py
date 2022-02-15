@@ -7,15 +7,19 @@ from wasp_general.api.capability import WCapabilityDescriptor, iscapable, WCapab
 from wasp_general.api.registry import WAPIRegistry
 from wasp_general.api.signals import ASignalSourceProto, WSignalSourceMeta
 
-from wasp_general.api.task.proto import WRequirementsLoopError, WDependenciesLoopError, WCapabilitiesSignalsMeta
-from wasp_general.api.task.proto import WTaskProto, WTaskStopMode, WLauncherTaskProto, WLauncherProto
-from wasp_general.api.task.proto import WScheduledTaskPostponePolicy, WScheduleRecordProto, WScheduleSourceProto
-from wasp_general.api.task.proto import WTaskCrashReason, WTaskResult, WSchedulerProto
+from wasp_general.api.task.proto import WRequirementsLoopError, WDependenciesLoopError, WTaskStartError, WTaskStopError
+from wasp_general.api.task.proto import WNoSuchTaskError, WCapabilitiesSignalsMeta, WTaskResult, WTaskProto
+from wasp_general.api.task.proto import WTaskStopMode, WLauncherTaskProto, WLauncherProto, WScheduledTaskPostponePolicy
+from wasp_general.api.task.proto import WScheduleRecordProto, WScheduleSourceProto, WScheduledTaskResult
+from wasp_general.api.task.proto import WSchedulerProto
 
 
 def test_exceptions():
 	assert(issubclass(WRequirementsLoopError, Exception) is True)
 	assert(issubclass(WDependenciesLoopError, Exception) is True)
+	assert(issubclass(WTaskStartError, Exception) is True)
+	assert(issubclass(WTaskStopError, Exception) is True)
+	assert(issubclass(WNoSuchTaskError, Exception) is True)
 
 
 def test_abstract_classes():
@@ -44,7 +48,6 @@ def test_abstract_classes():
 	pytest.raises(TypeError, WSchedulerProto)
 	pytest.raises(NotImplementedError, WSchedulerProto.subscribe, None, WScheduleSourceProto())
 	pytest.raises(NotImplementedError, WSchedulerProto.unsubscribe, None, WScheduleSourceProto())
-	pytest.raises(NotImplementedError, WSchedulerProto.running_records, None)
 
 
 class TestWCapabilitiesSignalsMeta:
@@ -54,10 +57,19 @@ class TestWCapabilitiesSignalsMeta:
 		assert(issubclass(WCapabilitiesSignalsMeta, WCapabilitiesHolderMeta) is True)
 
 
+class TestWTaskResult:
+
+	def test(self):
+		exc = ValueError('!')
+		result = object()
+		task_result = WTaskResult(result=result, exception=exc)
+		assert(task_result.result is result)
+		assert(task_result.exception is exc)
+
+
 class TestWTaskProto:
 
 	class Task(WTaskProto):
-
 		def start(self):
 			pass
 
@@ -72,6 +84,11 @@ class TestWTaskProto:
 		assert(iscapable(task, WTaskProto.stop) is False)
 		assert(iscapable(task, WTaskProto.terminate) is False)
 
+		task.emit(WTaskProto.task_started)
+		task.emit(WTaskProto.task_stopped)
+		task.emit(WTaskProto.task_terminated)
+		task.emit(WTaskProto.task_completed, WTaskResult())
+
 
 class TestWTaskStopMode:
 
@@ -83,6 +100,8 @@ class TestWTaskStopMode:
 class TestWLauncherTaskProto:
 
 	class Task(WLauncherTaskProto):
+
+		__task_tag__ = 'task'
 
 		@classmethod
 		def launcher_task(cls):
@@ -118,7 +137,6 @@ class TestWScheduledTaskPostponePolicy:
 class TestWScheduleRecordProto:
 
 	class Record(WScheduleRecordProto):
-
 		def task(self):
 			return None
 
@@ -138,28 +156,17 @@ class TestWScheduleSourceProto:
 		source.emit(WScheduleSourceProto.task_scheduled, TestWScheduleRecordProto.Record())
 
 
-class TestWTaskCrashReason:
+class TestWScheduledTaskResult:
 
 	def test(self):
-		pytest.raises(TypeError, WTaskCrashReason)
+		pytest.raises(TypeError, WScheduledTaskResult)
 
 		record = TestWScheduleRecordProto.Record()
 		exc = ValueError('!')
-		crash_reason = WTaskCrashReason(record=record, exception=exc)
-		assert(crash_reason.record is record)
-		assert(crash_reason.exception is exc)
-
-
-class TestWTaskResult:
-
-	def test(self):
-		pytest.raises(TypeError, WTaskResult)
-
-		record = TestWScheduleRecordProto.Record()
-		result = '!'
-		task_result = WTaskResult(record=record, result=result)
-		assert(task_result.record is record)
-		assert(task_result.result is result)
+		task_result = WTaskResult(exception=exc)
+		record_result = WScheduledTaskResult(record=record, task_result=task_result)
+		assert(record_result.record is record)
+		assert(record_result.task_result is task_result)
 
 
 class TestWSchedulerProto:
@@ -190,7 +197,7 @@ class TestWSchedulerProto:
 		scheduler.emit(WSchedulerProto.scheduled_task_postponed, TestWScheduleRecordProto.Record())
 		scheduler.emit(WSchedulerProto.scheduled_task_started, TestWScheduleRecordProto.Record())
 		scheduler.emit(
-			WSchedulerProto.scheduled_task_crashed,
-			WTaskCrashReason(TestWScheduleRecordProto.Record(), ValueError('!'))
+			WSchedulerProto.scheduled_task_completed,
+			WScheduledTaskResult(TestWScheduleRecordProto.Record(), WTaskResult())
 		)
-		scheduler.emit(WSchedulerProto.scheduled_task_stopped, WTaskResult(TestWScheduleRecordProto.Record()))
+		scheduler.emit(WSchedulerProto.scheduled_task_stopped, TestWScheduleRecordProto.Record())
