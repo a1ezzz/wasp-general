@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# wasp_general/task/launcher.py
+# wasp_general/api/task/launcher.py
 #
-# Copyright (C) 2016-2019 the wasp-general authors and contributors
+# Copyright (C) 2016-2019, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -24,8 +24,8 @@ import functools
 from wasp_general.verify import verify_value, verify_type, verify_subclass
 from wasp_general.thread import WCriticalResource
 from wasp_general.api.registry import WAPIRegistryProto, register_api
-from wasp_general.api.task.proto import WLauncherProto, WTaskProto, WLauncherTaskProto, WNoSuchTask, WRequirementsLoop
-from wasp_general.api.task.proto import WDependenciesLoop, WStartedTaskError
+from wasp_general.api.task.proto import WLauncherProto, WTaskProto, WLauncherTaskProto, WTaskStopMode, WTaskStartError
+from wasp_general.api.task.proto import WNoSuchTaskError, WRequirementsLoopError, WDependenciesLoopError
 
 
 class WLauncher(WLauncherProto, WCriticalResource):
@@ -48,13 +48,6 @@ class WLauncher(WLauncherProto, WCriticalResource):
 		self.__started_tasks = {}
 		self.__registry = registry
 
-	def registry(self):
-		""" :meth:`.WLauncherProto.registry` method implementation
-
-		:rtype: WTaskRegistryProto
-		"""
-		return self.__registry
-
 	@verify_type('strict', task_tag=str)
 	@verify_value('strict', task_tag=lambda x: len(x) > 0)
 	def is_started(self, task_tag):
@@ -66,25 +59,11 @@ class WLauncher(WLauncherProto, WCriticalResource):
 		"""
 		return task_tag in self.__started_tasks
 
-	@verify_type('strict', task_tag=str)
-	@verify_value('strict', task_tag=lambda x: len(x) > 0)
-	def requirements(self, task_tag):
-		""" This is a shortcut for requesting task's requirements by a task_tag
-
-		:param task_tag: a tag of a task which requirements are requested
-		:type task_tag: str
-
-		:rtype: tuple of str | set of str | None
-		"""
-		task = self.__registry.get(task_tag)
-		return task.requirements()
-
 	def started_tasks(self):
 		""" :meth:`.WLauncherProto.started_tasks` method implementation
 		:rtype: generator
 		"""
-		for tag in self.__started_tasks.copy():
-			yield tag
+		return (x for x in self.__started_tasks.copy().keys())
 
 	def __iter__(self):
 		""" Return generator that will iterate over all tasks
@@ -100,7 +79,7 @@ class WLauncher(WLauncherProto, WCriticalResource):
 		return len(self.__started_tasks)
 
 	def __contains__(self, item):
-		""" Chekc that a specified task is running
+		""" Check that a specified task is running
 
 		:param item: task tag to check
 		:type item: str
@@ -109,17 +88,41 @@ class WLauncher(WLauncherProto, WCriticalResource):
 		"""
 		return item in self.__started_tasks
 
-	@verify_type('strict', task_tag=str, skip_unresolved=bool, requirements_deep_check=bool)
-	@verify_type('strict', loop_requirements=(set, None))
+	@verify_type('strict', task_tag=str, skip_unresolved=bool)
 	@verify_value('strict', task_tag=lambda x: len(x) > 0)
-	def __requirements(
-		self, task_tag, skip_unresolved=False, requirements_deep_check=False, loop_requirements=None
-	):
+	def __single_task_requirements(self, task_tag, skip_unresolved=False):
+		""" Check requirements of a single task
+
+		:param task_tag: task to check
+		:type task_tag: str
+
+		:param skip_unresolved: whether to raise the WNoSuchTaskError exception if task wasn't found or not
+		:type skip_unresolved: bool
+
+		:raise WNoSuchTask: raises if the specified task can not be found
+
+		:return: Return tuple of tags that haven't been started yet
+		:rtype: tuple
+		"""
+		if self.__registry.has(task_tag) is False:
+			if skip_unresolved is True:
+				return False, set()
+			raise WNoSuchTaskError('Unable to find a required task with tag "%s"', task_tag)
+
+		task_cls = self.__registry.get(task_tag)
+		task_req = task_cls.requirements()
+		if task_req is None:
+			task_req = []
+
+		return True, {x for x in task_req if (x not in self.__started_tasks)}
+
+	@verify_type('strict', task_tag=str, skip_unresolved=bool)
+	@verify_value('strict', task_tag=lambda x: len(x) > 0)
+	def __recursive_requirements(self, task_tag, skip_unresolved=False):
 		""" Return ordered task's requirements. Tags order allows to be confident that all the requirements
 		are met before starting following tasks
 
 		note: No mutual dependencies are allowed
-		note: Some tags may be spotted more then once
 
 		:param task_tag: same as 'task_tag' in :meth:`.WLauncherProto.start_task`
 		:type task_tag: str
@@ -127,141 +130,115 @@ class WLauncher(WLauncherProto, WCriticalResource):
 		:param skip_unresolved: same as 'skip_unresolved' in :meth:`.WLauncherProto.start_task`
 		:type skip_unresolved: bool
 
-		:param requirements_deep_check: same as 'requirements_deep_check' in
-		:meth:`.WLauncherProto.start_task`
-		:type requirements_deep_check: bool
-
-		:param loop_requirements: this argument is used for checking a mutual dependencies and consists of
-		a previously found requirements
-		:type loop_requirements: set | None
-
 		:rtype: tuple
+
+		:raise WNoSuchTask: raises if requirements for a task can not be found
+		:raise WRequirementsLoopError: raises if some tasks require each other
 		"""
-		next_requirements = loop_requirements.copy() if loop_requirements is not None else set()
 
-		if self.__registry.has(task_tag) is False:
-			if skip_unresolved is True:
-				return tuple()
-			raise WNoSuchTask('Unable to find a required task with tag "%s"', task_tag)
+		task_found, raw_reqs = self.__single_task_requirements(task_tag, skip_unresolved=skip_unresolved)
+		result_reqs = []
 
-		task_cls = self.__registry.get(task_tag)
-		task_req = task_cls.requirements()
-		task_started = task_tag in self.__started_tasks
-		req_result = None
+		while len(raw_reqs):  # there are some requirements that needs to be checked
+			next_raw_reqs = set()
 
-		if task_started:
-			if loop_requirements is not None:
-				if requirements_deep_check is False:
-					return tuple()
-				else:
-					req_result = tuple()
-
-		if req_result is None:
-			req_result = ((task_tag, task_cls,),)
-
-		result = tuple()
-		if task_req is not None:
-			next_requirements.add(task_tag)
-			for r in task_req:
-				if r in next_requirements:
-					raise WRequirementsLoop(
-						'A loop of requirements was detected. The following tasks depend on '
-						'each other: %s', ', '.join(next_requirements)
-					)
-
-				result += self.__requirements(
-					r,
-					skip_unresolved=skip_unresolved,
-					requirements_deep_check=requirements_deep_check,
-					loop_requirements=next_requirements
+			for iter_task_tag in raw_reqs:
+				iter_task_found, iter_task_req = self.__single_task_requirements(
+					iter_task_tag, skip_unresolved=skip_unresolved
 				)
+				iter_task_req = list(filter(lambda x: x not in result_reqs, iter_task_req))  # skip stopped
+				# requirements that are known already
 
-		return result + req_result
+				if iter_task_found:
+					if not iter_task_req:  # there are no unresolved requirements
+						result_reqs.append(iter_task_tag)
+						if iter_task_tag in next_raw_reqs:
+							next_raw_reqs.remove(iter_task_tag)
+					else:  # we should check as this task as it's requirements
+						next_raw_reqs.add(iter_task_tag)
+						next_raw_reqs.update(iter_task_req)
 
-	@verify_type('strict', task_tag=str, skip_unresolved=bool, requirements_deep_check=bool)
+			if raw_reqs == next_raw_reqs:
+				raise WRequirementsLoopError()
+
+			raw_reqs = next_raw_reqs
+
+		return task_found, tuple(result_reqs)
+
+	@verify_type('strict', task_tag=str, skip_unresolved=bool)
 	@verify_value('strict', task_tag=lambda x: len(x) > 0)
 	@WCriticalResource.critical_section(timeout=__critical_section_timeout__)
-	def start_task(self, task_tag, skip_unresolved=False, requirements_deep_check=False):
+	def start_task(self, task_tag, skip_unresolved=False):
 		""" This is a thread safe :meth:`.WLauncherProto.start_task` method implementation. A task
 		or requirements that are going to be started must not call this or any 'stop' methods due to
 		lock primitive
 
 		:type task_tag: str
 		:type skip_unresolved: bool
-		:type requirements_deep_check: bool
 		:rtype: int
+
+		:raise WTaskStartError: if a task is started already
+		:raise WNoSuchTask: raises if a task or one of its requirement can not be found
+		:raise WRequirementsLoopError: raises if some tasks require each other
 		"""
 		if task_tag in self.__started_tasks:
-			raise WStartedTaskError('A task "%s" is started already', task_tag)
+			raise WTaskStartError('A task "%s" is started already', task_tag)
 
-		if self.__registry.has(task_tag) is False:
-			raise WNoSuchTask('Unable to find a task with tag "%s" to start', task_tag)
+		_, task_tags = self.__recursive_requirements(task_tag, skip_unresolved=skip_unresolved)
 
-		requirements = self.__requirements(
-			task_tag, skip_unresolved=skip_unresolved, requirements_deep_check=requirements_deep_check
-		)
-		started_tasks = set()
-		for task_tag, task_cls in requirements:
-			if task_tag in started_tasks:
-				continue
+		task_tags = task_tags + (task_tag, )
 
-			instance = task_cls.launcher_task(self)
+		for task_tag in task_tags:
+			task_cls = self.__registry.get(task_tag)
+			instance = task_cls.launcher_task()
 			instance.start()
 			self.__started_tasks[task_tag] = instance
-			started_tasks.add(task_tag)
 
-		return len(started_tasks)
+		return len(task_tags)
 
-	@verify_type('strict', task_tag=str, stop=bool, terminate=bool)
-	@verify_value('strict', task_tag=lambda x: len(x) > 0, instance_id=lambda x: x is None or len(x) > 0)
-	def __stop_task(self, task_tag, stop=True, terminate=False):
+	@verify_type('strict', task_tag=str, stop_mode=WTaskStopMode)
+	@verify_value('strict', task_tag=lambda x: len(x) > 0)
+	def __stop_task(self, task_tag, stop_mode=WTaskStopMode.stop):
 		""" Stop required tasks and return a number of stopped instances
 
 		:param task_tag: same as 'task_tag' in :meth:`.WLauncherProto.stop_task`
 		:type task_tag: str
 
-		:param stop: same as 'stop' in :meth:`.WLauncherProto.stop_task`
-		:type stop: bool
-
-		:param terminate: same as 'terminate' in :meth:`.WLauncherProto.stop_task`
-		:type terminate: bool
+		:param stop_mode: same as 'stop_mode' in :meth:`.WLauncherProto.stop_task`
+		:type stop_mode: WTaskStopMode
 
 		:rtype: int
-
-		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
 		"""
 		task_instance = self.__started_tasks.get(task_tag, None)
 		if task_instance is not None:
-			if stop is True and WTaskProto.stop in task_instance:
+			if stop_mode == WTaskStopMode.stop and WTaskProto.stop in task_instance:
 				task_instance.stop()
-			elif terminate is True and WTaskProto.terminate in task_instance:
+			elif stop_mode == WTaskStopMode.terminate and WTaskProto.terminate in task_instance:
 				task_instance.terminate()
 			self.__started_tasks.pop(task_tag)
 			return 1
 		return 0
 
-	@verify_type('strict', task_tag=str, stop=bool, terminate=bool)
+	@verify_type('strict', task_tag=str, stop_mode=WTaskStopMode)
 	@verify_value('strict', task_tag=lambda x: len(x) > 0)
 	@WCriticalResource.critical_section(timeout=__critical_section_timeout__)
-	def stop_task(self, task_tag, stop=True, terminate=False):
+	def stop_task(self, task_tag, stop_mode=WTaskStopMode.stop):
 		""" This is a thread safe :meth:`.WLauncherProto.stop` method implementation. Task
 		or requirements that are going to be stopped must not call this or any 'start' or 'stop' methods due to
 		lock primitive
 
 		:type task_tag: str
-		:type stop: bool
-		:type terminate: bool
+		:type stop_mode: WTaskStopMode
 		:rtype: None
 
-		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
+		:raise WNoSuchTask: raises if task isn't running
 		"""
-		result = self.__stop_task(task_tag, stop=stop, terminate=terminate)
-		if result == 0:
-			raise WNoSuchTask('Unable to find a task "%s" to stop', task_tag)
+		if self.__stop_task(task_tag, stop_mode=stop_mode) == 0:
+			raise WNoSuchTaskError('Unable to find a task "%s" to stop', task_tag)
 
-	@verify_type('strict', task_tag=str, loop_dependencies=(set, None))
+	@verify_type('strict', task_tag=str)
 	@verify_value('strict', task_tag=lambda x: len(x) > 0)
-	def __dependent_tasks(self, task_tag, loop_dependencies=None):
+	def __dependent_tasks(self, task_tag):
 		""" Return ordered tuple of tasks that depend on a specified task. Tags order allows to be confident
 		that tasks that are not required to other tasks will be stopped first
 
@@ -270,70 +247,92 @@ class WLauncher(WLauncherProto, WCriticalResource):
 		:param task_tag: same as 'task_tag' in :meth:`.WLauncherProto.stop_dependent_tasks`
 		:type task_tag: str
 
-		:param loop_dependencies: this argument is used for checking a mutual dependencies and consists of
-		a previously found dependencies
-		:type loop_dependencies: set | None
-
 		:rtype: tuple
-		"""
-		next_dependencies = loop_dependencies.copy() if loop_dependencies is not None else set()
 
-		if task_tag in next_dependencies:
-			raise WDependenciesLoop(
-				'A loop of dependencies was detected. The following tasks depend on '
-				'each other: %s', ', '.join(next_dependencies)
+		:raise WDependenciesLoopError: raises if there is a mutual dependency between tasks
+		"""
+		started_tasks = set(self.__started_tasks.keys())
+		current_run = {task_tag}
+		prev_run = set()
+		result = []
+
+		while prev_run != current_run and current_run:
+			prev_run = current_run
+			next_run = set()
+
+			for running_tag in started_tasks.difference([task_tag] + result):  # scan through all tasks except
+				# "remembered"
+
+				task_req = self.__registry.get(running_tag).requirements()
+				if not task_req:  # no requirements, no dependencies
+					if running_tag in current_run:  # this task should be saved (stopped) as this task don't have any
+						# unresolved dependencies now
+						result.append(running_tag)
+						if running_tag in next_run:  # dependency is resolved, do not check this task anymore
+							next_run.remove(running_tag)
+					continue  # no requirements, no dependencies -- check next task
+
+				task_req = set(filter(lambda x: x in started_tasks, task_req))  # only started tasks are good
+
+				if task_req.intersection(current_run):  # there is a requirements, it means that task with "running_tag"
+					# depends on tasks that we interested in
+					task_req = set(filter(lambda x: x not in result, task_req))  # skip dependencies that are remembered
+					# already
+
+					next_run.add(running_tag)
+
+					if not task_req.difference([task_tag] + result):  # there are no requirements other that
+						# "remembered"
+						result.append(running_tag)
+					else:
+						next_run.update(task_req)
+
+			current_run = next_run
+
+		if len(current_run):
+			raise WDependenciesLoopError(
+				'A loop of dependencies was detected. The following tasks depend on each other: %s' %
+				', '.join(current_run)
 			)
 
-		next_dependencies.add(task_tag)
-		result = tuple()
-		for d_tag in self.__started_tasks:
-			if d_tag not in result:
-				task_req = self.requirements(d_tag)
-				if task_req is not None and task_tag in task_req:
-					result += self.__dependent_tasks(d_tag, loop_dependencies=next_dependencies)
-		if loop_dependencies is not None:
-			return result + (task_tag, )
-		return result
+		return tuple(result)
 
-	@verify_type('paranoid', task_tag=str, stop=bool, terminate=bool)
+	@verify_type('paranoid', task_tag=str, stop_mode=WTaskStopMode)
 	@verify_value('paranoid', task_tag=lambda x: len(x) > 0)
 	@WCriticalResource.critical_section(timeout=__critical_section_timeout__)
-	def stop_dependent_tasks(self, task_tag, stop=True, terminate=False):
+	def stop_dependent_tasks(self, task_tag, stop_mode=WTaskStopMode.stop):
 		""" This is a thread safe :meth:`.WLauncherProto.stop_dependent_tasks` method implementation. Task
 		or requirements that are going to be stopped must not call this or any 'start' or 'stop' methods due to
 		lock primitive
 
 		:type task_tag: str
-		:type stop: bool
-		:type terminate: bool
+		:type stop_mode: WTaskStopMode
 		:rtype: int
 
-		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
+		:raise WDependenciesLoopError: raises if there is a mutual dependency between tasks
 		"""
 		result = 0
 		for task_tag in self.__dependent_tasks(task_tag):
-			result += self.__stop_task(task_tag, stop=stop, terminate=terminate)
+			result += self.__stop_task(task_tag, stop_mode=stop_mode)
 		return result
 
-	@verify_type('strict', stop=bool, terminate=bool)
-	def all_stop(self, stop=True, terminate=True):
+	@verify_type('strict', stop_mode=WTaskStopMode)
+	def all_stop(self, stop_mode=WTaskStopMode.stop):
 		""" This is a thread safe :meth:`.WLauncherProto.all_stop` method implementation. Task
 		or requirements that are going to be stopped must not call this or any 'start' or 'stop' methods due to
 		lock primitive
 
-		:type stop: bool
-		:type terminate: bool
+		:type stop_mode: WTaskStopMode
 		:rtype: int
 
-		TODO: replace "stop" and "terminate" parameters with enum.IntFlag (python>=3.6 is required)
+		:raise WDependenciesLoopError: raises if there is a mutual dependency between tasks
 		"""
-
 		with self.critical_context(timeout=self.__critical_section_timeout__) as c:
 			result = 0
 			while len(self.__started_tasks) > 0:
 				task_tag = next(iter(self.__started_tasks))
-				result += c.stop_dependent_tasks(task_tag, stop=stop, terminate=terminate)
-				result += self.__stop_task(task_tag, stop=stop, terminate=terminate)
+				result += c.stop_dependent_tasks(task_tag, stop_mode=stop_mode)
+				result += self.__stop_task(task_tag, stop_mode=stop_mode)
 
 			return result
 
@@ -347,6 +346,8 @@ def __launcher_task_api_id(launcher_task):
 	:type launcher_task: WLauncherTaskProto
 
 	:rtype: str
+
+	:raise ValueError: raises if there isn't a task_tag, or it has invalid type
 	"""
 	task_tag = launcher_task.__task_tag__
 	if task_tag is None or not isinstance(task_tag, str):
