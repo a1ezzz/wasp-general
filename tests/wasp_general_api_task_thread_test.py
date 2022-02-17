@@ -1,15 +1,25 @@
 
-from contextlib import suppress
 import pytest
 
 from wasp_general.platform import WPlatformThreadEvent
-from wasp_general.api.task.proto import WTaskProto, WStoppedTaskError, WStartedTaskError
+from wasp_general.api.task.proto import WTaskProto, WTaskStartError, WTaskStopError, WTaskResult
+from wasp_general.api.task.base import WSingleStateTask
 
-from wasp_general.api.task.thread import WJoiningTimeoutError, WThreadTaskStatus, WThreadTask
+from wasp_general.api.task.thread import WJoiningTimeoutError, WThreadedTaskResult, WThreadTask
 
 
 def test_exceptions():
 	assert(issubclass(WJoiningTimeoutError, Exception) is True)
+
+
+class TestWThreadedTaskResult:
+
+	def test(self):
+		task = TestWThreadTask.Task()
+		result = WTaskResult()
+		threaded_task_result = WThreadedTaskResult(task=task, result=result)
+		assert(threaded_task_result.task is task)
+		assert(threaded_task_result.result is result)
 
 
 class TestWThreadTask:
@@ -17,11 +27,10 @@ class TestWThreadTask:
 	class Task(WTaskProto):
 
 		exception = None
-		sleep_event = None
+		sleep_event = WPlatformThreadEvent()
 
 		def start(self):
-			if self.sleep_event:
-				self.sleep_event.wait()
+			self.sleep_event.wait()
 
 			if self.exception:
 				raise self.exception
@@ -31,86 +40,93 @@ class TestWThreadTask:
 
 	def test(self):
 		task = TestWThreadTask.Task()
+		task.sleep_event.set()
+
 		threaded_task = WThreadTask(task=task)
+		assert(isinstance(threaded_task, WSingleStateTask) is True)
 		assert(threaded_task.task() is task)
-		assert(threaded_task.status() is WThreadTaskStatus.stopped)
-		assert(threaded_task.exception() is None)
 		threaded_task.start()
-		status = threaded_task.status()
-		assert(
-			status is WThreadTaskStatus.started or
-			status is WThreadTaskStatus.running or
-			status is WThreadTaskStatus.ready
-		)
-		assert(threaded_task.exception() is None)
 		threaded_task.stop()
-		assert(threaded_task.status() is WThreadTaskStatus.stopped)
-		assert(threaded_task.exception() is None)
 
-		exc = Exception('!')
-		TestWThreadTask.Task.exception = exc
-		threaded_task.start()
-		assert(threaded_task.exception() is exc)
+		TestWThreadTask.Task.exception = Exception('!')
+		threaded_task.start()  # just check that exception in task doesn't affect threaded task
 		threaded_task.stop()
-		assert(threaded_task.exception() is exc)
-
 		TestWThreadTask.Task.exception = None
-		threaded_task.start()
-		assert(threaded_task.exception() is None)
-		threaded_task.stop()
 
 	def test_exceptions(self):
 		task = TestWThreadTask.Task()
 		threaded_task = WThreadTask(task=task)
 		threaded_task.start()
-		pytest.raises(WStartedTaskError, threaded_task.start)
+		pytest.raises(WTaskStartError, threaded_task.start)
 		threaded_task.stop()
-		pytest.raises(WStoppedTaskError, threaded_task.stop)
+		pytest.raises(WTaskStopError, threaded_task.stop)
 
+		TestWThreadTask.Task.sleep_event.clear()
 		threaded_task = WThreadTask(task=task, join_timeout=1)
-		TestWThreadTask.Task.sleep_event = WPlatformThreadEvent()
 		threaded_task.start()
 		pytest.raises(WJoiningTimeoutError, threaded_task.stop)
 		TestWThreadTask.Task.sleep_event.set()
 		threaded_task.stop()
 
-		TestWThreadTask.Task.sleep_event = None
-
-	def test_signals(self):
+	def test_signals(self, wasp_signals):
 		task = TestWThreadTask.Task()
 		threaded_task = WThreadTask(task=task, join_timeout=1)
+		TestWThreadTask.Task.sleep_event.clear()
 
-		stop_watcher = threaded_task.watch(WThreadTask.task_stopped)
-		start_watcher = threaded_task.watch(WThreadTask.task_started)
-		run_watcher = threaded_task.watch(WThreadTask.task_running)
-		ready_watcher = threaded_task.watch(WThreadTask.task_ready)
-		crash_watcher = threaded_task.watch(WThreadTask.task_crashed)
-		freeze_watcher = threaded_task.watch(WThreadTask.task_froze)
+		threaded_task.callback(WThreadTask.task_started, wasp_signals)
+		threaded_task.callback(WThreadTask.task_completed, wasp_signals)
+		threaded_task.callback(WThreadTask.task_stopped, wasp_signals)
 
-		assert(stop_watcher.wait(timeout=1) is False)
+		threaded_task.callback(WThreadTask.threaded_task_started, wasp_signals)
+		threaded_task.callback(WThreadTask.threaded_task_completed, wasp_signals)
+		threaded_task.callback(WThreadTask.threaded_task_froze, wasp_signals)
+
+		assert(wasp_signals.dump() == dict())
 
 		threaded_task.start()
-		start_watcher.wait()  # if there is no such signal - will wait forever
-		run_watcher.wait()
-		ready_watcher.wait()
+		wasp_signals.wait(WThreadTask.threaded_task_started)
+		assert(wasp_signals.dump() == {
+			WThreadTask.task_started: (None, ),
+			WThreadTask.threaded_task_started: (task, )
+		})
 
-		threaded_task.stop()
-		stop_watcher.wait()
-
-		assert(crash_watcher.wait(timeout=1) is False)
-		TestWThreadTask.Task.exception = Exception('!')
-		threaded_task.start()
-		crash_watcher.wait()
-		TestWThreadTask.Task.exception = None
-		threaded_task.stop()
-
-		assert(freeze_watcher.wait(timeout=1) is False)
-		TestWThreadTask.Task.sleep_event = WPlatformThreadEvent()
-		threaded_task.start()
-		with suppress(WJoiningTimeoutError):
-			threaded_task.stop()
-		freeze_watcher.wait()
 		TestWThreadTask.Task.sleep_event.set()
 		threaded_task.stop()
+		wasp_signals.wait(WThreadTask.task_stopped)
 
-		TestWThreadTask.Task.sleep_event = None
+		assert(wasp_signals.dump() == {
+			WThreadTask.task_started: (None, ),
+			WThreadTask.task_completed: (WTaskResult(), ),
+			WThreadTask.task_stopped: (None, ),
+			WThreadTask.threaded_task_started: (task, ),
+			WThreadTask.threaded_task_completed: (WThreadedTaskResult(task=task, result=WTaskResult()), )
+		})
+
+		exc = Exception('!')
+		TestWThreadTask.Task.exception = exc
+		TestWThreadTask.Task.sleep_event.clear()
+		threaded_task.start()
+		wasp_signals.wait(WThreadTask.threaded_task_started)
+		wasp_signals.clear()
+		TestWThreadTask.Task.sleep_event.set()
+		threaded_task.stop()
+		wasp_signals.wait(WThreadTask.task_stopped)
+		assert(wasp_signals.dump() == {
+			WThreadTask.task_completed: (WTaskResult(), ),
+			WThreadTask.task_stopped: (None, ),
+			WThreadTask.threaded_task_completed: (WThreadedTaskResult(task=task, result=WTaskResult(exception=exc)), )
+		})
+
+		TestWThreadTask.Task.exception = None
+		TestWThreadTask.Task.sleep_event.clear()
+		threaded_task.start()
+		wasp_signals.wait(WThreadTask.threaded_task_started)
+		wasp_signals.clear()
+
+		pytest.raises(WJoiningTimeoutError, threaded_task.stop)
+		assert(wasp_signals.dump() == {
+			WThreadTask.threaded_task_froze: (task, ),
+		})
+
+		TestWThreadTask.Task.sleep_event.set()
+		threaded_task.stop()
