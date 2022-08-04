@@ -21,8 +21,8 @@
 
 # TODO: merge some from wasp_general.network.web.service and wasp_general.network.web.re_statements
 
-import re
 import enum
+import re
 from urllib.parse import urlsplit, urlunsplit, parse_qs, urlencode
 from abc import ABCMeta, abstractmethod
 
