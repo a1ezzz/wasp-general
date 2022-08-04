@@ -1,7 +1,0 @@
-pytest>=3.6
-pytest-cov
-pytest-pep8
-pytest-html
-sphinx<1.7
-recommonmark
-twine

@@ -19,12 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __status__
-
-
 http_header_name = '[^\x00-\x1e\x7f()<>@,;:\\\\"/\[\]?={} \t]+'.encode('us-ascii')
 """
 Represent valid HTTP header name.
