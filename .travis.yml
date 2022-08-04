@@ -22,8 +22,7 @@ matrix:
       
 install:
   - pip install -r requirements.txt
-  - pip install coveralls
-  - pip install -v .
+  - pip install -v '.[all]'
 
 script:
   - python ./setup.py test

@@ -20,7 +20,7 @@
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
 # TODO: document the code
-# TODO: test the code
+# TODO: write tests for the code
 
 from datetime import datetime, timedelta, MAXYEAR, timezone
 from calendar import monthrange, weekday

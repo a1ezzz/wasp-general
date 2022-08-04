@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: test the code
+# TODO: tests require
 
 from abc import ABCMeta, abstractmethod
 

@@ -21,7 +21,7 @@
 
 # TODO: make code more useful
 # TODO: document the code
-# TODO: test the code
+# TODO: write tests for the code
 
 from abc import ABCMeta, abstractmethod
 
