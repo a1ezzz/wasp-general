@@ -96,7 +96,7 @@ class WMessengerOnionSessionFlowSequence(WMessengerOnionSessionFlowProto):
 	"""
 
 	class FlowSequenceIterator(WMessengerOnionSessionFlowProto.Iterator):
-		""" Iterator that has it's own information and sequence of flows to iterate. During iteration (in
+		""" Iterator that has its own information and sequence of flows to iterate. During iteration (in
 		:meth:`.WMessengerOnionSessionFlowSequence.FlowSequenceIterator.next` method) this class doesn't return
 		the following iterator, but returns itself instead. By each
 		:meth:`.WMessengerOnionSessionFlowSequence.FlowSequenceIterator.next` call this object saves a "real"
