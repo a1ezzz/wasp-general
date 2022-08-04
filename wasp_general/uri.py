@@ -21,8 +21,8 @@
 
 # TODO: merge some from wasp_general.network.web.service and wasp_general.network.web.re_statements
 
+import enum
 import re
-from enum import Enum
 from urllib.parse import urlsplit, urlunsplit, parse_qs, urlencode
 from abc import ABCMeta, abstractmethod
 
@@ -490,7 +490,7 @@ class WURIComponentVerifier:
 	""" Descriptor that helps to verify that an URI component matches a specification
 	"""
 
-	class Requirement(Enum):
+	class Requirement(enum.Enum):
 		""" Represent necessity of URI component
 
 		"""
