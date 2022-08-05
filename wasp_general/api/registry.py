@@ -189,16 +189,16 @@ def register_api(registry, api_id=None, callable_api_id=False):
 	:rtype: callable
 	"""
 	def decorator_fn(decorated_obj):
-			nonlocal api_id, callable_api_id
-			if callable_api_id is True:
-				if not callable(api_id):
-					raise ValueError('Unable to retrieve an id - "api_id" is non-callable')
-				api_id = api_id(decorated_obj)
-			elif api_id is None:
-				api_id = decorated_obj.__qualname__
+		nonlocal api_id, callable_api_id
+		if callable_api_id is True:
+			if not callable(api_id):
+				raise ValueError('Unable to retrieve an id - "api_id" is non-callable')
+			api_id = api_id(decorated_obj)
+		elif api_id is None:
+			api_id = decorated_obj.__qualname__
 
-			reg_id = api_id
-			registry.register(reg_id, decorated_obj)
-			return decorated_obj
+		reg_id = api_id
+		registry.register(reg_id, decorated_obj)
+		return decorated_obj
 
 	return decorator_fn
