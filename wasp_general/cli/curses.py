@@ -28,7 +28,7 @@ import curses
 from wasp_general.verify import verify_type
 from wasp_general.cli.cli import WConsoleWindowProto, WConsoleProto, WConsoleBase, WConsoleWindowBase
 from wasp_general.cli.cli import WConsoleDrawerProto
-from wasp_general.command.command import WCommandSet
+from wasp_general.api.command.command import WCommandSet
 
 
 class WCursesWindow(WConsoleWindowBase):

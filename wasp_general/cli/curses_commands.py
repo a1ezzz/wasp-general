@@ -23,8 +23,8 @@
 # TODO: write tests for the code
 
 from wasp_general.verify import verify_type
-from wasp_general.command.command import WCommand
-from wasp_general.command.result import WPlainCommandResult
+from wasp_general.api.command.command import WCommand
+from wasp_general.api.command.result import WPlainCommandResult
 from wasp_general.cli.curses import WCursesConsole
 
 

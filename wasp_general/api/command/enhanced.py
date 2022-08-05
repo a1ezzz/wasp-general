@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# wasp_general/command/enhanced.py
+# wasp_general/api/command/enhanced.py
 #
-# Copyright (C) 2017 the wasp-general authors and contributors
+# Copyright (C) 2017, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -28,7 +28,7 @@ from abc import abstractmethod
 from enum import Enum
 
 from wasp_general.verify import verify_type, verify_value, verify_subclass
-from wasp_general.command.command import WCommandProto
+from wasp_general.api.command.command import WCommandProto
 
 
 class WCommandArgumentParsingError(Exception):
