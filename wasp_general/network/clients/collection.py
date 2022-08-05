@@ -20,7 +20,7 @@
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
 # TODO: document the code
-# TODO: write tests for the code
+# TODO: test the code
 
 from wasp_general.verify import verify_subclass
 
