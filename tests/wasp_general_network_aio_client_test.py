@@ -83,8 +83,7 @@ class TestWUDPNetworkClient:
         assert(isinstance(nc, AIONetworkClientProto))
         assert(isinstance(nc, WUDPNetworkClient))
 
-    @pytest.mark.asyncio
-    async def test_network(self, event_loop):
+    def test_network(self, event_loop):
         server_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         server_socket.bind(
             (TestWUDPNetworkClient.__udp_uri__.hostname(), TestWUDPNetworkClient.__udp_uri__.port())
