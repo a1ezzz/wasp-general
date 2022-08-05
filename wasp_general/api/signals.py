@@ -196,7 +196,6 @@ class WSignalSourceMeta(ABCMeta):
                 cls.__wasp_signals__.add(class_attr_value)
 
 
-
 class WSignalSource(ASignalSourceProto, metaclass=WSignalSourceMeta):
     """ :class:`.ASignalSourceProto` implementation
     """

@@ -109,6 +109,7 @@ class WThreadTask(WSingleStateTask):
 			finally:
 				self._switch_task_state(WSingleStateTask.TaskState.completed, WTaskResult())
 
+		self._switch_task_state(WSingleStateTask.TaskState.started)
 		if self.__thread is None:
 			self.__thread = Thread(target=thread_target, name=self.__thread_name)
 			self.__thread.start()
@@ -132,5 +133,6 @@ class WThreadTask(WSingleStateTask):
 					'Thread is still alive. The thread name: %s' % self.__thread.name
 				)
 			self.__thread = None
+			self._switch_task_state(WSingleStateTask.TaskState.stopped)
 		else:
 			raise WTaskStopError('A thread is stopped already')
