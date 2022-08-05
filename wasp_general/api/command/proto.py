@@ -24,6 +24,7 @@
 
 from abc import ABCMeta, abstractmethod
 
+from wasp_general.verify import verify_type
 
 
 class WCommandProto(metaclass=ABCMeta):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# wasp_general/template_command.py
+# wasp_general/api/command/template_command.py
 #
-# Copyright (C) 2017 the wasp-general authors and contributors
+# Copyright (C) 2017, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -23,8 +23,8 @@
 # TODO: test the code
 
 from wasp_general.verify import verify_type
-from wasp_general.command.result import WPlainCommandResult
-from wasp_general.command.command import WCommand
+from wasp_general.api.command.result import WPlainCommandResult
+from wasp_general.api.command.command import WCommand
 from wasp_general.template import WTemplateRenderer, WTemplate
 
 

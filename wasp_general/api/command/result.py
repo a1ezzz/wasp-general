@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# wasp_general/command/result.py
+# wasp_general/api/command/result.py
 #
-# Copyright (C) 2017 the wasp-general authors and contributors
+# Copyright (C) 2017, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -23,7 +23,7 @@
 # TODO: test the code
 
 from wasp_general.verify import verify_type
-from wasp_general.command.proto import WCommandResultProto
+from wasp_general.api.command.proto import WCommandResultProto
 
 
 # noinspection PyAbstractClass
