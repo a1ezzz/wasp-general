@@ -302,7 +302,7 @@ class TestWNotNullValues:
 class TestWArgsValueRegExp:
 
 	def test(self):
-		r = WArgsValueRegExp('^\\d+$', 'a', args_selection=WArgsValueRestriction.ArgsSelection.none)
+		r = WArgsValueRegExp(r'^\d+$', 'a', args_selection=WArgsValueRestriction.ArgsSelection.none)
 		assert(isinstance(r, WArgsValueRestriction))
 		r.check()
 		r.check(a='11')
@@ -311,7 +311,7 @@ class TestWArgsValueRegExp:
 		pytest.raises(WArgsRestrictionError, r.check, a=None)
 		r.check(None)
 
-		r = WArgsValueRegExp('^\\d+$', args_selection=WArgsValueRestriction.ArgsSelection.positional_args)
+		r = WArgsValueRegExp(r'^\d+$', args_selection=WArgsValueRestriction.ArgsSelection.positional_args)
 		assert(isinstance(r, WArgsValueRestriction))
 		r.check()
 		r.check('11')
@@ -320,14 +320,14 @@ class TestWArgsValueRegExp:
 		pytest.raises(WArgsRestrictionError, r.check, None)
 
 		r = WArgsValueRegExp(
-			'^\\d+$', 'a', nullable=True, args_selection=WArgsValueRestriction.ArgsSelection.none
+			r'^\d+$', 'a', nullable=True, args_selection=WArgsValueRestriction.ArgsSelection.none
 		)
 		r.check()
 		r.check(a='11')
 		r.check(a=None)
 
 		r = WArgsValueRegExp(
-			'^\\d+$', nullable=True, args_selection=WArgsValueRestriction.ArgsSelection.positional_args
+			r'^\d+$', nullable=True, args_selection=WArgsValueRestriction.ArgsSelection.positional_args
 		)
 		r.check()
 		r.check('11')
@@ -343,25 +343,25 @@ class TestWIterValueRestriction:
 		assert(restriction.min_length() == 0)
 		assert(restriction.max_length() is None)
 
-		restriction = WIterValueRestriction(WArgsValueRegExp('^\\d+$'), 'a')
+		restriction = WIterValueRestriction(WArgsValueRegExp(r'^\d+$'), 'a')
 		restriction.check(a=[])
 		restriction.check(a=['7'])
 		restriction.check(a=['1', '2', '3'])
 		pytest.raises(WArgsRestrictionError, restriction.check, a=['b'])
 
-		restriction = WIterValueRestriction(WArgsValueRegExp('^\\d+$'), 'a', min_length=2)
+		restriction = WIterValueRestriction(WArgsValueRegExp(r'^\d+$'), 'a', min_length=2)
 		pytest.raises(WArgsRestrictionError, restriction.check, a=[])
 		pytest.raises(WArgsRestrictionError, restriction.check, a=['7'])
 		restriction.check(a=['1', '2', '3'])
 		pytest.raises(WArgsRestrictionError, restriction.check, a=['b'])
 
-		restriction = WIterValueRestriction(WArgsValueRegExp('^\\d+$'), 'a', max_length=2)
+		restriction = WIterValueRestriction(WArgsValueRegExp(r'^\d+$'), 'a', max_length=2)
 		restriction.check(a=[])
 		restriction.check(a=['7'])
 		pytest.raises(WArgsRestrictionError, restriction.check, a=['1', '2', '3'])
 		pytest.raises(WArgsRestrictionError, restriction.check, a=['b'])
 
-		restriction = WIterValueRestriction(WArgsValueRegExp('^\\d+$'), 'a', min_length=1, max_length=2)
+		restriction = WIterValueRestriction(WArgsValueRegExp(r'^\d+$'), 'a', min_length=1, max_length=2)
 		pytest.raises(WArgsRestrictionError, restriction.check, a=[])
 		restriction.check(a=['7'])
 		pytest.raises(WArgsRestrictionError, restriction.check, a=['1', '2', '3'])
