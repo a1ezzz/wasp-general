@@ -20,13 +20,13 @@
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
 # TODO: document the code
-# TODO: write tests for the code
+# TODO: test the code
 
 from wasp_general.verify import verify_subclass
 
 from wasp_general.network.clients.proto import WNetworkClientProto
 from wasp_general.network.clients.ftp import WFTPClient
-from wasp_general.network.clients.file import WLocalFile
+from wasp_general.network.clients.file import WLocalFileClient
 from wasp_general.network.clients.webdav import WWebDavsClient
 from wasp_general.uri import WSchemeCollection
 
@@ -39,8 +39,8 @@ class WNetworkClientCollectionProto(WSchemeCollection):
 
 
 __default_client_collection__ = WNetworkClientCollectionProto(
-	WLocalFile,
+	WLocalFileClient,
 	WFTPClient,
 	WWebDavsClient,
-	default_handler_cls=WLocalFile
+	default_handler_cls=WLocalFileClient
 )

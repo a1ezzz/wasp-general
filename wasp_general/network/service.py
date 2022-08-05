@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: write tests for the code
+# TODO: test the code
 # TODO: update docs
 
 from datetime import timedelta
