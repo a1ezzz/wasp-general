@@ -2,10 +2,10 @@
 
 import pytest
 
-from wasp_general.command.command import WCommandProto, WCommand, WCommandSelector, WCommandPrioritizedSelector
-from wasp_general.command.command import WCommandSet, WCommandAlias, WReduceCommand
-from wasp_general.command.proto import WCommandResultProto
-from wasp_general.command.result import WPlainCommandResult
+from wasp_general.api.command.command import WCommandProto, WCommand, WCommandSelector, WCommandPrioritizedSelector
+from wasp_general.api.command.command import WCommandSet, WCommandAlias, WReduceCommand
+from wasp_general.api.command.proto import WCommandResultProto
+from wasp_general.api.command.result import WPlainCommandResult
 
 
 def test_abstract():

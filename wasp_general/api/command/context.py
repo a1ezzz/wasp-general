@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# wasp_general/command/context.py
+# wasp_general/api/command/context.py
 #
-# Copyright (C) 2016 the wasp-general authors and contributors
+# Copyright (C) 2016, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -19,12 +19,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: tests require
+# TODO: test the code
 
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.command.command import WCommandProto
+from wasp_general.api.command.command import WCommandProto
 from wasp_general.composer import WComposerProto
 
 

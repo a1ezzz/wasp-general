@@ -28,7 +28,7 @@ from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
 from wasp_general.verify import verify_type, verify_value
-from wasp_general.command.command import WCommandSet, WCommandResultProto
+from wasp_general.api.command.command import WCommandSet, WCommandResultProto
 
 
 class WConsoleHistory:

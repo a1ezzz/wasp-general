@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# wasp_general/command/command.py
+# wasp_general/api/command/command.py
 #
-# Copyright (C) 2016 the wasp-general authors and contributors
+# Copyright (C) 2016, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -23,7 +23,7 @@ from abc import ABCMeta, abstractmethod
 import shlex
 
 from wasp_general.verify import verify_type
-from wasp_general.command.proto import WCommandResultProto
+from wasp_general.api.command.proto import WCommandResultProto
 
 
 class WCommandProto(metaclass=ABCMeta):

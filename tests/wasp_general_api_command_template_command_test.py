@@ -2,8 +2,8 @@
 
 from wasp_general.template import WTemplateText
 
-from wasp_general.command.command import WCommand
-from wasp_general.command.template_command import WTemplateResultCommand, WCommandResultTemplate
+from wasp_general.api.command.command import WCommand
+from wasp_general.api.command.template_command import WTemplateResultCommand, WCommandResultTemplate
 
 
 class TestWTemplateResultCommand:
