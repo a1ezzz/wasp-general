@@ -59,7 +59,7 @@ class Verifier:
 		function or is passing them to other function that has checks
 		'strict' - checks that function parameters are suited and guaranteed to work. For example, function
 		expects that its parameter is iterable. 'strict' check may test that parameter is list, tuple or set.
-		'*' - enable all checks    
+		'*' - enable all checks
 	"""
 
 	__tags_delimiter__ = ':'

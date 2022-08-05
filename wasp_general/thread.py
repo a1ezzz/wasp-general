@@ -91,7 +91,7 @@ def critical_section_dynamic_lock(lock_fn, timeout=None, raise_exception=True):
 				finally:
 					lock.release()
 			elif raise_exception is True:
-				raise WCriticalSectionError('Unable to lock critical section\n')
+				raise WCriticalSectionError('Unable to lock a critical section')
 
 		return decorator(second_level_decorator)(decorated_function)
 	return first_level_decorator
