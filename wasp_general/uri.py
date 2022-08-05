@@ -50,10 +50,8 @@ class WURI:
 
 	__all_components__ = {str(x) for x in Component}
 
-	__all_components__ = {x.name for x in Component}  #
-
 	def __init__(self, **components):
-		""" Create new WURI object. By default empty URI is created
+		""" Create new WURI object. By default, empty URI is created
 
 		:param components: components that must be set for this URI. Keys - components names as they
 		defined in :class:`.WURI.Component`, values - corresponding values
