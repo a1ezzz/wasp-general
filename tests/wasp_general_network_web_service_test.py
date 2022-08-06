@@ -145,29 +145,29 @@ class TestWWebRoute:
 		assert(test_re.match('/foo/1/page') is None)
 
 		assert(issubclass(WWebRoute.CustomArgSearch, WWebRoute.ArgSearch) is True)
-		custom_search = WWebRoute.CustomArgSearch('arg_foo', 77, '{arg_foo: "(\d+)"}', '(\d+)')
+		custom_search = WWebRoute.CustomArgSearch('arg_foo', 77, '{arg_foo: "(\\d+)"}', r'(\d+)')
 		assert(custom_search.args() == (('arg_foo', 77),))
 		reduce_fn = custom_search.reduce_pattern()
-		assert(reduce_fn('/zzz{arg_foo: "(\d+)"}aaa//') == '/zzz(\d+)aaa//')
+		assert(reduce_fn(r'/zzz{arg_foo: "(\d+)"}aaa//') == r'/zzz(\d+)aaa//')
 
 		custom_search = WWebRoute.CustomArgSearch('arg1', 77, '{pattern!}', 'replace_with_text')
 		reduce_fn = custom_search.reduce_pattern()
 		assert(reduce_fn('/page/{pattern!}/zzz') == '/page/replace_with_text/zzz')
 
-		pattern = '/section/{section_action: "(\w+)"}/page/{page_index: "(\d+)"}}'
+		pattern = r'/section/{section_action: "(\w+)"}/page/{page_index: "(\d+)"}}'
 		args_searches = list(WWebRoute.CustomArgSearch.custom(pattern))
 		assert(args_searches[0].args() == (('section_action', 9),))
 		reduce_fn = args_searches[0].reduce_pattern()
-		reduce_result = reduce_fn('/section/{section_action: "(\w+)"}/page/{page_index: "(\d+)"}')
-		assert(reduce_result == '/section/(\w+)/page/{page_index: "(\d+)"}')
+		reduce_result = reduce_fn(r'/section/{section_action: "(\w+)"}/page/{page_index: "(\d+)"}')
+		assert(reduce_result == r'/section/(\w+)/page/{page_index: "(\d+)"}')
 		assert(args_searches[1].args() == (('page_index', 40),))
 		reduce_fn = args_searches[1].reduce_pattern()
-		reduce_result = reduce_fn('/section/{section_action: "(\w+)"}/page/{page_index: "(\d+)"}')
-		assert(reduce_result == '/section/{section_action: "(\w+)"}/page/(\d+)')
+		reduce_result = reduce_fn(r'/section/{section_action: "(\w+)"}/page/{page_index: "(\d+)"}')
+		assert(reduce_result == r'/section/{section_action: "(\w+)"}/page/(\d+)')
 
 	def test_route(self):
 		route_map = TestWWebTargetRoute.RouteMap()
-		route = WWebRoute('/foo/section/{action}/{index:"(\d+)"}/page/{page_action}', 'presenter name')
+		route = WWebRoute(r'/foo/section/{action}/{index:"(\d+)"}/page/{page_action}', 'presenter name')
 		request = WWebRequest(TestWWebRoute.Session(), 'GET', '/foo/section/bla_bla_action/13/page/show_page')
 
 		collection = WSimplePresenterCollection()
@@ -320,7 +320,7 @@ class TestWWebRouteMap:
 		request = WWebRequest(TestWWebRoute.Session(), 'GET', '/page/1')
 		assert(route_map.route(request, service) is None)
 
-		route_map.import_route('/page/{code:"(\d+)"} => SamplePresenter (action = show, code=404, v, foo=bar)')
+		route_map.import_route(r'/page/{code:"(\d+)"} => SamplePresenter (action = show, code=404, v, foo=bar)')
 		target_route = route_map.route(request, service)
 		assert(target_route is not None)
 		assert(target_route.presenter_args() == {'code': '1', 'v': None, 'foo': 'bar'})
