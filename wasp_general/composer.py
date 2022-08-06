@@ -22,9 +22,18 @@
 # TODO: document the code
 # TODO: test the code
 
+import warnings
+
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type, verify_value, verify_subclass
+
+
+warnings.warn(
+	'This module ("wasp_general.composer") is deprecated. The "wasp_general.api.composer" module '
+	'should be used instead',
+	DeprecationWarning
+)
 
 
 class WComposerProto(metaclass=ABCMeta):
