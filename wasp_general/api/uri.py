@@ -19,11 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __author__, __version__, __credits__, __license__, __copyright__, __email__
-# noinspection PyUnresolvedReferences
-from wasp_general.version import __status__
-
 from wasp_general.verify import verify_type, verify_value
 
 from wasp_general.api.check import WArgsRestrictionProto, WArgsValueRestriction, WChainChecker
@@ -92,7 +87,9 @@ class WURIQueryRestriction(WArgsValueRestriction):
 		:param restrictions: restriction that will be applied on query parameters
 		:type restrictions: WArgsRestrictionProto
 		"""
-		WArgsValueRestriction.__init__(self, WURI.Component.query.value)
+		WArgsValueRestriction.__init__(
+		        self, WURI.Component.query, args_selection=WArgsValueRestriction.ArgsSelection.none
+		)
 		self.__restriction_chain = WChainChecker(*restrictions)
 
 	@verify_type('strict', value=(WURIQuery, str), name=(str, None))
