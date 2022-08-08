@@ -20,7 +20,7 @@ def telegram_notification(message) {
 
 pipeline {
 
-  agent any
+  agent { label 'linux_x64' }
 
   parameters {
     string(
@@ -96,6 +96,6 @@ pipeline {
       }
     }    
         
-  }
+  }  // post
     
 }
