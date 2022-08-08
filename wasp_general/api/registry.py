@@ -78,7 +78,7 @@ class WAPIRegistryProto(metaclass=ABCMeta):
 		:param api_id: id of a target descriptor
 		:type api_id: any (hashable only)
 
-		:raise WNoSuchAPIIdError: when the specified API id has been registered already
+		:raise WNoSuchAPIIdError: when the specified API id has not been registered
 
 		:rtype: any
 		"""
