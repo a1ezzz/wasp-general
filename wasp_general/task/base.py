@@ -21,8 +21,6 @@
 
 from abc import ABCMeta, abstractmethod
 
-from wasp_general.verify import verify_type
-
 
 class WTask(metaclass=ABCMeta):
 	""" Basic task prototype. Must implement the only thing - to start

@@ -238,7 +238,7 @@ class WArgsRequirements(WArgsRestrictionProto):
 		elif self.__exact_occurrences is True:
 			occurrences_text = 'exact {0} arguments of the following'.format(self.__occurrences)
 		else:
-			occurrences_text = 'at least %i arguments of the following one'.format(self.__occurrences)
+			occurrences_text = 'at least {0} arguments of the following one'.format(self.__occurrences)
 
 		raise WArgsRestrictionError(
 			"{0} is required that {1} was specified: {2}. {3}".format(

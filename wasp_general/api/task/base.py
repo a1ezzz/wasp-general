@@ -113,7 +113,9 @@ class WSingleStateTask(WTaskProto):
                     return result
                 finally:
                     self.__lock.release()
-            raise WTaskStopError('Unable to stop/terminate task because other start/stop/terminate request in progress')
+            raise WTaskStopError(
+                'Unable to stop/terminate task because other start/stop/terminate request in progress'
+            )
         return decorator(decorator_fn)(decorated_fn)
 
     def task_state(self):

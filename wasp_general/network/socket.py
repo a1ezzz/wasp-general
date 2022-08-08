@@ -111,7 +111,7 @@ class WUDPSocketHandler(WSocketHandlerProto):
 	__uri_check__ = WURIRestriction(
 		WChainChecker(
 			WSupportedArgs(
-				WURI.Component.scheme,	WURI.Component.hostname, WURI.Component.port, WURI.Component.query
+				WURI.Component.scheme, WURI.Component.hostname, WURI.Component.port, WURI.Component.query
 			),
 			WArgsRequirements(WURI.Component.hostname, WURI.Component.port),
 			WURIQueryRestriction(

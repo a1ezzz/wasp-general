@@ -36,7 +36,7 @@ class WHMAC:
 	""" Default hash function name for HMAC
 	"""
 
-	__hmac_name_re__ = re.compile('HMAC[\-_]([a-zA-Z0-9]+)')
+	__hmac_name_re__ = re.compile(r'HMAC[\-_]([a-zA-Z0-9]+)')
 	""" Regular expression that selects hash function name from HMAC name
 	"""
 

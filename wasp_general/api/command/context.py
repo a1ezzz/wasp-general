@@ -23,7 +23,7 @@
 
 from abc import ABCMeta, abstractmethod
 
-from wasp_general.verify import verify_type, verify_value
+from wasp_general.verify import verify_type
 from wasp_general.api.command.command import WCommandProto
 from wasp_general.composer import WComposerProto
 

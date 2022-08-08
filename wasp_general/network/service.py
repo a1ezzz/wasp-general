@@ -31,7 +31,7 @@ from zmq import Context as ZMQContext
 from zmq.eventloop.ioloop import IOLoop
 from zmq.eventloop.zmqstream import ZMQStream
 
-from wasp_general.verify import verify_type, verify_subclass
+from wasp_general.verify import verify_type
 from wasp_general.config import WConfig
 
 from wasp_general.network.transport import WNetworkNativeTransportProto
