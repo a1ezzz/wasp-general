@@ -131,8 +131,8 @@ class TestWUnbalancedTreeNode:
 	def test_clone(self):
 		node_a = WUnbalancedTreeNode(' a ')
 		node_b = WUnbalancedTreeNode('b', node_a)
-		node_c = WUnbalancedTreeNode('c', node_a)
-		node_d = WUnbalancedTreeNode('d', node_b)
+		node_c = WUnbalancedTreeNode('c', node_a)  # noqa: F841
+		node_d = WUnbalancedTreeNode('d', node_b)  # noqa: F841
 
 		cloned_a = node_a.clone()
 		assert(isinstance(cloned_a, WUnbalancedTreeNode) is True)

@@ -1,6 +1,5 @@
 import asyncio
 import pytest
-import socket
 
 from wasp_general.network.aio_protocols import WGeneralProtocol, WClientProtocol, WClientDatagramProtocol
 from wasp_general.network.aio_protocols import WClientStreamProtocol, WServiceDatagramProtocol, WServiceStreamProtocol

@@ -90,7 +90,7 @@ class TestWCapabilitiesHolder:
             class E(A, D):
                 pass
 
-        class E(A, D):
+        class E(A, D):  # noqa: F811
 
             def foo(self, *args):
                 return A.foo(self, *args)

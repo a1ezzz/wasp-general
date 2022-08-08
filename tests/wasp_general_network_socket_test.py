@@ -3,7 +3,7 @@ import os
 import pytest
 import socket
 
-from wasp_general.uri import WSchemeHandler, WSchemeSpecification, WURI, WSchemeCollection
+from wasp_general.uri import WURI
 
 from wasp_general.network.socket import WSocketHandlerProto, WUDPSocketHandler, WTCPSocketHandler, WUnixSocketHandler
 from wasp_general.network.socket import __default_socket_collection__

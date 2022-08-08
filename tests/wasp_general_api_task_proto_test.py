@@ -124,8 +124,7 @@ class TestWScheduledTaskPostponePolicy:
 	def test(self):
 		assert(issubclass(WScheduledTaskPostponePolicy, enum.Enum) is True)
 		assert(
-			[x for x in WScheduledTaskPostponePolicy] ==
-			[
+			[x for x in WScheduledTaskPostponePolicy] == [
 				WScheduledTaskPostponePolicy.wait,
 				WScheduledTaskPostponePolicy.drop,
 				WScheduledTaskPostponePolicy.keep_first,

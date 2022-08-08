@@ -16,36 +16,36 @@ class TestWMACAddress:
 		pytest.raises(ValueError, WMACAddress, "01:23:45:ab:cd:ZZ")
 
 		assert(
-			str(WMACAddress("01:23:45:ab:cd:ef").bin_address()) ==
-			"000000010010001101000101101010111100110111101111"
+			str(WMACAddress("01:23:45:ab:cd:ef").bin_address())
+			== "000000010010001101000101101010111100110111101111"
 		)
 		assert(
-			str(WMACAddress.from_string("01-23-45-ab-cd-ef").bin_address()) ==
-			"000000010010001101000101101010111100110111101111"
+			str(WMACAddress.from_string("01-23-45-ab-cd-ef").bin_address())
+			== "000000010010001101000101101010111100110111101111"
 		)
 		assert(
-			str(WMACAddress.from_string("01:23:45:ab:cd:ef").bin_address()) ==
-			"000000010010001101000101101010111100110111101111"
+			str(WMACAddress.from_string("01:23:45:ab:cd:ef").bin_address())
+			== "000000010010001101000101101010111100110111101111"
 		)
 		assert(
-			str(WMACAddress.from_string("0123.45ab.cdef").bin_address()) ==
-			"000000010010001101000101101010111100110111101111"
+			str(WMACAddress.from_string("0123.45ab.cdef").bin_address())
+			== "000000010010001101000101101010111100110111101111"
 		)
 		assert(
-			str(WMACAddress.from_string("012345abcdef").bin_address()) ==
-			"000000010010001101000101101010111100110111101111"
+			str(WMACAddress.from_string("012345abcdef").bin_address())
+			== "000000010010001101000101101010111100110111101111"
 		)
 
 	def test_to_string(self):
 		assert(
-			str(WMACAddress(WBinArray(0b000000010010001101000101101010111100110111101111))) ==
-			"01:23:45:ab:cd:ef"
+			str(WMACAddress(WBinArray(0b000000010010001101000101101010111100110111101111)))
+			== "01:23:45:ab:cd:ef"
 		)
 
 	def test_to_bytes(self):
 		assert(
-			bytes(WMACAddress(WBinArray(0b000000010010001101000101101010111100110111101111))) ==
-			b"\x01\x23\x45\xab\xcd\xef"
+			bytes(WMACAddress(WBinArray(0b000000010010001101000101101010111100110111101111)))
+			== b"\x01\x23\x45\xab\xcd\xef"
 		)
 
 

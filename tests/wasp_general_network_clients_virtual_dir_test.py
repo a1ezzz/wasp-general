@@ -4,7 +4,7 @@ import pytest
 
 from wasp_general.network.clients.proto import WNetworkClientProto
 from wasp_general.network.clients.virtual_dir import WVirtualDirectoryClient
-from wasp_general.uri import WSchemeHandler, WURI, WSchemeSpecification
+from wasp_general.uri import WURI, WSchemeSpecification
 
 
 def test_abstract():

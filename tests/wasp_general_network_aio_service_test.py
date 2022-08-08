@@ -85,7 +85,9 @@ class TestWUDPNetworkService:
 
     @pytest.mark.asyncio
     async def test(self):
-        ns = __default_network_services_collection__.network_handler(TestWUDPNetworkService.__udp_uri__, PyDatagramTestServer)
+        ns = __default_network_services_collection__.network_handler(
+            TestWUDPNetworkService.__udp_uri__, PyDatagramTestServer
+        )
         assert(isinstance(ns, AIONetworkServiceProto))
         assert(isinstance(ns, WUDPNetworkService))
         await ns.start()
@@ -98,7 +100,9 @@ class TestWUDPNetworkService:
         test_message = b'test udp message'
 
         PyDatagramTestServer.__result__ = event_loop.create_future()
-        ns = __default_network_services_collection__.network_handler(TestWUDPNetworkService.__udp_uri__, PyDatagramTestServer)
+        ns = __default_network_services_collection__.network_handler(
+            TestWUDPNetworkService.__udp_uri__, PyDatagramTestServer
+        )
         event_loop.run_until_complete(ns.start())
 
         client_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -119,7 +123,9 @@ class TestWTCPNetworkService:
 
     @pytest.mark.asyncio
     async def test(self):
-        ns = __default_network_services_collection__.network_handler(TestWTCPNetworkService.__tcp_uri__, PyStreamedTestServer)
+        ns = __default_network_services_collection__.network_handler(
+            TestWTCPNetworkService.__tcp_uri__, PyStreamedTestServer
+        )
         assert(isinstance(ns, AIONetworkServiceProto))
         assert(isinstance(ns, WTCPNetworkService))
         await ns.start()
@@ -132,7 +138,9 @@ class TestWTCPNetworkService:
         test_message = b'test tcp message'
         PyStreamedTestServer.__result__ = event_loop.create_future()
 
-        ns = __default_network_services_collection__.network_handler(TestWTCPNetworkService.__tcp_uri__, PyStreamedTestServer)
+        ns = __default_network_services_collection__.network_handler(
+            TestWTCPNetworkService.__tcp_uri__, PyStreamedTestServer
+        )
         event_loop.run_until_complete(ns.start())
 
         client_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)

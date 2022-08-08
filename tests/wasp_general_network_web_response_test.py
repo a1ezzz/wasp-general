@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import pytest
-
 from wasp_general.network.web.response import WWebResponse
 from wasp_general.network.web.headers import WHTTPHeaders
 

@@ -2,8 +2,7 @@
 
 import pytest
 
-from wasp_general.api.command.command import WCommandProto, WCommand, WCommandPrioritizedSelector
-from wasp_general.api.command.command import WCommandSet
+from wasp_general.api.command.command import WCommandProto, WCommand
 from wasp_general.api.command.result import WPlainCommandResult
 from wasp_general.composer import WComposerProto
 

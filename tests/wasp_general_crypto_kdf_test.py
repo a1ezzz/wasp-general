@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import pytest
-
 from wasp_general.crypto.kdf import WPBKDF2
 
 

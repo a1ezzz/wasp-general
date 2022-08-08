@@ -5,7 +5,7 @@ import functools
 import gc
 
 from wasp_general.thread import acquire_lock, critical_section_dynamic_lock, critical_section_lock, WCriticalResource
-from wasp_general.thread import WCriticalSectionError, WLockFreeContext
+from wasp_general.thread import WCriticalSectionError
 
 
 def test_acquire_lock():

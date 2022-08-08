@@ -140,7 +140,7 @@ class TestWURI:
 		assert(uri.fragment() is None)
 
 		with pytest.raises(AttributeError):
-			v = uri.zzz
+			v = uri.zzz  # noqa: F841
 
 		uri.reset_component('path')
 		uri.reset_component(WURI.Component.scheme)

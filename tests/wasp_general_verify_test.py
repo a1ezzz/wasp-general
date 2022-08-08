@@ -45,7 +45,7 @@ class TestVerifier:
 
     def test_decorate_disabled(self):
         with pytest.raises(KeyError):
-            a = os.environ[Verifier.__environment_var__]
+            a = os.environ[Verifier.__environment_var__]  # noqa: F841
 
         assert(Verifier().decorate_disabled() is False)
         assert(Verifier('test_tag1').decorate_disabled() is True)
@@ -77,7 +77,7 @@ class TestVerifier:
 
     def test_decorator(self):
         with pytest.raises(KeyError):
-            a = os.environ[Verifier.__environment_var__]
+            a = os.environ[Verifier.__environment_var__]  # noqa: F841
 
         def foo(a, b, c, d=None, **kwargs):
             '''

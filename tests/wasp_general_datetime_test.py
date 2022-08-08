@@ -3,7 +3,7 @@
 import datetime
 import time
 
-from wasp_general.datetime import local_tz, utc_datetime, local_datetime
+from wasp_general.datetime import utc_datetime, local_datetime
 
 
 def test_datetime():
