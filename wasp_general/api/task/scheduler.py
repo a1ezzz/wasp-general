@@ -19,21 +19,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-import enum
-import uuid
-from datetime import timezone
-
 from wasp_c_extensions.threads import WAtomicCounter
 from wasp_c_extensions.queue import WMCQueue, WMCQueueSubscriber
 
 
-from wasp_general.verify import verify_type, verify_value, verify_subclass
-from wasp_general.thread import WCriticalResource
-from wasp_general.datetime import utc_datetime
-from wasp_general.platform import WPlatformThreadEvent
+from wasp_general.verify import verify_type, verify_value
 
-from wasp_general.api.signals import WSignalProxy, anonymous_source, WSignalSource, WSignal
-from wasp_general.api.task.proto import WSchedulerProto, WScheduleSourceProto, WScheduleRecordProto, WTaskPostponePolicy
+from wasp_general.api.signals import WSignalProxy, anonymous_source
+from wasp_general.api.task.proto import WSchedulerProto, WScheduleSourceProto, WScheduleRecordProto
+from wasp_general.api.task.proto import WTaskPostponePolicy
 from wasp_general.api.task.thread import WThreadTask
 
 
@@ -124,12 +118,12 @@ class WScheduler(WSchedulerProto):
 	- service stop event
 	- task stop event
 	- proxy events:
-            - cls.task_scheduled, \
-	    - cls.task_dropped, \
-	    - cls.task_postponed, \
-	    - cls.task_started, \
-	    - cls.task_crashed, \
-	    - cls.task_stopped
+		- cls.task_scheduled, \
+		- cls.task_dropped, \
+		- cls.task_postponed, \
+		- cls.task_started, \
+		- cls.task_crashed, \
+		- cls.task_stopped
 	"""
 
 	def __init__(self):
@@ -154,20 +148,17 @@ class WScheduler(WSchedulerProto):
 				if self.__mode is not WScheduler.RunningMode.running:
 					# TODO: cleanup!
 					break
-				signal = self.__signal_proxy.next()
+				# TODO: fix noqa
+				signal = self.__signal_proxy.next()  # noqa: F841
 		finally:
-			with self.critical_context(timeout=self.__lock_acquiring_timeout__) as c:
+			# TODO: fix noqa
+			with self.critical_context(timeout=self.__lock_acquiring_timeout__) as c:  # noqa: F841
 				for s in self.__sources:
 					self.__signal_proxy.stop_proxying(
 						s, WScheduleSourceProto.task_scheduled, weak_ref=True
 					)
 				self.__signal_proxy.stop_proxying(self.__stop_event_source, self.__stop_signal)
 			self.__mode = WScheduler.RunningMode.stopped
-
-
-
-
-
 
 #
 # class WScheduler(WSchedulerProto, WCriticalResource):
@@ -275,41 +266,6 @@ class WScheduler(WSchedulerProto):
 # 	def __task_scheduled(self, signal_source, signal_id, payload=None):
 # 		pass
 #
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #
 # class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
 # 	""" Class that is looking for execution process of scheduled task. Each scheduled task has its own
