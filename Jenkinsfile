@@ -64,6 +64,16 @@ pipeline {
         }
       }
     }
+
+    stage('PEP8 check'){
+      steps {
+        script {
+          docker.image(python_image).inside(python_container_cmd){
+            sh "cd /sources && /workspace/venv/bin/py.test -c tests/pytest-pep8.ini"
+          }
+        }
+      }
+    }
   }  // stages
 
   post {
