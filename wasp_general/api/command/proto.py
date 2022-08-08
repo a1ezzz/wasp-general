@@ -22,6 +22,7 @@
 # TODO: document the code
 # TODO: test the code
 
+import shlex
 from abc import ABCMeta, abstractmethod
 
 from wasp_general.verify import verify_type
@@ -77,7 +78,6 @@ class WCommandProto(metaclass=ABCMeta):
 		:return: str
 		"""
 		return ' '.join([shlex.quote(x) for x in command_tokens])
-
 
 
 class WCommandResultProto(metaclass=ABCMeta):

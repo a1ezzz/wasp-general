@@ -267,7 +267,8 @@ def set_composer(obj_dump, registry):
 	return set([registry.compose(x) for x in obj_dump])
 
 
-@verify_type('strict', registry=(WTransformationRegistry, type, None), compose_fn=(str, None), dismantle_fn=(str, None))
+@verify_type('strict', registry=(WTransformationRegistry, type, None), compose_fn=(str, None))
+@verify_type('strict', dismantle_fn=(str, None))
 def register_class(registry=None, compose_fn=None, dismantle_fn=None):
 	""" Return a class decorator that will register its composition and dismantling functions in a registry.
 	Composition and dismantling functions must be members of a class, so it is better to decorate them with

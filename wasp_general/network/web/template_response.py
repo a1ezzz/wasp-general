@@ -19,10 +19,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-import io
-from mako.template import Template
-from mako.runtime import Context
-
 from wasp_general.verify import verify_type
 
 from wasp_general.template import WTemplate

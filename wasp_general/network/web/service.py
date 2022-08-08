@@ -127,7 +127,7 @@ class WWebRoute:
 
 	class BasicArgSearch(ArgSearch):
 		""" This is a simple route argument search, that is looking for simple pattern "{<argument_name>}".
-		In the prepared patter this argument specification will be replaced with r'(\w+)' statement
+		In the prepared patter this argument specification will be replaced with r'(\w+)' statement  # noqa: W605
 		"""
 
 		arg_re = re.compile(wasp_route_arg_name_selection)
@@ -160,9 +160,10 @@ class WWebRoute:
 	class CustomArgSearch(ArgSearch):
 		""" This is more complex argument search than :class:`.WWebRoute.BasicArgSearch`. This class provides
 		an ability to control target argument regular expression. Instead of using simple regexp like
-		:class:`.WWebRoute.BasicArgSearch` does (:class:`.WWebRoute.BasicArgSearch` uses r'(\w+)'), this class
-		will search for a special statements that describe and argument name and corresponding regexp.
-		Statements obey the following format "{<argument_name>:"<regular_expression>"}".
+		:class:`.WWebRoute.BasicArgSearch` does (:class:`.WWebRoute.BasicArgSearch` uses
+		r'(\w+)'), this class will search for a special statements that describe and argument name  # noqa: W605
+		and corresponding regexp. Statements obey the following format
+		"{<argument_name>:"<regular_expression>"}".
 		"""
 
 		custom_arg_re = re.compile(wasp_route_custom_arg_selection)

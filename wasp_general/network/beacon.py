@@ -42,8 +42,6 @@ class WBeaconServerProtocol(WServiceDatagramProtocol):
 
 		:rtype: any
 		"""
-		import asyncio
-
 		return {'request': request}
 
 	def datagram_received(self, data, addr):
@@ -131,7 +129,6 @@ class WBeaconClientProtocol(WClientDatagramProtocol):
 		)
 		response = WOnionSession(sf).process(None)
 		self._aio_loop.create_task(response)
-
 
 	def datagram_received(self, data, addr):
 		""" The :meth:`.asyncio.DatagramProtocol.datagram_received` method implementation

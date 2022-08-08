@@ -24,6 +24,6 @@
 
 
 try:
-	from wasp_c_extensions.threads import WPThreadEvent as WPlatformThreadEvent
+	from wasp_c_extensions.threads import WPThreadEvent as WPlatformThreadEvent  # noqa: F401
 except ImportError:
-	from threading import Event as WPlatformThreadEvent
+	from threading import Event as WPlatformThreadEvent  # noqa: F401

@@ -199,10 +199,10 @@ class WCommandArgumentDescriptor:
 		if (flag_mode is True and multiple_values is True) or \
 			(flag_mode is True and default_value is not None) or \
 			(multiple_values is True and default_value is not None):
-				raise ValueError(
-					'Argument has conflict options. "flag_mode" and "multiple_values" can not be '
-					'used at the same time'
-				)
+			raise ValueError(
+				'Argument has conflict options. "flag_mode" and "multiple_values" can not be '
+				'used at the same time'
+			)
 
 		if casting_helper is not None:
 			flag_helper = WCommandArgumentDescriptor.FlagArgumentCastingHelper

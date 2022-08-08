@@ -28,7 +28,7 @@ from abc import ABCMeta, abstractmethod
 from wasp_general.verify import verify_subclass, verify_type
 from wasp_general.network.primitives import WIPV4SocketInfo
 
-from wasp_general.network.web.proto import WWebSessionProto, WWebResponseProto
+from wasp_general.network.web.proto import WWebSessionProto
 from wasp_general.network.web.request import WWebRequest
 
 
