@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # wasp_general/api/task/scheduler.py
 #
-# Copyright (C) 2017-2019 the wasp-general authors and contributors
+# Copyright (C) 2017-2019, 2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -19,919 +19,476 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
+
+from wasp_c_extensions.ev_loop import WEventLoop
 from wasp_c_extensions.threads import WAtomicCounter
-from wasp_c_extensions.queue import WMCQueue, WMCQueueSubscriber
 
+from wasp_general.api.signals import WSignalSource, WSignal, WEventLoopCallbacks
 
+from wasp_general.thread import WCriticalResource
 from wasp_general.verify import verify_type, verify_value
 
-from wasp_general.api.signals import WSignalProxy, anonymous_source
-from wasp_general.api.task.proto import WSchedulerProto, WScheduleSourceProto, WScheduleRecordProto
-from wasp_general.api.task.proto import WTaskPostponePolicy
+from wasp_general.api.task.proto import WTaskProto, WScheduledTaskPostponePolicy, WScheduleRecordProto
+from wasp_general.api.task.proto import WScheduleSourceProto, WScheduledTaskResult, WSchedulerProto, WTaskResult
 from wasp_general.api.task.thread import WThreadTask
 
 
-class WScheduleExecutor:
+class WScheduleRecord(WScheduleRecordProto):
+	""" The :class:`.WScheduleRecordProto` implementation. Implementation is pretty straightforward
 	"""
 
-	execute --> finalize_completed -> execute_postponed -
-	^                                                   |
-	| ---------------------------------------------------
+	@verify_type('strict', task=WTaskProto, group_id=(str, None), ttl=(int, float, None))
+	@verify_type('strict', simultaneous_policy=(int, None), postpone_policy=WScheduledTaskPostponePolicy)
+	def __init__(
+		self, task, group_id=None, ttl=None, simultaneous_policy=None,
+		postpone_policy=WScheduledTaskPostponePolicy.wait
+	):
+		""" Create a new record
 
+		:param task: a task to execute
+		:type task: WTaskProto
+
+		:param group_id: record's group id. Please read :meth:`.WScheduleRecordProto.group_id`
+		:type group_id: str | None
+
+		:param ttl: record's ttl
+		:type ttl: int | float | None
+
+		:param simultaneous_policy: how many records with the same group_id should be running at the moment
+		:type simultaneous_policy: int | None
+
+		:param postpone_policy: what should be done if this record will be postponed
+		:type postpone_policy: WScheduledTaskPostponePolicy
+		"""
+		self.__task = task
+		self.__group_id = group_id
+		self.__ttl = ttl
+		self.__simultaneous_policy = simultaneous_policy if simultaneous_policy is not None else 0
+		self.__postpone_policy = postpone_policy
+
+	def task(self):
+		""" The :meth:`.WScheduleRecordProto.task` method implementation
+
+		:rtype: WTaskProto
+		"""
+		return self.__task
+
+	def group_id(self):
+		""" The :meth:`.WScheduleRecordProto.group_id` method implementation
+
+		:rtype: str | None
+		"""
+		return self.__group_id
+
+	def ttl(self):
+		""" The :meth:`.WScheduleRecordProto.ttl` method implementation
+
+		:rtype: int | float | None
+		"""
+		return self.__ttl
+
+	def simultaneous_policy(self):
+		""" The :meth:`.WScheduleRecordProto.simultaneous_policy` method implementation
+
+		:rtype: int | None
+		"""
+		return self.__simultaneous_policy
+
+	def postpone_policy(self):
+		""" The :meth:`.WScheduleRecordProto.postpone_policy` method implementation
+
+		:rtype: WScheduledTaskPostponePolicy
+		"""
+		return self.__postpone_policy
+
+
+class WSchedulerThreadExecutor(WSignalSource):
+	""" This class is used along with the :class:`.WScheduler` which is the :class:`.WSchedulerProto` class
+	implementation. This class allow to execute records and track them.
+
+	:note: Methods in this class are not thread safe, because all methods and signals are used or processed within a
+	single thread inside a loop in the :class:`.WScheduler` class
 	"""
 
-	@verify_type('strict', maximum_running_records=int)
-	@verify_value('strict', maximum_running_records=lambda x: x > 0)
-	def __init__(self, maximum_running_records):
-		self.__records_counter = WAtomicCounter(maximum_running_records, negative=False)
-		self.__running_threads = set()
-		self.__ready_threads = set()
+	record_processed = WSignal(WScheduleRecordProto)  # record processing is finished
+	task_started = WSignal(WScheduleRecordProto)      # a scheduled record started
+	task_completed = WSignal(WScheduledTaskResult)    # a scheduled record completed
+	task_stopped = WSignal(None)                      # a stop request for a scheduled task completed
 
-		self.__postponed_records = WMCQueue()
-		self.__pr_subscriber = WMCQueueSubscriber(self.__postponed_records)
+	@verify_type('strict', wev_loop=WEventLoop)
+	def __init__(self, wev_loop):
+		""" Create a new executor
 
-	@verify_type('paranoid', record=WScheduleRecordProto)
+		:param wev_loop: a loop with which all internals callbacks will be called
+		:type wev_loop: WEventLoop
+		"""
+		WSignalSource.__init__(self)
+		self.__callbacks = WEventLoopCallbacks(wev_loop)
+		self.__running_records = dict()
+
+	def running_records(self):
+		""" Return records that are running at the moment
+
+		:rtype: tuple of str
+		"""
+		return tuple(self.__running_records.keys())
+
+	@verify_type('strict', record=WScheduleRecordProto)
+	def stop_record(self, record):
+		""" Stop execution of a record that is running
+
+		:note: This method must be called when origin loop is stopped in order not to interfere with callbacks!
+
+		:param record: record to stop
+		:type record: WScheduleRecordProto
+
+		TODO: check raise!!!!!
+		:rtype: None
+		"""
+		if self.__callbacks.loop().is_started():
+			raise RuntimeError('Unable to stop a record because of a running loop (callbacks may interfere)')
+		threaded_task = self.__running_records.pop(record)
+		threaded_task.stop()
+
+	@verify_type('strict', record=WScheduleRecordProto)
 	def execute(self, record):
-		try:
-			self.__records_counter.increase_counter(-1)
-		except ValueError:
-			self.__postpone(record)
-			return
+		""" Execute a new record
 
-		self.__execute(record)
+		:param record: a record to start
+		:type record: WScheduleRecordProto
 
-	@verify_type('strict', record=WScheduleRecordProto)
-	def __execute(self, record):
-		try:
-			task = record.task()
-			threaded_task = WThreadTask(task, thread_name='Scheduler record execution')
-			threaded_task.callback(WThreadTask.task_ready, self.__thread_callback)
-			threaded_task.callback(WThreadTask.task_crashed, self.__thread_callback)
-			threaded_task.start()
-			self.__running_threads.add(threaded_task)
-		except Exception:
-			self.__records_counter.increase_counter(1)
-			raise
+		:rtype: None
+		"""
+		task = record.task()
+		threaded_task = WThreadTask(task, thread_name='Scheduler record execution')
 
-	def __thread_callback(self, thread, signal_id, payload):
-		self.__ready_threads.add(thread)
+		def callback(signal_source, signal, signal_value=None):
+			nonlocal record
 
-	@verify_type('strict', record=WScheduleRecordProto)
-	def __postpone(self, record):
-		policy = record.policy()
-		if policy == WTaskPostponePolicy.drop:
-			return
+			if signal == WThreadTask.threaded_task_started:
+				self.emit(self.task_started, record)
+			elif signal == WThreadTask.threaded_task_completed:
+				self.emit(self.task_completed, WScheduledTaskResult(record=record, task_result=signal_value.result))
+				signal_source.stop()  # stop (and join) a WThreadTask, this also emits WThreadTask.task_stopped
+			elif signal == WThreadTask.task_stopped:
+				# this routine work till the origin loop exists, so it doesn't interfere with the
+				# :meth:`.WSchedulerThreadExecutor.stop_all` method
+				self.emit(self.task_stopped, record)
+				self.__running_records.pop(record)
+				self.emit(self.record_processed, record)
 
-		self.__postponed_records.push(record)
+		self.__callbacks.register(threaded_task, WThreadTask.threaded_task_started, callback)
+		self.__callbacks.register(threaded_task, WThreadTask.threaded_task_completed, callback)
+		self.__callbacks.register(threaded_task, WThreadTask.task_stopped, callback)
 
-	def finalize_completed(self):
-		# TODO: race condition is possible
-		for thread in self.__ready_threads:
-			thread.stop()
-			self.__running_threads.remove(thread)
-			self.__ready_threads.remove(thread)
-			self.__records_counter.increase_counter(1)
-
-	def execute_postponed(self):
-		# TODO: race condition is possible
-
-		executed_tasks = 0
-
-		while self.__pr_subscriber.has_next():
-			try:
-				self.__records_counter.increase_counter(-1)
-			except ValueError:
-				return
-
-			record = self.__pr_subscriber.next()
-			self.__execute(record)
-			executed_tasks += 1
-
-		return executed_tasks
+		threaded_task.start()
+		self.__running_records[record] = threaded_task
 
 
-class WScheduler(WSchedulerProto):
+class WSchedulerPostponeQueue(WSignalSource):
+	""" This class is used along with the :class:`.WScheduler` which is the :class:`.WSchedulerProto` class
+	implementation. This class allow to postpone records.
+
+	:note: Methods in this class are not thread safe, because all methods and signals are used or processed within a
+	single thread inside a loop in the :class:`.WScheduler` class
 	"""
 
-	task events:
-	- new task is scheduled
-	- service stop event
-	- task stop event
-	- proxy events:
-		- cls.task_scheduled, \
-		- cls.task_dropped, \
-		- cls.task_postponed, \
-		- cls.task_started, \
-		- cls.task_crashed, \
-		- cls.task_stopped
-	"""
+	task_dropped = WSignal(WScheduleRecordProto)    # a scheduled task dropped and would not start
+	task_postponed = WSignal(WScheduleRecordProto)  # a scheduled task dropped and will start later
+	task_expired = WSignal(WScheduleRecordProto)    # a scheduled task dropped because of expired ttl
 
 	def __init__(self):
+		""" Create a new queue with postpone records
+		"""
+		WSignalSource.__init__(self)
+		self.__postponed_records = []
+
+	@verify_type('strict', group_id=str)
+	def __drop_all(self, group_id):
+		""" Drop from a queue all record with the specified group_id
+
+		:param group_id: id of a group which records should be dropped
+		:type group_id: str
+
+		:rtype: None
+		"""
+		dropped_records = 0
+		for i in range(len(self.__postponed_records)):
+			check_record = self.__postponed_records[i - dropped_records]
+			if check_record.group_id() == group_id:
+				self.__postponed_records.pop(i - dropped_records)
+				dropped_records += 1
+				self.emit(self.task_dropped, check_record)
+
+	@verify_type('strict', group_id=str)
+	def __keep_first(self, group_id):
+		""" Try to keep the earliest record of the same group. Other records of the same group will be dropped
+
+		:param group_id: id of a group which records should be dropped (all but the earliest)
+		:type group_id: str
+
+		:return: return True if the earliest record was found and return False otherwise
+		:rtype: bool
+		"""
+		first_found = False
+		dropped_records = 0
+		for i in range(len(self.__postponed_records)):
+			check_record = self.__postponed_records[i - dropped_records]
+			if check_record.group_id() == group_id:
+				if first_found:
+					self.__postponed_records.pop(i - dropped_records)
+					self.emit(self.task_dropped, check_record)
+					dropped_records += 1
+				else:
+					first_found = True
+		return first_found
+
+	@verify_type('strict', record=WScheduleRecordProto)
+	def postpone(self, record):
+		""" Postpone a record (or drop it because of policy and/or ttl)
+
+		:param record: record to postpone
+		:type record: WScheduleRecordProto
+
+		:rtype: None
+		"""
+		ttl = record.ttl()
+		group_id = record.group_id()
+		postpone_policy = record.postpone_policy()
+
+		if postpone_policy == WScheduledTaskPostponePolicy.drop:
+			self.emit(self.task_dropped, record)
+			return
+
+		if ttl is not None and ttl < datetime.datetime.utcnow().timestamp():
+			self.emit(self.task_expired, record)
+			return
+
+		if postpone_policy == WScheduledTaskPostponePolicy.wait or group_id is None:
+			self.__postponed_records.append(record)
+			self.emit(self.task_postponed, record)
+			return
+
+		if postpone_policy == WScheduledTaskPostponePolicy.keep_last:
+			self.__drop_all(group_id)
+			self.__postponed_records.append(record)
+			self.emit(self.task_postponed, record)
+			return
+
+		if postpone_policy == WScheduledTaskPostponePolicy.keep_first:
+			if not self.__keep_first(group_id):
+				self.__postponed_records.append(record)
+				self.emit(self.task_postponed, record)
+			else:
+				self.emit(self.task_dropped, record)
+
+	@verify_value('strict', filter_fn=lambda x: x is None or callable(x))
+	def next_record(self, filter_fn=None):
+		""" Get record from a queue to be executed next. The earliest records win, but not always
+
+		:param filter_fn: check a record with this function. If record is suitable then this function should return
+		True and False otherwise
+		:type filter_fn: callable
+
+		:return: return a record that should be executed next or return None if no suitable record is found
+		:rtype: WScheduleRecordProto | None
+		"""
+
+		utc_now = datetime.datetime.utcnow().timestamp()
+		dropped_records = 0
+
+		for i in range(len(self.__postponed_records)):
+			record = self.__postponed_records[i - dropped_records]
+
+			ttl = record.ttl()
+			if ttl is not None and ttl < utc_now:
+				self.__postponed_records.pop(i - dropped_records)
+				self.emit(self.task_expired, record)
+				dropped_records += 1
+				continue
+
+			if filter_fn and not filter_fn(record):
+				continue
+
+			self.__postponed_records.pop(i - dropped_records)
+			return record
+
+
+class WScheduler(WSchedulerProto, WCriticalResource):
+	"""  The :class:`.WSchedulerProto` class implementation
+
+	:note: This implementation is thread safe mostly (record may be scheduled and may be processed at any moment).
+	But two methods are not thread safe enough -- :meth:`.WScheduler.start` and :meth:`.WScheduler.stop`.
+
+	!!! TODO: update!!! MAKE IT SAFE!!!!
+	So there
+	should be a protection in order not to call the start twice or to call stop during a start preparation
+	"""
+
+	__critical_section_timeout__ = 5
+	""" Timeout with which critical section lock must be acquired
+	"""
+
+	@verify_type('strict', max_threads=int)
+	@verify_value('strict', max_threads=lambda x: x > 0, callback_exception_handler=lambda x: x is None or callable(x))
+	def __init__(self, max_threads, callback_exception_handler=None):
+		""" Create a new scheduler
+
+		:param max_threads: number of threads to be running simultaneously
+		:type max_threads: int
+
+		:param callback_exception_handler: handler that may process exceptions that are risen inside a loop
+		:type callback_exception_handler: callable | None
+		"""
 		WSchedulerProto.__init__(self)
+		WCriticalResource.__init__(self)
+		self.__callback_exc_hr = callback_exception_handler
+
+		self.__wev_loop = WEventLoop(immediate_stop=False)
+		self.__callbacks = WEventLoopCallbacks(self.__wev_loop)
+		self.__thread_slots = WAtomicCounter(max_threads, negative=False)
+		self.__thread_executor = WSchedulerThreadExecutor(self.__wev_loop)
+		self.__postpone_queue = WSchedulerPostponeQueue()
 
 		self.__sources = set()
-		self.__signal_proxy = WSignalProxy()
-
-		self.__stop_signal = object()
-		self.__signal_source = anonymous_source(self.__stop_signal)
 
 	def start(self):
+		""" Start this scheduler (and an inside loop for callbacks processing)
 
-		self.__signal_proxy.proxy(self.__stop_event_source, self.__stop_signal)
-		for s in self.__sources:
-			self.__signal_proxy.proxy(
-				s, WScheduleSourceProto.task_scheduled, weak_ref=True
-			)
+		:rtype: None
+		"""
+		self.emit(self.task_started)
+
+		self.__init_callbacks()
 
 		try:
-			while self.__signal_proxy.wait():
-				if self.__mode is not WScheduler.RunningMode.running:
-					# TODO: cleanup!
-					break
-				# TODO: fix noqa
-				signal = self.__signal_proxy.next()  # noqa: F841
+			self.__wev_loop.start_loop()
+		except Exception as e:
+			if self.__callback_exc_hr:
+				self.__callback_exc_hr(e)
+			else:
+				raise
 		finally:
-			# TODO: fix noqa
-			with self.critical_context(timeout=self.__lock_acquiring_timeout__) as c:  # noqa: F841
-				for s in self.__sources:
-					self.__signal_proxy.stop_proxying(
-						s, WScheduleSourceProto.task_scheduled, weak_ref=True
-					)
-				self.__signal_proxy.stop_proxying(self.__stop_event_source, self.__stop_signal)
-			self.__mode = WScheduler.RunningMode.stopped
+			# there is an exception or a stop request, so finalize
 
-#
-# class WScheduler(WSchedulerProto, WCriticalResource):
-# 	# TODO: check that when signal is unsubscribed a queue is flushed!
-#
-# 	@enum.unique
-# 	class RunningMode(enum.Enum):
-# 		stopped = 1
-# 		running = 2
-# 		stopping = 3
-#
-# 	class SignalsCallbacks(WSignalSource):
-#
-# 		@classmethod
-# 		def signals(cls):
-# 			return WScheduleSourceProto.task_scheduled, \
-# 				WScheduler.source_subscribed, \
-# 				WScheduler.source_unsubscribed
-#
-# 	source_subscribed = WSignal(payload_type_spec=WScheduleSourceProto)
-# 	source_unsubscribed = WSignal(payload_type_spec=WScheduleSourceProto)
-#
-# 	__lock_acquiring_timeout__ = 5
-# 	""" Timeout with which critical section lock must be acquired
-# 	"""
-#
-# 	def __init__(self):
-# 		WSchedulerProto.__init__(self)
-# 		WCriticalResource.__init__(self)
-#
-# 		self.__mode = WScheduler.RunningMode.stopped
-#
-# 		self.__sources = set()
-# 		self.__signal_proxy = WSignalProxy()
-#
-# 		self.__signals_callbacks = WScheduler.SignalsCallbacks()
-# 		self.__signals_callbacks.callback(WScheduleSourceProto.task_scheduled, self.__task_scheduled)
-#
-# 		self.__running_records = {}
-#
-# 	@verify_type('strict', schedule_source=WScheduleSourceProto)
-# 	def subscribe(self, schedule_source):
-# 		with self.critical_context(timeout=self.__lock_acquiring_timeout__) as c:
-# 			if schedule_source not in self.__sources:
-# 				self.__sources.add(schedule_source)
-# 				if self.__mode is WScheduler.RunningMode.running:
-# 					self.__signal_proxy.proxy(
-# 						schedule_source, WScheduleSourceProto.task_scheduled, weak_ref=True
-# 					)
-# 			else:
-# 				raise ValueError('!')
-#
-# 	@verify_type('strict', schedule_source=WScheduleSourceProto)
-# 	def unsubscribe(self, schedule_source):
-# 		with self.critical_context(timeout=self.__lock_acquiring_timeout__) as c:
-# 			if schedule_source in self.__sources:
-# 				self.__sources.add(schedule_source)
-# 				if self.__mode is WScheduler.RunningMode.running:
-# 					self.__signal_proxy.stop_proxying(
-# 						schedule_source, WScheduleSourceProto.task_scheduled, weak_ref=True
-# 					)
-# 			else:
-# 				raise ValueError('!')
-#
-# 	def running_records(self):
-# 		for i in self.__running_records.copy().values():
-# 			yield i
-#
-# 	def start(self):
-# 		with self.critical_context(timeout=self.__lock_acquiring_timeout__) as c:
-#
-# 			if self.__mode is not WScheduler.RunningMode.stopped:
-# 				pass  # TODO: ????
-#
-# 			self.__signal_proxy.proxy(self.__stop_event_source, self.__stop_signal)
-# 			for s in self.__sources:
-# 				self.__signal_proxy.proxy(
-# 					s, WScheduleSourceProto.task_scheduled, weak_ref=True
-# 				)
-# 			self.__mode = WScheduler.RunningMode.running
-#
-# 		try:
-# 			while self.__signal_proxy.wait():
-# 				if self.__mode is not WScheduler.RunningMode.running:
-# 					# TODO: cleanup!
-# 					break
-# 				signal = self.__signal_proxy.next()
-# 		finally:
-# 			with self.critical_context(timeout=self.__lock_acquiring_timeout__) as c:
-# 				for s in self.__sources:
-# 					self.__signal_proxy.stop_proxying(
-# 						s, WScheduleSourceProto.task_scheduled, weak_ref=True
-# 					)
-# 				self.__signal_proxy.stop_proxying(self.__stop_event_source, self.__stop_signal)
-# 			self.__mode = WScheduler.RunningMode.stopped
-#
-# 	def stop(self):
-# 		# TODO: critical section?
-#
-# 		if self.__mode is not WScheduler.RunningMode.running:
-# 			pass  # TODO: ????
-# 		self.__mode = WScheduler.RunningMode.stopping
-# 		self.__stop_event_source.send_signal(self.__stop_signal)
-#
-# 	def __task_scheduled(self, signal_source, signal_id, payload=None):
-# 		pass
-#
-#
-# class WSchedulerWatchdog(WCriticalResource, WPollingThreadTask):
-# 	""" Class that is looking for execution process of scheduled task. Each scheduled task has its own
-# 	watchdog. Watchdog that will un-register stopped task from registry of running tasks
-# 	"""
-#
-# 	__thread_polling_timeout__ = WPollingThreadTask.__thread_polling_timeout__ / 2
-# 	""" Polling timeout
-# 	"""
-#
-# 	__scheduled_task_startup_timeout__ = WPollingThreadTask.__thread_polling_timeout__ / 2
-# 	""" Timeout for scheduled task to start (thread creation time)
-# 	"""
-#
-# 	__lock_acquiring_timeout__ = 5
-# 	""" Timeout with which critical section lock must be acquired
-# 	"""
-#
-# 	__thread_name_prefix__ = 'TaskScheduler-Watchdog-'
-# 	""" Prefix for the thread name (real thread name is made by concatenation of this prefix and schedule task uid)
-# 	"""
-#
-# 	@classmethod
-# 	@verify_type('paranoid', record=WScheduleRecord)
-# 	def create(cls, record, registry):
-# 		""" Core method for watchdog creation. Derived classes may redefine this method in order to change
-# 		watchdog creation process
-#
-# 		:param record: schedule record that is ready to be executed
-# 		:param registry: registry that is created this watchdog and registry that must be notified of \
-# 		scheduled task stopping
-# 		:return:
-# 		"""
-# 		return cls(record, registry)
-#
-# 	@verify_type(record=WScheduleRecord)
-# 	def __init__(self, record, registry):
-# 		""" Create new watch dog.
-#
-# 		:param record: schedule record that is ready to be executed
-# 		:param registry: registry that is created this watch dog and registry that must be notified of \
-# 		scheduled task stopping
-#
-# 		note: :class:`.WRunningRecordRegistry` is using :meth:`.WSchedulerWatchdog.create` method for watch
-# 		dog creation
-# 		"""
-# 		WCriticalResource.__init__(self)
-# 		WPollingThreadTask.__init__(self, thread_name=self.__thread_name_prefix__ + str(record.task_uid()))
-# 		if isinstance(registry, WRunningRecordRegistry) is False:
-# 			raise TypeError('Invalid registry type')
-#
-# 		self.__record = record
-# 		self.__registry = registry
-# 		self.__task = None
-#
-# 	def record(self):
-# 		""" Return scheduler record
-#
-# 		:return: WScheduleRecord
-# 		"""
-# 		return self.__record
-#
-# 	def registry(self):
-# 		""" Return parent registry
-#
-# 		:return: WRunningRecordRegistry
-# 		"""
-# 		return self.__registry
-#
-# 	def start(self):
-# 		""" Start scheduled task and start watching
-#
-# 		:return: None
-# 		"""
-# 		self.__dog_started()
-# 		WPollingThreadTask.start(self)
-#
-# 	def thread_started(self):
-# 		""" Start watchdog thread function
-#
-# 		:return: None
-# 		"""
-# 		self.__thread_started()
-# 		WPollingThreadTask.thread_started(self)
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def __dog_started(self):
-# 		""" Prepare watchdog for scheduled task starting
-#
-# 		:return: None
-# 		"""
-# 		if self.__task is not None:
-# 			raise RuntimeError('Unable to start task. In order to start a new task - at first stop it')
-#
-# 		self.__task = self.record().task()
-# 		if isinstance(self.__task, WScheduleTask) is False:
-# 			task_class = self.__task.__class__.__qualname__
-# 			raise RuntimeError('Unable to start unknown type of task: %s' % task_class)
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def __thread_started(self):
-# 		""" Start a scheduled task
-#
-# 		:return: None
-# 		"""
-# 		if self.__task is None:
-# 			raise RuntimeError('Unable to start thread without "start" method call')
-# 		self.__task.start()
-# 		self.__task.start_event().wait(self.__scheduled_task_startup_timeout__)
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def _polling_iteration(self):
-# 		""" Poll for scheduled task stop events
-#
-# 		:return: None
-# 		"""
-# 		if self.__task is None:
-# 			self.ready_event().set()
-# 		elif self.__task.check_events() is True:
-# 			self.ready_event().set()
-# 			self.registry().task_finished(self)
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def thread_stopped(self):
-# 		""" Stop scheduled task beacuse of watchdog stop
-#
-# 		:return: None
-# 		"""
-# 		if self.__task is not None:
-# 			if self.__task.stop_event().is_set() is False:
-# 				self.__task.stop()
-# 			self.__task = None
-#
-#
-# class WRunningRecordRegistry(WCriticalResource, WRunningRecordRegistryProto, WPollingThreadTask):
-# 	""" Registry of started scheduled records. Has :meth:`.WRunningRecordRegistry.cleanup_event` event that is set
-# 	when any of running scheduled task stopped. This event starts process of internal clean up (descriptors that
-# 	were created for the record - will be removed)
-# 	"""
-#
-# 	__thread_polling_timeout__ = WPollingThreadTask.__thread_polling_timeout__ / 4
-# 	""" Polling timeout
-# 	"""
-#
-# 	__watchdog_startup_timeout__ = WSchedulerWatchdog.__thread_polling_timeout__
-# 	""" Timeout for watchdog to start (thread creation time)
-# 	"""
-#
-# 	__lock_acquiring_timeout__ = 5
-# 	""" Timeout with which critical section lock must be acquired
-# 	"""
-#
-# 	__thread_name__ = 'SchedulerRegistry'
-# 	""" Thread name (if thread_name_suffix was specified in constructor then suffix value is concatenated to
-# 	this name)
-# 	"""
-#
-# 	@verify_subclass(watchdog_cls=(WSchedulerWatchdog, None))
-# 	@verify_type(thread_name_suffix=(str, None))
-# 	def __init__(self, watchdog_cls=None, thread_name_suffix=None):
-# 		""" Create new registry
-#
-# 		:param watchdog_cls: watchdog that should be used (:class:`.WSchedulerWatchdog` by default)
-# 		:param thread_name_suffix: suffix to thread name
-# 		"""
-# 		WCriticalResource.__init__(self)
-# 		WRunningRecordRegistryProto.__init__(self)
-# 		thread_name = self.__thread_name__
-# 		if thread_name_suffix is not None:
-# 			thread_name += thread_name_suffix
-# 		WPollingThreadTask.__init__(self, thread_name=thread_name)
-# 		self.__running_registry = []
-# 		self.__done_registry = []
-# 		self.__cleanup_event = Event()
-# 		self.__watchdog_cls = watchdog_cls if watchdog_cls is not None else WSchedulerWatchdog
-#
-# 	def cleanup_event(self):
-# 		""" Return "cleanup" event
-#
-# 		:return: Event
-# 		"""
-# 		return self.__cleanup_event
-#
-# 	def watchdog_class(self):
-# 		""" Return watchdog class that is used by this registry
-#
-# 		:return: WSchedulerWatchdog class or subclass
-# 		"""
-# 		return self.__watchdog_cls
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	@verify_type('paranoid', record=WScheduleRecord)
-# 	def exec(self, record):
-# 		""" Start the given schedule record (no time checks are made by this method, task will be started as is)
-#
-# 		:param record: schedule record to start
-#
-# 		:return: None
-# 		"""
-# 		watchdog_cls = self.watchdog_class()
-# 		watchdog = watchdog_cls.create(record, self)
-# 		watchdog.start()
-# 		watchdog.start_event().wait(self.__watchdog_startup_timeout__)
-# 		self.__running_registry.append(watchdog)
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def running_records(self):
-# 		""" Return schedule records that are running at the moment
-#
-# 		:return: tuple of WScheduleRecord
-# 		"""
-# 		return tuple([x.record() for x in self.__running_registry])
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def __len__(self):
-# 		""" Return number of running records
-#
-# 		:return: int
-# 		"""
-# 		return len(self.__running_registry)
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	@verify_type(watchdog=WSchedulerWatchdog)
-# 	def task_finished(self, watchdog):
-# 		""" Handle/process scheduled task stop
-#
-# 		:param watchdog: watchdog of task that was stopped
-#
-# 		:return: None
-# 		"""
-# 		if watchdog in self.__running_registry:  # when cleanup hits stop
-# 			self.__running_registry.remove(watchdog)
-# 			self.__done_registry.append(watchdog)
-# 			self.cleanup_event().set()
-#
-# 	def _polling_iteration(self):
-# 		""" Poll for cleanup event
-#
-# 		:return: None
-# 		"""
-# 		if self.cleanup_event().is_set() is True:
-# 			self.cleanup()
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def cleanup(self):
-# 		""" Do cleanup (stop and remove watchdogs that are no longer needed)
-#
-# 		:return: None
-# 		"""
-# 		for task in self.__done_registry:
-# 			task.stop()
-# 		self.__done_registry.clear()
-# 		self.cleanup_event().clear()
-#
-# 	def thread_stopped(self):
-# 		""" Handle registry stop
-#
-# 		:return: None
-# 		"""
-# 		self.cleanup()
-# 		self.stop_running_tasks()
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def stop_running_tasks(self):
-# 		""" Terminate all the running tasks
-#
-# 		:return: None
-# 		"""
-# 		for task in self.__running_registry:
-# 			task.stop()
-# 		self.__running_registry.clear()
-#
-#
-# class WPostponedRecordRegistry:
-# 	""" Registry for postponed records.
-# 	"""
-#
-# 	@verify_type(maximum_records=(int, None))
-# 	@verify_value(maximum_records=lambda x: x is None or x >= 0)
-# 	def __init__(self, maximum_records=None):
-# 		""" Create new registry
-#
-# 		:param maximum_records: maximum number of tasks to postpone (no limit by default)
-# 		"""
-# 		self.__records = []
-# 		self.__maximum_records = maximum_records
-#
-# 	def maximum_records(self):
-# 		""" Return maximum number of records to postpone
-#
-# 		:return: int
-# 		"""
-# 		return self.__maximum_records
-#
-# 	@verify_type(record=WScheduleRecord)
-# 	def postpone(self, record):
-# 		""" Postpone (if required) the given task. The real action is depended on task postpone policy
-#
-# 		:param record: record to postpone
-# 		:return: None
-# 		"""
-#
-# 		maximum_records = self.maximum_records()
-# 		if maximum_records is not None and len(self.__records) >= maximum_records:
-# 			record.task_dropped()
-# 			return
-#
-# 		task_policy = record.policy()
-# 		task_group_id = record.task_group_id()
-#
-# 		if task_policy == WScheduleRecord.PostponePolicy.wait:
-# 			self.__postpone_record(record)
-#
-# 		elif task_policy == WScheduleRecord.PostponePolicy.drop:
-# 			record.task_dropped()
-#
-# 		elif task_policy == WScheduleRecord.PostponePolicy.postpone_first:
-# 			if task_group_id is None:
-# 				self.__postpone_record(record)
-# 			else:
-# 				record_found = None
-# 				for previous_scheduled_record, task_index in self.__search_record(task_group_id):
-# 					if previous_scheduled_record.policy() != task_policy:
-# 						raise RuntimeError('Invalid tasks policies')
-# 					record_found = previous_scheduled_record
-# 					break
-#
-# 				if record_found is not None:
-# 					record.task_dropped()
-# 				else:
-# 					self.__postpone_record(record)
-#
-# 		elif task_policy == WScheduleRecord.PostponePolicy.postpone_last:
-# 			if task_group_id is None:
-# 				self.__postpone_record(record)
-# 			else:
-# 				record_found = None
-# 				for previous_scheduled_record, task_index in self.__search_record(task_group_id):
-# 					if previous_scheduled_record.policy() != task_policy:
-# 						raise RuntimeError('Invalid tasks policies')
-# 					record_found = task_index
-# 					break
-#
-# 				if record_found is not None:
-# 					self.__records.pop(record_found).task_dropped()
-#
-# 				self.__postpone_record(record)
-# 		else:
-# 			raise RuntimeError('Invalid policy spotted')
-#
-# 	@verify_type(task_group_id=str)
-# 	def __search_record(self, task_group_id):
-# 		""" Search (iterate over) for tasks with the given task id
-#
-# 		:param task_group_id: target id
-#
-# 		:return: None
-# 		"""
-# 		for i in range(len(self.__records)):
-# 			record = self.__records[i]
-# 			if record.task_group_id() == task_group_id:
-# 				yield record, i
-#
-# 	@verify_type(record=WScheduleRecord)
-# 	def __postpone_record(self, record):
-# 		""" Save the record and trigger 'postpone' method
-#
-# 		:param record: record to save
-#
-# 		:return: None
-# 		"""
-# 		self.__records.append(record)
-# 		record.task_postponed()
-#
-# 	def has_records(self):
-# 		""" Check if there are postponed records. True - there is at least one postpone record,
-# 		False - otherwise
-#
-# 		:return: bool
-# 		"""
-# 		return len(self.__records) > 0
-#
-# 	def __len__(self):
-# 		""" Return number of postponed records
-#
-# 		:return: int
-# 		"""
-# 		return len(self.__records)
-#
-# 	def __iter__(self):
-# 		""" Iterate over postponed records. Once record is yield from this method, this record is removed
-# 		from registry immediately
-#
-# 		:return: None
-# 		"""
-# 		while len(self.__records) > 0:
-# 			yield self.__records.pop(0)
-#
-#
-# class WTaskSourceRegistry:
-# 	""" Registry of tasks sources. It works as a dynamic queue - every task source notify this registry when
-# 	next task should be started. And this registry fetches those tasks that is about to start. Registry is able
-# 	to return schedule records from different sources at one time.
-# 	"""
-#
-# 	def __init__(self):
-# 		""" Create new registry
-# 		"""
-# 		self.__sources = {}
-#
-# 		self.__next_start = None
-# 		self.__next_sources = []
-#
-# 	@verify_type(task_source=WTaskSourceProto)
-# 	def add_source(self, task_source):
-# 		""" Add new tasks source
-#
-# 		:param task_source:
-#
-# 		:return: None
-# 		"""
-# 		next_start = task_source.next_start()
-# 		self.__sources[task_source] = next_start
-# 		self.__update(task_source)
-#
-# 	@verify_type(task_source=(WTaskSourceProto, None))
-# 	def update(self, task_source=None):
-# 		""" Recheck next start of records from all the sources (or from the given one only)
-#
-# 		:param task_source: if defined - source to check
-#
-# 		:return: None
-# 		"""
-# 		if task_source is not None:
-# 			self.__update(task_source)
-# 		else:
-# 			self.__update_all()
-#
-# 	def __update_all(self):
-# 		""" Recheck next start of records from all the sources
-#
-# 		:return: None
-# 		"""
-# 		self.__next_start = None
-# 		self.__next_sources = []
-#
-# 		for source in self.__sources:
-# 			self.__update(source)
-#
-# 	@verify_type(task_source=WTaskSourceProto)
-# 	def __update(self, task_source):
-# 		""" Recheck next start of tasks from the given one only
-#
-# 		:param task_source: source to check
-#
-# 		:return: None
-# 		"""
-# 		next_start = task_source.next_start()
-# 		if next_start is not None:
-#
-# 			if next_start.tzinfo is None or next_start.tzinfo != timezone.utc:
-# 				raise ValueError('Invalid timezone information')
-#
-# 			if self.__next_start is None or next_start < self.__next_start:
-# 				self.__next_start = next_start
-# 				self.__next_sources = [task_source]
-# 			elif next_start == self.__next_start:
-# 				self.__next_sources.append(task_source)
-#
-# 	def check(self):
-# 		""" Check if there are records that are ready to start and return them if there are any
-#
-# 		:return: tuple of WScheduleRecord or None (if there are no tasks to start)
-# 		"""
-# 		if self.__next_start is not None:
-# 			utc_now = utc_datetime()
-# 			if utc_now >= self.__next_start:
-# 				result = []
-#
-# 				for task_source in self.__next_sources:
-# 					records = task_source.has_records()
-# 					if records is not None:
-# 						result.extend(records)
-#
-# 				self.__update_all()
-#
-# 				if len(result) > 0:
-# 					return tuple(result)
-#
-# 	def task_sources(self):
-# 		""" Return task sources that was added to this registry
-#
-# 		:return: tuple of WTaskSourceProto
-# 		"""
-# 		return tuple(self.__sources.keys())
-#
-#
-# class WSchedulerService(WCriticalResource, WSchedulerServiceProto, WPollingThreadTask):
-# 	""" Main scheduler service. This class unites different registries to present entire scheduler
-# 	"""
-#
-# 	__thread_polling_timeout__ = WPollingThreadTask.__thread_polling_timeout__ / 8
-# 	""" Polling timeout
-# 	"""
-# 	__lock_acquiring_timeout__ = 5
-# 	""" Timeout with which critical section lock must be acquired
-# 	"""
-#
-# 	__default_maximum_running_records__ = 10
-# 	""" Number of records that are able to run simultaneously. This value is used by default
-# 	"""
-#
-# 	__thread_name_prefix__ = 'TaskScheduler'
-# 	""" Thread name (if thread_name_suffix was specified in constructor then suffix value is concatenated to
-# 	this name)
-# 	"""
-#
-# 	@verify_type('paranoid', maximum_postponed_records=(int, None))
-# 	@verify_value('paranoid', maximum_postponed_records=lambda x: x is None or x > 0)
-# 	@verify_type(maximum_running_records=(int, None), running_record_registry=(WRunningRecordRegistry, None))
-# 	@verify_type(postponed_record_registry=(WPostponedRecordRegistry, None))
-# 	@verify_type(thread_name_suffix=(str, None))
-# 	@verify_value(maximum_running_records=lambda x: x is None or x > 0)
-# 	def __init__(
-# 		self, maximum_running_records=None, running_record_registry=None, maximum_postponed_records=None,
-# 		postponed_record_registry=None, thread_name_suffix=None
-# 	):
-# 		""" Create new scheduler
-#
-# 		:param maximum_running_records: number of records that are able to run simultaneously \
-# 		(WSchedulerService.__default_maximum_running_records__ is used as default value)
-# 		:param running_record_registry: registry for running records
-# 		:param maximum_postponed_records: number of records that are able to be postponed (no limit by default)
-# 		:param postponed_record_registry: registry for postponed records
-# 		:param thread_name_suffix: suffix to thread name
-# 		"""
-# 		WCriticalResource.__init__(self)
-# 		WSchedulerServiceProto.__init__(self)
-# 		thread_name = self.__thread_name_prefix__
-# 		if thread_name_suffix is not None:
-# 			thread_name += thread_name_suffix
-# 		WPollingThreadTask.__init__(self, thread_name=thread_name)
-#
-# 		if maximum_postponed_records is not None and postponed_record_registry is not None:
-# 			raise ValueError(
-# 				'Conflict values found. Unable to instantiate scheduler service with '
-# 				'"maximum_postponed_tasks" and "postponed_tasks_registry" values (chose one)'
-# 			)
-#
-# 		default = lambda x, y: x if x is not None else y
-#
-# 		self.__maximum_running_records = default(
-# 			maximum_running_records, self.__class__.__default_maximum_running_records__
-# 		)
-#
-# 		self.__running_record_registry = default(running_record_registry, WRunningRecordRegistry())
-# 		self.__postponed_record_registry = WPostponedRecordRegistry(maximum_postponed_records)
-# 		self.__sources_registry = WTaskSourceRegistry()
-#
-# 		self.__awake_at = None
-#
-# 	def maximum_running_records(self):
-# 		""" Return number of tasks that are able to run simultaneously
-#
-# 		:return: int
-# 		"""
-# 		return self.__maximum_running_records
-#
-# 	def maximum_postponed_records(self):
-# 		""" Return number of tasks that are able to be postponed
-#
-# 		:return: int or None (for no limit)
-# 		"""
-# 		return self.__postponed_record_registry.maximum_records()
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	@verify_type('paranoid', task_source=WTaskSourceProto)
-# 	def add_task_source(self, task_source):
-# 		""" Add tasks source
-#
-# 		:param task_source: task source to add
-#
-# 		:return: None
-# 		"""
-# 		self.__sources_registry.add_source(task_source)
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def task_sources(self):
-# 		""" Return task sources that was added to this scheduler
-#
-# 		:return: tuple of WTaskSourceProto
-# 		"""
-# 		return self.__sources_registry.task_sources()
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	@verify_type('paranoid', task_source=(WTaskSourceProto, None))
-# 	def update(self, task_source=None):
-# 		""" Recheck next start of tasks from all the sources (or from the given one only)
-#
-# 		:param task_source: if defined - source to check
-#
-# 		:return: None
-# 		"""
-# 		self.__sources_registry.update(task_source=task_source)
-#
-# 	def running_records(self):
-# 		""" Return scheduled tasks that are running at the moment
-#
-# 		:return: tuple of WScheduleRecord
-# 		"""
-# 		return self.__running_record_registry.running_records()
-#
-# 	def records_status(self):
-# 		""" Return number of running and postponed tasks
-#
-# 		:return: tuple of two ints (first - running tasks, second - postponed tasks)
-# 		"""
-# 		return len(self.__running_record_registry), len(self.__postponed_record_registry)
-#
-# 	def thread_started(self):
-# 		""" Start required registries and start this scheduler
-#
-# 		:return: None
-# 		"""
-# 		self.__running_record_registry.start()
-# 		self.__running_record_registry.start_event().wait()
-# 		WPollingThreadTask.thread_started(self)
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def _polling_iteration(self):
-# 		""" Poll for different scheduler events like: there are tasks to run, there are tasks to postpone
-# 		there are postponed tasks that should be running
-#
-# 		:return: None
-# 		"""
-# 		scheduled_tasks = self.__sources_registry.check()
-# 		has_postponed_tasks = self.__postponed_record_registry.has_records()
-# 		maximum_tasks = self.maximum_running_records()
-#
-# 		if scheduled_tasks is not None or has_postponed_tasks is not None:
-# 			running_tasks = len(self.__running_record_registry)
-#
-# 			if running_tasks >= maximum_tasks:
-# 				if scheduled_tasks is not None:
-# 					for task in scheduled_tasks:
-# 						self.__postponed_record_registry.postpone(task)
-# 			else:
-# 				if has_postponed_tasks is True:
-# 					for postponed_task in self.__postponed_record_registry:
-# 						self.__running_record_registry.exec(postponed_task)
-# 						running_tasks += 1
-# 						if running_tasks >= maximum_tasks:
-# 							break
-#
-# 				if scheduled_tasks is not None:
-# 					for task in scheduled_tasks:
-# 						if running_tasks >= maximum_tasks:
-# 							self.__postponed_record_registry.postpone(task)
-# 						else:
-# 							self.__running_record_registry.exec(task)
-# 							running_tasks += 1
-#
-# 	@WCriticalResource.critical_section(timeout=__lock_acquiring_timeout__)
-# 	def thread_stopped(self):
-# 		""" Stop registries and this scheduler
-#
-# 		:return: None
-# 		"""
-# 		self.__running_record_registry.stop()
+			next_record = self.__postpone_queue.next_record()
+			while next_record:
+				self.emit(self.scheduled_task_dropped, next_record)
+				next_record = self.__postpone_queue.next_record()
+
+			for r in self.__thread_executor.running_records():
+				self.__thread_executor.stop_record(r)
+				self.emit(self.scheduled_task_stopped, r)
+				self.__thread_slots.increase_counter(1)
+
+			self.__fini_callbacks()
+			self.emit(self.task_completed, WTaskResult())
+			self.emit(self.task_stopped)
+
+	def stop(self):
+		"""
+
+		:rtype: None
+		"""
+		# :note: may be called (and will be called from a different thread!)
+		with self.critical_context(timeout=self.__critical_section_timeout__):
+			for s in self.__sources:
+				self.__callbacks.unregister(s, WScheduleSourceProto.task_scheduled, self.__task_scheduled_callback)
+			self.__sources.clear()
+
+		self.__wev_loop.stop_loop()
+
+	@verify_type('strict', schedule_source=WScheduleSourceProto)
+	def subscribe(self, schedule_source):
+		self.__callbacks.register(
+			schedule_source, WScheduleSourceProto.task_scheduled, self.__task_scheduled_callback
+		)
+		with self.critical_context(timeout=self.__critical_section_timeout__):
+			self.__sources.add(schedule_source)
+
+	@verify_type('strict', schedule_source=WScheduleSourceProto)
+	def unsubscribe(self, schedule_source):
+		self.__callbacks.unregister(
+			schedule_source, WScheduleSourceProto.task_scheduled, self.__task_scheduled_callback
+		)
+		with self.critical_context(timeout=self.__critical_section_timeout__):
+			self.__sources.remove(schedule_source)
+
+	@verify_type('strict', record=WScheduleRecordProto)
+	def __record_filter(self, record):
+		simultaneous_policy = record.simultaneous_policy()
+		group_id = record.group_id()
+		group_counter = 0
+
+		if simultaneous_policy and group_id:
+			for r in self.__thread_executor.running_records():
+
+				r_group_id = r.group_id()
+				if r_group_id == group_id:
+					group_counter += 1
+
+				if group_counter >= simultaneous_policy:
+					return False
+		return True
+
+	def __task_scheduled_callback(self, signal_source, signal, signal_value=None):
+		self.emit(WSchedulerProto.task_scheduled, signal_value)
+
+		if not self.__record_filter(signal_value):
+			self.__postpone_queue.postpone(signal_value)
+			return
+
+		try:
+			self.__thread_slots.increase_counter(-1)
+		except ValueError:
+			self.__postpone_queue.postpone(signal_value)
+			return
+
+		try:
+			self.__thread_executor.execute(signal_value)
+		except Exception:
+			self.__thread_slots.increase_counter(1)
+			raise
+
+	def __record_processed_callback(self, signal_source, signal, signal_value=None):
+		try:
+			record = self.__postpone_queue.next_record(self.__record_filter)
+			if record:
+				self.__thread_executor.execute(record)
+		except Exception:
+			self.__thread_slots.increase_counter(1)
+			raise
+
+		if not record:
+			self.__thread_slots.increase_counter(1)
+
+	def __init_callbacks(self):
+		self.__callbacks.register(
+			self.__thread_executor, WSchedulerThreadExecutor.record_processed, self.__record_processed_callback
+		)
+
+		# WSchedulerThreadExecutor signals proxy
+		self.__callbacks.proxy(
+			self.__thread_executor, WSchedulerThreadExecutor.task_started, self, self.scheduled_task_started
+		)
+		self.__callbacks.proxy(
+			self.__thread_executor, WSchedulerThreadExecutor.task_stopped, self, self.scheduled_task_stopped
+		)
+		self.__callbacks.proxy(
+			self.__thread_executor, WSchedulerThreadExecutor.task_completed, self, self.scheduled_task_completed
+		)
+
+		# WSchedulerPostponeQueue signals proxy
+		self.__callbacks.proxy(
+			self.__postpone_queue, WSchedulerPostponeQueue.task_postponed, self, self.scheduled_task_postponed
+		)
+		self.__callbacks.proxy(
+			self.__postpone_queue, WSchedulerPostponeQueue.task_dropped, self, self.scheduled_task_dropped
+		)
+		self.__callbacks.proxy(
+			self.__postpone_queue, WSchedulerPostponeQueue.task_expired, self, self.scheduled_task_expired
+		)
+
+	def __fini_callbacks(self):
+		self.__callbacks.clear()

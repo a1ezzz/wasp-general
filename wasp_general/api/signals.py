@@ -22,7 +22,7 @@
 from abc import ABCMeta, abstractmethod
 import functools
 from inspect import isclass, isfunction, ismethod
-import weakref
+from weakref import WeakSet, WeakKeyDictionary
 
 from wasp_c_extensions.ev_loop import WEventLoop
 
@@ -72,6 +72,7 @@ class WSignal:
 
 
 class ASignalSourceProto(metaclass=ABCMeta):
+    #TODO: rename to WSignalSourceProto
     """ An entry class for an object that sends signals. Every callback is saved as a 'weak' reference. So in most
     cases in order to stop executing callback it is sufficient just to discard all callback's references
     """
@@ -109,7 +110,7 @@ class ASignalSourceProto(metaclass=ABCMeta):
 
     @abstractmethod
     @verify_type('strict', signal=WSignal)
-    @verify_value('strict', callback=lambda x: callable(x))
+    @verify_value('strict', callback=lambda x: callable(x) and not ismethod(x))
     def remove_callback(self, signal, callback):
         """ Unregister the specified callback and prevent it to be executed when new signal is sent
 
@@ -125,6 +126,7 @@ class ASignalSourceProto(metaclass=ABCMeta):
 
 
 class ASignalCallbackProto(metaclass=ABCMeta):
+    #TODO: rename to WSignalCallbackProto
     """ An example of class that may receive signals
     """
 
@@ -205,7 +207,7 @@ class WSignalSource(ASignalSourceProto, metaclass=WSignalSourceMeta):
         """
 
         ASignalSourceProto.__init__(self)
-        self.__callbacks = {x: weakref.WeakSet() for x in self.__class__.__wasp_signals__}
+        self.__callbacks = {x: WeakSet() for x in self.__class__.__wasp_signals__}
 
     @verify_type('strict', signal=WSignal)
     def emit(self, signal, signal_value=None):
@@ -234,6 +236,8 @@ class WSignalSource(ASignalSourceProto, metaclass=WSignalSourceMeta):
         """
         try:
             self.__callbacks[signal].add(callback)
+            if callback not in self.__callbacks[signal]:
+                raise ValueError('Unable to save a callback. Callback may be a bounded method, which is unsupported')
         except KeyError:
             raise WUnknownSignalException('Unknown signal subscribed')
 
@@ -243,7 +247,8 @@ class WSignalSource(ASignalSourceProto, metaclass=WSignalSourceMeta):
         """ :meth:`.ASignalSourceProto.remove_callback` implementation
         """
         try:
-            self.__callbacks[signal].remove(callback)
+            callbacks = self.__callbacks[signal]
+            callbacks.remove(callback)
         except KeyError:
             raise ValueError('Signal does not have the specified callback')
 
@@ -267,8 +272,49 @@ class WEventLoopSignalCallback(ASignalCallbackProto):
         self.__ev_loop = ev_loop
         self.__callback = callback
 
+    def is_callback(self, callback):
+        return self.__callback is callback or (ismethod(callback) and self.__callback == callback)
+
     @verify_type('strict', signal_source=ASignalSourceProto, signal=WSignal)
     def __call__(self, signal_source, signal, signal_value=None):
         """ :meth:`.ASignalCallbackProto.__call__` implementation
         """
         self.__ev_loop.notify(functools.partial(self.__callback, signal_source, signal, signal_value=signal_value))
+
+
+class WEventLoopCallbacks:
+
+    def __init__(self, loop=None):
+        self.__loop = loop if loop is not None else WEventLoop()
+        self.__callbacks = WeakKeyDictionary()
+
+    def loop(self):
+        return self.__loop
+
+    def clear(self):
+        self.__callbacks.clear()
+
+    def register(self, source, signal, callback):
+        callback = WEventLoopSignalCallback(self.__loop, callback)
+        source.callback(signal, callback)
+        source_callbacks = self.__callbacks.setdefault(source, [])
+        source_callbacks.append((signal, callback))
+
+    def unregister(self, source, signal, callback):
+        source_callbacks = self.__callbacks.get(source)
+        if source_callbacks:
+            for i, callback_pair in enumerate(source_callbacks):
+                stored_signal, stored_event_callback = callback_pair
+                if stored_signal is signal and stored_event_callback.is_callback(callback):
+                    source.remove_callback(signal, stored_event_callback)
+                    source_callbacks.pop(i)
+                    if not source_callbacks:
+                        self.__callbacks.pop(source)
+                    return
+        raise ValueError('Callback was not found')
+
+    def proxy(self, source, source_signal, proxy, proxy_signal):
+        def callback_fn(signal_source, signal, signal_value=None):
+            proxy.emit(proxy_signal, signal_value)
+        callback = WEventLoopSignalCallback(self.__loop, callback_fn)
+        self.register(source, source_signal, callback)
