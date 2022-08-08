@@ -80,8 +80,10 @@ pipeline {
   post {
 
     always {
-      dir("${WORKSPACE}@tmp") {
-        deleteDir()
+      script{
+        docker.image(python_image).inside(python_container_cmd){
+          sh "rm -rf /workspace/venv/"
+        }
       }
     }
 
