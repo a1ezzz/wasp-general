@@ -88,7 +88,7 @@ class WURIQueryRestriction(WArgsValueRestriction):
 		:type restrictions: WArgsRestrictionProto
 		"""
 		WArgsValueRestriction.__init__(
-		        self, WURI.Component.query, args_selection=WArgsValueRestriction.ArgsSelection.none
+			self, WURI.Component.query, args_selection=WArgsValueRestriction.ArgsSelection.none
 		)
 		self.__restriction_chain = WChainChecker(*restrictions)
 

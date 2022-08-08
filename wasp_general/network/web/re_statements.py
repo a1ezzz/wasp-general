@@ -19,7 +19,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with wasp-general.  If not, see <http://www.gnu.org/licenses/>.
 
-http_header_name = '[^\x00-\x1e\x7f()<>@,;:\\\\"/\[\]?={} \t]+'.encode('us-ascii')
+# TODO: fix the noqa
+http_header_name = '[^\x00-\x1e\x7f()<>@,;:\\\\"/\[\]?={} \t]+'.encode('us-ascii')  # noqa: W605
 """
 Represent valid HTTP header name.
 
@@ -36,7 +37,8 @@ see RFC 1945, Section 5.1.1. RFC 2616, Section 5.1.1, RFC 7231, Section 4.1
 external usage: :class:`.WWebRequest`
 """
 
-http_path_alphabet = 'a-zA-Z0-9_\-.~%:/?#\[\]@!$&\'()*+,;=\"'
+# TODO: fix the noqa
+http_path_alphabet = 'a-zA-Z0-9_\-.~%:/?#\[\]@!$&\'()*+,;=\"'  # noqa: W605
 """
 Represent valid set of chars, that URI can have
 
@@ -51,28 +53,32 @@ for URI see RFC 3986, Section 3
 external usage: :class:`.WWebRequest`, :class:`.WHTTPCookie`
 """
 
-http_version = '0\.9|1\.0|1\.1'
+# TODO: fix the noqa
+http_version = '0\.9|1\.0|1\.1'  # noqa: W605
 """
 Represent valid requested HTTP-versions
 
 see RFC 2616, Section 3.1
 """
 
-uri_query_alphabet = 'a-zA-Z0-9\-._~%!$&\'()*+,;=:@/?'
+# TODO: fix the noqa
+uri_query_alphabet = 'a-zA-Z0-9\-._~%!$&\'()*+,;=:@/?'  # noqa: W605
 """
 Represent valid set of chars, that query can have it in URI
 
 see RFC 2616, Section 3.1
 """
 
-uri_fragment_alphabet = 'a-zA-Z0-9\-._~%!$&\'()*+,;=:@/?'
+# TODO: fix the noqa
+uri_fragment_alphabet = 'a-zA-Z0-9\-._~%!$&\'()*+,;=:@/?'  # noqa: W605
 """
 Represent valid set of chars, that fragment can have it in URI
 
 see RFC 2616, Section 3.1
 """
 
-http_get_vars_selection = '\?([' + uri_query_alphabet + ']+)(#[' + uri_fragment_alphabet + ']*)?$'
+# TODO: fix the noqa
+http_get_vars_selection = '\?([' + uri_query_alphabet + ']+)(#[' + uri_fragment_alphabet + ']*)?$'  # noqa: W605
 """
 Allow to select variables (GET-variables) and fragment code from URI
 
@@ -104,7 +110,8 @@ see RFC 6265, Section 5.2.2
 external usage: :class:`.WHTTPCookie`
 """
 
-http_cookie_domain = '[a-zA-Z\-.0-9]+'
+# TODO: fix the noqa
+http_cookie_domain = '[a-zA-Z\-.0-9]+'  # noqa: W605
 """
 Represent valid Domain attribute value of cookie
 
@@ -128,7 +135,8 @@ see RFC 6265, Section 5.2.6
 external usage: :class:`.WHTTPCookie`
 """
 
-wasp_presenter_name_alphabet = 'a-zA-Z0-9_.\-'
+# TODO: fix the noqa
+wasp_presenter_name_alphabet = 'a-zA-Z0-9_.\-'  # noqa: W605
 """
 Represent valid set of chars, that presenter name can have
 """
@@ -138,7 +146,8 @@ wasp_presenter_name_selection = '([a-zA-Z][' + wasp_presenter_name_alphabet + ']
 Allow to select presenter name
 """
 
-wasp_route_uri_pattern_alphabet = http_path_alphabet + '\{\}\\\\'
+# TODO: fix the noqa
+wasp_route_uri_pattern_alphabet = http_path_alphabet + '\{\}\\\\'  # noqa: W605
 """
 Represent valid set of chars, that route URI pattern can have
 """
@@ -149,7 +158,9 @@ Represent valid name for route argument name
 
 external usage: :class:`.WWebRouteMap`
 """
-wasp_route_arg_name_selection = '\{(' + wasp_route_arg_name + ')\}'
+
+# TODO: fix the noqa
+wasp_route_arg_name_selection = '\{(' + wasp_route_arg_name + ')\}'  # noqa: W605
 """
 Represent simple route argument pattern
 
@@ -174,16 +185,18 @@ wasp_route_custom_arg_value_pattern = '[^\"]'
 Represent custom route argument pattern
 """
 
+# TODO: fix the noqa
 wasp_route_custom_arg_selection = \
-	'(\{(' + wasp_route_arg_name + ') *: *\"(' + wasp_route_custom_arg_value_pattern + '+)\"\})'
+	'(\{(' + wasp_route_arg_name + ') *: *\"(' + wasp_route_custom_arg_value_pattern + '+)\"\})'   # noqa: W605
 """
 Allow to select custom route argument name and argument pattern from URI pattern
 
 external usage: :class:`.WWebRoute.CustomArgSearch`
 """
 
+# TODO: fix the noqa
 wasp_route_import_pattern = \
-	'^\s*([' + wasp_route_uri_pattern_alphabet + ']+) +=> +' + wasp_presenter_name_selection + '( +\((.*)\))?\s*$'
+	'^\s*([' + wasp_route_uri_pattern_alphabet + ']+) +=> +' + wasp_presenter_name_selection + '( +\((.*)\))?\s*$'  # noqa: W605, E501
 """
 Allow to parse custom route from a imported text
 

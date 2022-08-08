@@ -46,7 +46,7 @@ class WVirtualDirectoryClient(WNetworkClientProto):
 		"""
 		WNetworkClientProto.__init__(self, uri)
 		self.__session_path = self.directory_sep()
-		self.__normalize_re = re.compile('\%s\%s+' % (self.directory_sep(), self.directory_sep()))
+		self.__normalize_re = re.compile('\\%s\\%s+' % (self.directory_sep(), self.directory_sep()))
 		self.__start_path = self.normalize_path(start_path) if start_path is not None else self.directory_sep()
 
 	def start_path(self):

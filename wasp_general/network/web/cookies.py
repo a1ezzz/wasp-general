@@ -32,14 +32,16 @@ class WHTTPCookie:
 	Call :meth:`.WHTTPCookie.ro` method to create unchangeable cookie copy
 	"""
 
-	cookie_name_non_compliance_re = re.compile(b'.*[\x00-\x1e\x7f()<>@,;:\\\\"/\[\]?={} \t].*')
+	# TODO: fix noqa
+	cookie_name_non_compliance_re = re.compile(b'.*[\x00-\x1e\x7f()<>@,;:\\\\"/\[\]?={} \t].*')  # noqa: W605
 	"""
 	Check for non-acceptable cookie name
 
 	see RFC 6265, Section 4.1.1
 	"""
 
-	cookie_value_non_compliance_re = re.compile(b'.*[\x00-\x1e\x7f \",;\\\].*')
+	# TODO: fix noqa
+	cookie_value_non_compliance_re = re.compile(b'.*[\x00-\x1e\x7f \",;\\\].*')  # noqa: W605
 	"""
 	Check for non-acceptable cookie value
 

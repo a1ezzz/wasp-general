@@ -247,9 +247,11 @@ class WThreadTask(WStoppableTask, metaclass=ABCMeta):
 		:return: bool
 		"""
 		return (
-			self.ready_event().is_set() is True or
-			self.stop_event().is_set() is True or
-			self.exception_event().is_set() is True
+			any(
+				self.ready_event().is_set(),
+				self.stop_event().is_set(),
+				self.exception_event().is_set()
+			)
 		)
 
 
