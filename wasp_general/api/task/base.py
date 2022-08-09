@@ -50,9 +50,9 @@ class WSingleStateTask(WTaskProto):
         """ Create a new task
 
         :param detachable: When the 'detachable' is True it means that the :meth:`. WTaskProto.start` method does not
-        return a real task result, but instead start a job with a separate process/thread/async. When the 'detachable'
-        is False then an exception raised within the :meth:`. WTaskProto.start` method (or it's result) will be sent
-        with the 'WTaskProto.task_completed' signal
+        return a real task result, but instead start a job with a separate process/thread/coroutine. When
+        the 'detachable' is False then an exception raised within the :meth:`. WTaskProto.start` method
+        (or it's result) will be sent with the 'WTaskProto.task_completed' signal
         :type detachable: bool
         """
         WTaskProto.__init__(self)
@@ -134,7 +134,7 @@ class WSingleStateTask(WTaskProto):
 
         :param task_result: a result of the 'WSingleStateTask.TaskState.completed' state. In case of stopped/terminated
         states this parameter is ignored
-        :type task_result: WTaskResult
+        :type task_result: WTaskResult | None
 
         :rtype: None
         """
