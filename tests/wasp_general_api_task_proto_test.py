@@ -4,7 +4,6 @@ import enum
 import pytest
 
 from wasp_general.api.capability import WCapabilityDescriptor, iscapable, WCapabilitiesHolderMeta
-from wasp_general.api.registry import WAPIRegistry
 from wasp_general.api.signals import ASignalSourceProto, WSignalSourceMeta
 
 from wasp_general.api.task.proto import WRequirementsLoopError, WDependenciesLoopError, WTaskStartError, WTaskStopError
@@ -32,7 +31,6 @@ def test_abstract_classes():
     pytest.raises(NotImplementedError, WLauncherTaskProto.start, None)
 
     pytest.raises(TypeError, WLauncherProto)
-    assert(issubclass(WLauncherProto, WAPIRegistry) is True)
     pytest.raises(NotImplementedError, WLauncherProto.is_started, None, 'foo')
     pytest.raises(NotImplementedError, WLauncherProto.started_tasks, None)
     pytest.raises(

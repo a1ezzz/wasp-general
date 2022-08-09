@@ -27,7 +27,6 @@ import typing
 from wasp_general.verify import verify_type, verify_value
 
 from wasp_general.api.capability import WCapabilitiesHolder, capability, WCapabilitiesHolderMeta
-from wasp_general.api.registry import WAPIRegistry
 from wasp_general.api.signals import WSignal, WSignalSource, WSignalSourceMeta
 
 
@@ -163,7 +162,7 @@ class WLauncherTaskProto(WTaskProto):
         return None
 
 
-class WLauncherProto(WAPIRegistry):
+class WLauncherProto(metaclass=ABCMeta):
     """ This launcher starts and tracks :class:`.WLauncherTaskProto` tasks
     """
 
