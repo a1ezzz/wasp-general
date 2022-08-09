@@ -60,7 +60,7 @@ pipeline {
       steps {
         script {
             docker.image(python_image).inside(python_container_cmd){
-                sh "cd /sources && /workspace/venv/bin/python ./setup.py test"
+                sh "cd /sources/tests && /workspace/venv/bin/py.test -c pytest-cov.ini"
             }
         }
       }
@@ -70,7 +70,7 @@ pipeline {
       steps {
         script {
           docker.image(python_image).inside(python_container_cmd){
-            sh "cd /sources && /workspace/venv/bin/py.test -c tests/pytest-pep8.ini"
+            sh "cd /sources/tests && /workspace/venv/bin/py.test -c pytest-pep8.ini"
           }
         }
       }
