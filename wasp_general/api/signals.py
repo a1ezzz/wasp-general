@@ -71,8 +71,7 @@ class WSignal:
         return id(other) == id(self)
 
 
-class ASignalSourceProto(metaclass=ABCMeta):
-    #TODO: rename to WSignalSourceProto
+class WSignalSourceProto(metaclass=ABCMeta):
     """ An entry class for an object that sends signals. Every callback is saved as a 'weak' reference. So in most
     cases in order to stop executing callback it is sufficient just to discard all callback's references
     """
@@ -102,7 +101,7 @@ class ASignalSourceProto(metaclass=ABCMeta):
         :type signal:WSignal
 
         :param callback: callback that must be executed
-        :type callback: callable (like ASignalCallbackProto)
+        :type callback: callable (like WSignalCallbackProto)
 
         :rtype: None
         """
@@ -125,18 +124,17 @@ class ASignalSourceProto(metaclass=ABCMeta):
         raise NotImplementedError('This method is abstract')
 
 
-class ASignalCallbackProto(metaclass=ABCMeta):
-    #TODO: rename to WSignalCallbackProto
+class WSignalCallbackProto(metaclass=ABCMeta):
     """ An example of class that may receive signals
     """
 
     @abstractmethod
-    @verify_type('strict', signal_source=ASignalSourceProto, signal=WSignal)
+    @verify_type('strict', signal_source=WSignalSourceProto, signal=WSignal)
     def __call__(self, signal_source, signal, signal_value=None):
         """ A callback that will be called when a signal is sent
 
         :param signal_source: origin of a signal
-        :type signal_source: ASignalSourceProto
+        :type signal_source: WSignalSourceProto
 
         :param signal: a signal that was sent
         :type signal: WSignal
@@ -198,20 +196,20 @@ class WSignalSourceMeta(ABCMeta):
                 cls.__wasp_signals__.add(class_attr_value)
 
 
-class WSignalSource(ASignalSourceProto, metaclass=WSignalSourceMeta):
-    """ :class:`.ASignalSourceProto` implementation
+class WSignalSource(WSignalSourceProto, metaclass=WSignalSourceMeta):
+    """ :class:`.WSignalSourceProto` implementation
     """
 
     def __init__(self):
         """ Create new signal source
         """
 
-        ASignalSourceProto.__init__(self)
+        WSignalSourceProto.__init__(self)
         self.__callbacks = {x: WeakSet() for x in self.__class__.__wasp_signals__}
 
     @verify_type('strict', signal=WSignal)
     def emit(self, signal, signal_value=None):
-        """ :meth:`.ASignalSourceProto.emit` implementation
+        """ :meth:`.WSignalSourceProto.emit` implementation
         """
         try:
             callbacks = self.__callbacks[signal]
@@ -232,7 +230,7 @@ class WSignalSource(ASignalSourceProto, metaclass=WSignalSourceMeta):
     @verify_type('strict', signal=WSignal)
     @verify_value('strict', callback=lambda x: callable(x))
     def callback(self, signal, callback):
-        """ :meth:`.ASignalSourceProto.callback` implementation
+        """ :meth:`.WSignalSourceProto.callback` implementation
         """
         try:
             self.__callbacks[signal].add(callback)
@@ -244,7 +242,7 @@ class WSignalSource(ASignalSourceProto, metaclass=WSignalSourceMeta):
     @verify_type('strict', signal=WSignal)
     @verify_value('strict', callback=lambda x: callable(x))
     def remove_callback(self, signal, callback):
-        """ :meth:`.ASignalSourceProto.remove_callback` implementation
+        """ :meth:`.WSignalSourceProto.remove_callback` implementation
         """
         try:
             callbacks = self.__callbacks[signal]
@@ -253,8 +251,8 @@ class WSignalSource(ASignalSourceProto, metaclass=WSignalSourceMeta):
             raise ValueError('Signal does not have the specified callback')
 
 
-class WEventLoopSignalCallback(ASignalCallbackProto):
-    """ :class:`.ASignalCallbackProto` implementation that runs callback in a dedicated loop
+class WEventLoopSignalCallback(WSignalCallbackProto):
+    """ :class:`.WSignalCallbackProto` implementation that runs callback in a dedicated loop
     """
 
     @verify_type('strict', ev_loop=WEventLoop)
@@ -266,18 +264,18 @@ class WEventLoopSignalCallback(ASignalCallbackProto):
         :type ev_loop: WEventLoop
 
         :param callback: callback that should be executed
-        :type callback: callable (like ASignalCallbackProto or any)
+        :type callback: callable (like WSignalCallbackProto or any)
         """
-        ASignalCallbackProto.__init__(self)
+        WSignalCallbackProto.__init__(self)
         self.__ev_loop = ev_loop
         self.__callback = callback
 
     def is_callback(self, callback):
         return self.__callback is callback or (ismethod(callback) and self.__callback == callback)
 
-    @verify_type('strict', signal_source=ASignalSourceProto, signal=WSignal)
+    @verify_type('strict', signal_source=WSignalSourceProto, signal=WSignal)
     def __call__(self, signal_source, signal, signal_value=None):
-        """ :meth:`.ASignalCallbackProto.__call__` implementation
+        """ :meth:`.WSignalCallbackProto.__call__` implementation
         """
         self.__ev_loop.notify(functools.partial(self.__callback, signal_source, signal, signal_value=signal_value))
 
