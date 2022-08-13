@@ -3,7 +3,17 @@
 
 def python_version = params.getOrDefault("python_version", "3.9")
 def python_image = "python:${python_version}"
-def python_container_cmd = '-u root -v ${WORKSPACE}@tmp:/workspace -v ${WORKSPACE}:/sources'
+def python_container_cmd = ''' \
+  -u root
+  -v ${WORKSPACE}@tmp:/workspace \
+  -v ${WORKSPACE}:/sources \
+  -e WASP_ENABLE_CHECKS \
+  -e COVERALLS_REPO_TOKEN \
+  -e BUILD_NUMBER \
+  -e GIT_BRANCH \
+  -e CI_PULL_REQUEST \
+  -e PYTHONPATH=.. \
+  '''
 
 
 def telegram_notification(message) {
@@ -47,10 +57,11 @@ pipeline {
     stage('Install'){
       steps {
         script {
-            docker.image(python_image).inside(python_container_cmd){
-                sh "cd /sources && /workspace/venv/bin/pip install -r requirements.txt"
-                sh "cd /sources && /workspace/venv/bin/pip install -v '.[all]'"
-            }
+          docker.image(python_image).inside(python_container_cmd){
+            sh "cd /sources && /workspace/venv/bin/pip install -r requirements.txt"
+            sh "cd /sources && /workspace/venv/bin/pip install -v '.[all,test]'"  // test should be
+            // set explicitly for the Python:3.6 (check!)
+          }
         }
       }
     }
@@ -58,9 +69,14 @@ pipeline {
     stage('Test'){
       steps {
         script {
+          withCredentials([
+            string(credentialsId: 'coverallsToken', variable: 'COVERALLS_REPO_TOKEN'),
+          ]){
             docker.image(python_image).inside(python_container_cmd){
-                sh "cd /sources && /workspace/venv/bin/python ./setup.py test"
+              sh "cd /sources/tests && /workspace/venv/bin/py.test -c pytest-cov.ini"
+              sh "cd /sources/tests && /workspace/venv/bin/coveralls --service=jenkins --basedir=/sources"
             }
+          }
         }
       }
     }
@@ -77,6 +93,14 @@ pipeline {
   }  // stages
 
   post {
+
+    always {
+      script{
+        docker.image(python_image).inside(python_container_cmd){
+          sh "rm -rf /workspace/venv/"
+        }
+      }
+    }
 
     fixed { 
       script {
