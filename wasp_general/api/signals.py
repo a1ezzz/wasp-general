@@ -259,13 +259,19 @@ class WSignalSource(WSignalSourceProto, metaclass=WSignalSourceMeta):
             raise ValueError('Signal does not have the specified callback')
 
 
+class WExceptionHandler(metaclass=ABCMeta):
+    @abstractmethod
+    def __call__(self, exception, callback, signal_source, signal, signal_value=None):
+        raise NotImplementedError('This method is abstract')
+
+
 class WEventLoopSignalCallback(WSignalCallbackProto):
     """ :class:`.WSignalCallbackProto` implementation that runs callback in a dedicated loop
     """
 
-    @verify_type('strict', ev_loop=WEventLoop)
+    @verify_type('strict', ev_loop=WEventLoop, exc_handler=(WExceptionHandler, None))
     @verify_value('strict', callback=lambda x: callable(x))
-    def __init__(self, ev_loop, callback):
+    def __init__(self, ev_loop, callback, exc_handler=None):
         """ Create new callback
 
         :param ev_loop: a loop with which callbacks should be executed
@@ -277,6 +283,7 @@ class WEventLoopSignalCallback(WSignalCallbackProto):
         WSignalCallbackProto.__init__(self)
         self.__ev_loop = ev_loop
         self.__callback = callback
+        self.__exc_handler = exc_handler
 
     def is_callback(self, callback):
         return self.__callback is callback or (ismethod(callback) and self.__callback == callback)
@@ -285,14 +292,26 @@ class WEventLoopSignalCallback(WSignalCallbackProto):
     def __call__(self, signal_source, signal, signal_value=None):
         """ :meth:`.WSignalCallbackProto.__call__` implementation
         """
-        self.__ev_loop.notify(functools.partial(self.__callback, signal_source, signal, signal_value=signal_value))
+        self.__ev_loop.notify(
+            functools.partial(self.__exec_callback, signal_source, signal, signal_value=signal_value)
+        )
+
+    def __exec_callback(self, signal_source, signal, signal_value=None):
+        try:
+            self.__callback(signal_source, signal, signal_value=signal_value)
+        except Exception as e:
+            if self.__exc_handler:
+                self.__exc_handler(e, self.__callback, signal_source, signal, signal_value=signal_value)
+            else:
+                raise
 
 
 class WEventLoopCallbacks:
 
-    def __init__(self, loop=None):
+    def __init__(self, loop=None, exc_handler=None):
         self.__loop = loop if loop is not None else WEventLoop()
         self.__callbacks = WeakKeyDictionary()
+        self.__exc_handler = exc_handler
 
     def loop(self):
         return self.__loop
@@ -301,7 +320,7 @@ class WEventLoopCallbacks:
         self.__callbacks.clear()
 
     def register(self, source, signal, callback):
-        callback = WEventLoopSignalCallback(self.__loop, callback)
+        callback = WEventLoopSignalCallback(self.__loop, callback, exc_handler=self.__exc_handler)
         source.callback(signal, callback)
         source_callbacks = self.__callbacks.setdefault(source, [])
         source_callbacks.append((signal, callback))
@@ -322,5 +341,5 @@ class WEventLoopCallbacks:
     def proxy(self, source, source_signal, proxy, proxy_signal):
         def callback_fn(signal_source, signal, signal_value=None):
             proxy.emit(proxy_signal, signal_value)
-        callback = WEventLoopSignalCallback(self.__loop, callback_fn)
+        callback = WEventLoopSignalCallback(self.__loop, callback_fn, exc_handler=self.__exc_handler)
         self.register(source, source_signal, callback)
