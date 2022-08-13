@@ -4,7 +4,7 @@ import enum
 import pytest
 
 from wasp_general.api.capability import WCapabilityDescriptor, iscapable, WCapabilitiesHolderMeta
-from wasp_general.api.signals import ASignalSourceProto, WSignalSourceMeta
+from wasp_general.api.signals import WSignalSourceProto, WSignalSourceMeta
 
 from wasp_general.api.task.proto import WRequirementsLoopError, WDependenciesLoopError, WTaskStartError, WTaskStopError
 from wasp_general.api.task.proto import WNoSuchTaskError, WCapabilitiesSignalsMeta, WTaskResult, WTaskProto
@@ -149,7 +149,7 @@ class TestWScheduleSourceProto:
 
     def test(self):
         source = WScheduleSourceProto()
-        assert(isinstance(source, ASignalSourceProto) is True)
+        assert(isinstance(source, WSignalSourceProto) is True)
         source.emit(WScheduleSourceProto.task_scheduled, TestWScheduleRecordProto.Record())
 
 
@@ -183,10 +183,10 @@ class TestWSchedulerProto:
             pass
 
     def test(self):
-        assert(issubclass(WSchedulerProto, ASignalSourceProto) is True)
+        assert(issubclass(WSchedulerProto, WSignalSourceProto) is True)
 
         scheduler = TestWSchedulerProto.Scheduler()
-        assert(isinstance(scheduler, ASignalSourceProto) is True)
+        assert(isinstance(scheduler, WSignalSourceProto) is True)
 
         scheduler.emit(WSchedulerProto.task_scheduled, TestWScheduleRecordProto.Record())
         scheduler.emit(WSchedulerProto.scheduled_task_dropped, TestWScheduleRecordProto.Record())
