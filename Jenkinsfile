@@ -74,7 +74,7 @@ pipeline {
           ]){
             docker.image(python_image).inside(python_container_cmd){
               sh "cd /sources/tests && /workspace/venv/bin/py.test -c pytest-cov.ini"
-              sh "cd /sources/tests && /workspace/venv/bin/coveralls --verbose --service=jenkins"
+              sh "cd /sources/tests && /workspace/venv/bin/coveralls --service=jenkins --basedir=/sources"
             }
           }
         }
