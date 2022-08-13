@@ -49,7 +49,8 @@ pipeline {
         script {
             docker.image(python_image).inside(python_container_cmd){
                 sh "cd /sources && /workspace/venv/bin/pip install -r requirements.txt"
-                sh "cd /sources && /workspace/venv/bin/pip install -v '.[all]'"
+                sh "cd /sources && /workspace/venv/bin/pip install -v '.[all,test]'"  // test should be
+                // set explicitly for the Python:3.6 (check!)
             }
         }
       }
