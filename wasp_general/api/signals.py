@@ -33,6 +33,8 @@ class WSignal:
     """ A signal that may be sent within wasp_general.api.signals methods
     """
 
+    __wasp_signal_name__ = None
+
     def __init__(self, *checks):
         """ Create a new (and unique) signal. Every object represent a unique signal
 
@@ -69,6 +71,11 @@ class WSignal:
         :rtype: bool
         """
         return id(other) == id(self)
+
+    def __repr__(self):
+        if self.__wasp_signal_name__:
+            return self.__wasp_signal_name__
+        return object.__repr__(self)
 
 
 class WSignalSourceProto(metaclass=ABCMeta):
@@ -191,6 +198,7 @@ class WSignalSourceMeta(ABCMeta):
                                 ' (found at the base class %s)'
                                 % (class_attr, str(cls), str(base_class))
                             )
+                        base_class_attr_value.__wasp_signal_name__ = '{}.{}'.format(base_class.__name__, class_attr)
                     except AttributeError:
                         pass
                 cls.__wasp_signals__.add(class_attr_value)
