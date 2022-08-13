@@ -9,6 +9,9 @@ def python_container_cmd = ''' \
   -v ${WORKSPACE}:/sources \
   -e WASP_ENABLE_CHECKS \
   -e COVERALLS_REPO_TOKEN \
+  -e BUILD_NUMBER \
+  -e GIT_BRANCH \
+  -e CI_PULL_REQUEST \
   -e PYTHONPATH=.. \
   '''
 
