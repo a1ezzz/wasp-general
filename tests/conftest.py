@@ -32,7 +32,7 @@ def temp_dir(request):
 
 @pytest.fixture
 def wasp_signals(request):
-	wev_loop = WEventLoop()
+	wev_loop = WEventLoop(immediate_stop=False)
 	thread = Thread(target=wev_loop.start_loop)
 	thread.start()
 
