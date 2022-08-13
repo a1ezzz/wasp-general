@@ -3,8 +3,14 @@
 
 def python_version = params.getOrDefault("python_version", "3.9")
 def python_image = "python:${python_version}"
-def python_container_cmd = '-u root -v ${WORKSPACE}@tmp:/workspace -v ${WORKSPACE}:/sources' \
-  '-e WASP_ENABLE_CHECKS -e COVERALLS_REPO_TOKEN -e PYTHONPATH=..'
+def python_container_cmd = ''' \
+  -u root
+  -v ${WORKSPACE}@tmp:/workspace \
+  -v ${WORKSPACE}:/sources \
+  -e WASP_ENABLE_CHECKS \
+  -e COVERALLS_REPO_TOKEN \
+  -e PYTHONPATH=.. \
+  '''
 
 
 def telegram_notification(message) {
