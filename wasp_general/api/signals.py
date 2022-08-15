@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # wasp_general/api/signals.py
 #
-# Copyright (C) 2019, 2021, 2022 the wasp-general authors and contributors
+# Copyright (C) 2019, 2021-2022 the wasp-general authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of wasp-general.
@@ -38,8 +38,8 @@ class WSignal:
     def __init__(self, *checks):
         """ Create a new (and unique) signal. Every object represent a unique signal
 
-        :param checks: types or callables that signal value (that sent with a signal) must comply. Types are optional
-        classes that signal value must be derivied from. Callables (functions or methods) checks values, each function
+        :param checks: types or callables that signal value (that sent within a signal) must comply. Types are optional
+        classes that signal value must be derived from. Callables (functions or methods) check values, each function
         return True if value is suitable and False otherwise
         :type checks: type | callable
         """
@@ -47,10 +47,13 @@ class WSignal:
         self.__check_functions = tuple({x for x in checks if isfunction(x) or ismethod(x)})
 
     def check_value(self, value):
-        """ Check value and raise exceptions (TypeError or ValueError) is value is invalid
+        """ Check value and raise exceptions (TypeError or ValueError) if value is invalid
 
         :param value: value that is checked whether it may or may not be sent with this signal
         :type value: any
+
+        :raises TypeError: if a value's type differ from types that are specified for this signal
+        :raises ValueError: if a value's value does not comply with checks functions
 
         :rtype: None
         """
@@ -73,6 +76,11 @@ class WSignal:
         return id(other) == id(self)
 
     def __repr__(self):
+        """ Because each signal is unique, it is much simpler to show its identifier in debug messages instead of an
+        object's memory location
+
+        :rtype: str
+        """
         if self.__wasp_signal_name__:
             return self.__wasp_signal_name__
         return object.__repr__(self)
@@ -105,7 +113,7 @@ class WSignalSourceProto(metaclass=ABCMeta):
         """ Register a callback that will be executed when new signal is sent
 
         :param signal: signal that will trigger a callback
-        :type signal:WSignal
+        :type signal: WSignal
 
         :param callback: callback that must be executed
         :type callback: callable (like WSignalCallbackProto)
@@ -132,7 +140,7 @@ class WSignalSourceProto(metaclass=ABCMeta):
 
 
 class WSignalCallbackProto(metaclass=ABCMeta):
-    """ An example of class that may receive signals
+    """ An example of class that may receive signals (callback signature)
     """
 
     @abstractmethod
@@ -156,14 +164,14 @@ class WSignalCallbackProto(metaclass=ABCMeta):
 
 
 class WUnknownSignalException(Exception):
-    """ This exception may be raised if there was a request to signal source with unsupported signal name. Usually it
-    means that signal source is not able to send such signal.
+    """ This exception may be raised if there was a request to amit an unknown signal. Usually it means that signal
+    source is not able to send such signal.
     """
     pass
 
 
 class WSignalSourceMeta(ABCMeta):
-    """ This class helps to track signals defined for the class
+    """ This class helps to manage signals defined for the class
     """
 
     def __new__(mcs, name, bases, namespace, **kwargs):
@@ -201,6 +209,8 @@ class WSignalSourceMeta(ABCMeta):
                         base_class_attr_value.__wasp_signal_name__ = '{}.{}'.format(base_class.__name__, class_attr)
                     except AttributeError:
                         pass
+                if not class_attr_value.__wasp_signal_name__:
+                    class_attr_value.__wasp_signal_name__ = '{}.{}'.format(cls.__name__, class_attr)
                 cls.__wasp_signals__.add(class_attr_value)
 
 
@@ -218,18 +228,17 @@ class WSignalSource(WSignalSourceProto, metaclass=WSignalSourceMeta):
     @verify_type('strict', signal=WSignal)
     def emit(self, signal, signal_value=None):
         """ :meth:`.WSignalSourceProto.emit` implementation
+
+        :type signal: WSignal
+        :type signal_value: any
+        :rtype: None
         """
         try:
             callbacks = self.__callbacks[signal]
         except KeyError:
             raise WUnknownSignalException('Unknown signal emitted')
 
-        try:
-            signal.check_value(signal_value)
-        except TypeError:
-            raise TypeError('Unable to send a signal. Signal type is invalid')
-        except ValueError:
-            raise ValueError('Unable to send a signal. Signal value is invalid')
+        signal.check_value(signal_value)
 
         for c in callbacks:
             if c is not None:
@@ -239,6 +248,9 @@ class WSignalSource(WSignalSourceProto, metaclass=WSignalSourceMeta):
     @verify_value('strict', callback=lambda x: callable(x))
     def callback(self, signal, callback):
         """ :meth:`.WSignalSourceProto.callback` implementation
+        :type signal: WSignal
+        :type callback: callable (like WSignalCallbackProto)
+        :rtype: None
         """
         try:
             self.__callbacks[signal].add(callback)
@@ -251,22 +263,50 @@ class WSignalSource(WSignalSourceProto, metaclass=WSignalSourceMeta):
     @verify_value('strict', callback=lambda x: callable(x))
     def remove_callback(self, signal, callback):
         """ :meth:`.WSignalSourceProto.remove_callback` implementation
+
+        :type signal: WSignal
+        :type callback: callable
+        :rtype: None
         """
         try:
             callbacks = self.__callbacks[signal]
             callbacks.remove(callback)
         except KeyError:
-            raise ValueError('Signal does not have the specified callback')
+            raise WUnknownSignalException('Signal does not have the specified callback')
 
 
 class WExceptionHandler(metaclass=ABCMeta):
+    """ This handler helps to react for exceptions that were caused by calling a callback
+
+    see also :class:`.WEventLoopSignalCallback`, :class:`.WEventLoopCallbacksStorage`
+    """
+
     @abstractmethod
+    @verify_type('strict', exception=Exception, source=WSignalSourceProto, signal=WSignal)
+    @verify_value('strict', callback=lambda x: callable(x))
     def __call__(self, exception, callback, signal_source, signal, signal_value=None):
+        """ Handle a raised exception
+
+        :param exception: exception that was raised
+        :type exception: Exception
+
+        :param callback: callback that caused an exception
+        :type callback: callable
+
+        :param signal_source: signal source that cause a calling callback that cause an exception
+        :type signal_source: WSignalSourceProto
+
+        :param signal: signal that cause a calling callback that cause an exception
+        :type signal: WSignal
+
+        :param signal_value: signal value that was passed within a signal
+        :type signal_value: any
+        """
         raise NotImplementedError('This method is abstract')
 
 
 class WEventLoopSignalCallback(WSignalCallbackProto):
-    """ :class:`.WSignalCallbackProto` implementation that runs callback in a dedicated loop
+    """ :class:`.WSignalCallbackProto` implementation that runs callback in a dedicated event loop
     """
 
     @verify_type('strict', ev_loop=WEventLoop, exc_handler=(WExceptionHandler, None))
@@ -279,24 +319,49 @@ class WEventLoopSignalCallback(WSignalCallbackProto):
 
         :param callback: callback that should be executed
         :type callback: callable (like WSignalCallbackProto or any)
+
+        :param exc_handler: if specified, then this handler will be used to manage exceptions from a callback
+        :type exc_handler: WExceptionHandler | None
         """
         WSignalCallbackProto.__init__(self)
         self.__ev_loop = ev_loop
         self.__callback = callback
         self.__exc_handler = exc_handler
 
+    @verify_value('strict', callback=lambda x: callable(x))
     def is_callback(self, callback):
+        """ Check that the given callback is the same as this object holds
+
+        :param callback: callback to check
+        :type callback: callable
+
+        :rtype: bool
+        """
         return self.__callback is callback or (ismethod(callback) and self.__callback == callback)
 
     @verify_type('strict', signal_source=WSignalSourceProto, signal=WSignal)
     def __call__(self, signal_source, signal, signal_value=None):
         """ :meth:`.WSignalCallbackProto.__call__` implementation
+
+        :type signal_source: WSignalSourceProto
+        :type signal: WSignal
+        :type signal_value: any
+        :rtype: None
         """
         self.__ev_loop.notify(
             functools.partial(self.__exec_callback, signal_source, signal, signal_value=signal_value)
         )
 
+    @verify_type('strict', signal_source=WSignalSourceProto, signal=WSignal)
     def __exec_callback(self, signal_source, signal, signal_value=None):
+        """ A real callback for an event loop. This callback may manage all exceptions that were raised by a callback
+        Method signature is the same as the `.WSignalCallbackProto.__call__` method
+
+        :type signal_source: WSignalSourceProto
+        :type signal: WSignal
+        :type signal_value: any
+        :rtype: None
+        """
         try:
             self.__callback(signal_source, signal, signal_value=signal_value)
         except Exception as e:
@@ -306,26 +371,84 @@ class WEventLoopSignalCallback(WSignalCallbackProto):
                 raise
 
 
-class WEventLoopCallbacks:
+class WEventLoopCallbacksStorage:
+    """ Sometimes callbacks are generated during a runtime, it means that such callback may be difficult to use because
+    signal sources linked with callbacks via weak references. This class helps to store and manage such callbacks.
+    Besides that, sometimes it is better to have in a single place where some set of callbacks are stored
 
+    :note: When an original source is removed (garbage collected) callbacks to that source are removed from this
+    class also.
+
+    :note: All the callbacks that were registered with this class will be executed in a dedicated event loop
+    """
+
+    @verify_type('strict', loop=(WEventLoop, None), exc_handler=(WExceptionHandler, None))
     def __init__(self, loop=None, exc_handler=None):
+        """ Create a storage
+
+        :param loop: a loop with which callbacks will be executed, if not set, then a new one is created
+        :type loop: WEventLoop | None
+
+        :param exc_handler: handler to manage exceptions (optional)
+        :type exc_handler: WExceptionHandler | None
+        """
         self.__loop = loop if loop is not None else WEventLoop()
         self.__callbacks = WeakKeyDictionary()
         self.__exc_handler = exc_handler
 
     def loop(self):
+        """ Return a loop with which callbacks are executed
+
+        :rtype: WEventLoop
+        """
         return self.__loop
 
     def clear(self):
+        """ Remove all the callbacks that this object holds
+
+        :rtype: None
+        """
         self.__callbacks.clear()
 
+    @verify_type('strict', source=WSignalSourceProto, signal=WSignal)
+    @verify_value('strict', callback=lambda x: callable(x))
     def register(self, source, signal, callback):
+        """ Save a callback and "subscribe" a callback to a signal
+
+        :param source: signal source that emits a signal to handle
+        :type source: WSignalSourceProto
+
+        :param signal: signal which should be handled by a callback
+        :type signal: WSignal
+
+        :param callback: callback for a signal
+        :type callback: callable
+
+        :rtype: None
+        """
         callback = WEventLoopSignalCallback(self.__loop, callback, exc_handler=self.__exc_handler)
         source.callback(signal, callback)
         source_callbacks = self.__callbacks.setdefault(source, [])
         source_callbacks.append((signal, callback))
 
+    @verify_type('strict', source=WSignalSourceProto, signal=WSignal)
+    @verify_value('strict', callback=lambda x: callable(x))
     def unregister(self, source, signal, callback):
+        """ Forget about a callback and "unsubscribe" it from a signal
+
+        :param source: signal source that was "subscribed" before
+        :type source: WSignalSourceProto
+
+        :param signal: signal that was "subscribed" before
+        :type signal: WSignal
+
+        :param callback: callback to remove
+        :type callback: callable
+
+        :raise ValueError: if callback is not linked with the signal
+
+        :rtype: None
+        """
         source_callbacks = self.__callbacks.get(source)
         if source_callbacks:
             for i, callback_pair in enumerate(source_callbacks):
@@ -338,8 +461,28 @@ class WEventLoopCallbacks:
                     return
         raise ValueError('Callback was not found')
 
+    @verify_type('strict', source=WSignalSourceProto, source_signal=WSignal)
+    @verify_type('strict', proxy=WSignalSourceProto, proxy_signal=WSignal)
     def proxy(self, source, source_signal, proxy, proxy_signal):
+        """ Generate, save and return a callback that will resend a signal from other source. Signal value will be
+        passed as is
+
+        :param source: original source of a signal
+        :type source: WSignalSourceProto
+
+        :param source_signal: original signal
+        :type source_signal: WSignal
+
+        :param proxy: signal source that should emit a new signal
+        :type proxy: WSignalSourceProto
+
+        :param proxy_signal: a new signal to send from a new source
+        :type proxy_signal: WSignal
+
+        :rtype: callable
+        """
         def callback_fn(signal_source, signal, signal_value=None):
             proxy.emit(proxy_signal, signal_value)
         callback = WEventLoopSignalCallback(self.__loop, callback_fn, exc_handler=self.__exc_handler)
         self.register(source, source_signal, callback)
+        return callback_fn
