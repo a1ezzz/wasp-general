@@ -63,6 +63,8 @@ class TestWTaskResult:
         task_result = WTaskResult(result=result, exception=exc)
         assert(task_result.result is result)
         assert(task_result.exception is exc)
+        assert(repr(task_result) != object.__repr__(task_result))  # just check that there is
+        # overridden method
 
 
 class TestWTaskProto:

@@ -87,6 +87,14 @@ class WTaskResult:
     result: typing.Any = None        # a result of completed record (if any)
     exception: BaseException = None  # an exception raised within a task (if any)
 
+    def __repr__(self):
+        """ This implementation return string with a result details
+        :rtype: str
+        """
+        return '{}[{}, {}]'.format(
+            object.__repr__(self), self.result, self.exception
+        )
+
 
 class WTaskProto(WSignalSource, WCapabilitiesHolder, metaclass=WCapabilitiesSignalsMeta):
     """ Basic task prototype. Derived classes must implement the only thing - :meth:`WTaskProto.start`
