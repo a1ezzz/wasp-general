@@ -21,17 +21,16 @@
 
 from decorator import decorator
 import enum
-from threading import Lock
 
 from wasp_general.api.capability import WCapabilityDescriptor
-from wasp_general.thread import acquire_lock
+from wasp_general.thread import WCriticalResource, WCriticalSectionError
 from wasp_general.verify import verify_type, verify_value
 
 from wasp_general.api.task.proto import WTaskResult, WTaskProto, WTaskStartError, WTaskStopError
 
 
 # noinspection PyAbstractClass
-class WSingleStateTask(WTaskProto):
+class WSingleStateTask(WTaskProto, WCriticalResource):
     """ This class helps to implement a basic task. Response for signals routine and "locks" start, stop and terminate
     methods in order to protect simultaneous calls
     """
@@ -56,8 +55,8 @@ class WSingleStateTask(WTaskProto):
         :type detachable: bool
         """
         WTaskProto.__init__(self)
+        WCriticalResource.__init__(self)
         self.__detachable = detachable
-        self.__lock = Lock()
         self.__state = WSingleStateTask.TaskState.stopped
 
     def __getattribute__(self, item):
@@ -77,25 +76,26 @@ class WSingleStateTask(WTaskProto):
         """ Decorate the :meth:`. WTaskProto.start` method
         """
         def decorator_fn(original_fn, *args, **kwargs):
-            if acquire_lock(self.__lock, timeout=-1):
-                try:
+            try:
+                with self.critical_context(timeout=-1):
                     self._switch_task_state(WSingleStateTask.TaskState.started)
                     result = original_fn(*args, **kwargs)
-                except Exception as e:
-                    if not self.__detachable:
-                        self._switch_task_state(
-                            WSingleStateTask.TaskState.completed, task_result=WTaskResult(exception=e)
-                        )
-                    raise
-                else:
-                    if not self.__detachable:
-                        self._switch_task_state(
-                            WSingleStateTask.TaskState.completed, task_result=WTaskResult(result=result)
-                        )
-                    return result
-                finally:
-                    self.__lock.release()
-            raise WTaskStartError('Unable to start task because other start/stop/terminate request in progress')
+            except WCriticalSectionError:
+                raise WTaskStartError(
+                    'Unable to start task because other operation (like start, stop or terminate) in progress'
+                )
+            except Exception as e:
+                if not self.__detachable:
+                    self._switch_task_state(
+                        WSingleStateTask.TaskState.completed, task_result=WTaskResult(exception=e)
+                    )
+                raise
+            else:
+                if not self.__detachable:
+                    self._switch_task_state(
+                        WSingleStateTask.TaskState.completed, task_result=WTaskResult(result=result)
+                    )
+                return result
         return decorator(decorator_fn)(decorated_fn)
 
     @verify_type('strict', state=TaskState)
@@ -105,17 +105,15 @@ class WSingleStateTask(WTaskProto):
         """
 
         def decorator_fn(original_fn, *args, **kwargs):
-
-            if acquire_lock(self.__lock, timeout=-1):
-                try:
+            try:
+                with self.critical_context(timeout=-1):
                     result = original_fn(*args, **kwargs)
                     self._switch_task_state(state)
                     return result
-                finally:
-                    self.__lock.release()
-            raise WTaskStopError(
-                'Unable to stop/terminate task because other start/stop/terminate request in progress'
-            )
+            except WCriticalSectionError:
+                raise WTaskStopError(
+                    'Unable to stop/terminate task because other operation (like start, stop or terminate) in progress'
+                )
         return decorator(decorator_fn)(decorated_fn)
 
     def task_state(self):
